@@ -1,0 +1,1215 @@
+asyncapi: 3.0.0
+info:
+  title: vendor-connectivity Domain Events
+  version: 1.0.0
+  contact:
+    name: vendor-connectivity maintainers
+    url: https://github.com/IQVO/vendor-connectivity
+    email: vendor-connectivity@iqvo.example.com
+  license:
+    name: UNLICENSED
+  tags:
+  - name: vendor-connectivity
+    description: The vendor-connectivity bounded context (retail network, partner tier).
+  - name: vendoraccount
+    description: Events raised by the VendorAccount aggregate.
+  - name: purchaseorder
+    description: Events raised by the PurchaseOrder aggregate.
+  - name: submission
+    description: Events raised by the Submission aggregate.
+  description: |
+    Event catalog for the **vendor-connectivity** bounded context of the retail network (partner tier):
+    the Open Host Service for vendors that operate fulfillment nodes. The Vendor API itself is `apis/openapi.yaml`;
+    vendors never see these events, the in-organization contexts do.
+
+    **Published.** Ten types. Nine go to `retailnetwork.vendor-connectivity.events` and `PurchaseOrderCancelled` goes ONLY to
+    `retailnetwork.vendor-connectivity.analytics` (the model marks it analytics only). Every event leaves through a
+    **transactional outbox**: the aggregate row, the submission row and the already-encoded events are written in ONE database
+    transaction and an always-on relay drains them to Kafka (at-least-once; the CloudEvents `id` is stored with the outbox row, so a retry
+    republishes the same `id`). The types are catalogued in ADR 0004.
+
+    **Consumed.** Eight types from three producers (ADR 0003): node-topology `NodeRegistered`, `NodeOperationalProfileDeclared`,
+    `NodeActivated`, `NodeSuspended`, `NodeRetired`; offer-availability `ListingCreated`; order-sourcing `FulfillmentReleasedToNode`,
+    `FulfillmentCancelled`. Each is deduplicated on the CloudEvents `id` in the `processed_events` inbox table, dispatched on the full
+    `type`, decoded tolerantly (unknown fields are ignored) and dead-lettered to `<topic>.dlq` when it cannot be processed.
+    The consumed `data` below lists only the fields this context relies on.
+
+    **Envelope (mandatory).** CloudEvents 1.0, structured content mode, Kafka header `content-type: application/cloudevents+json; charset=UTF-8`.
+    `specversion`, `id`, `source` (`/retailnetwork/vendor-connectivity`), `type`, `subject` (the aggregate root id: `vendorId`, `poNumber` or
+    `transactionId`), `time`, `datacontenttype` (`application/json`) and `dataschema`
+    (`urn:retailnetwork:vendor-connectivity:<stream>:<EventName>:v1`, stream `events` or `analytics`) are all required. Kafka key = the subject,
+    so one purchase order's events stay ordered on one partition. Type = `com.retailnetwork.partner.vendor-connectivity.<entity>.<EventName>`
+    with entity `vendoraccount`, `purchaseorder` or `submission`.
+
+    **Conventions.** `data` is camelCase; timestamps are RFC 3339 UTC; optional fields are omitted when absent (never null); arrays are always
+    present. No event carries a ship-to address, name or phone.
+servers:
+  production:
+    host: '{brokers}'
+    protocol: kafka
+    description: Retail-network Kafka broker (host supplied by the deployment environment via KAFKA_BROKERS).
+    variables:
+      brokers:
+        default: kafka.retail-network.internal:9092
+defaultContentType: application/cloudevents+json
+channels:
+  vendorConnectivityEvents:
+    address: retailnetwork.vendor-connectivity.events
+    title: vendor-connectivity integration topic
+    description: This service's integration topic, written by the outbox relay; key = subject. Every message carries the CloudEvents content-type header. Dispatch
+      on the full `type`, ignore unknown types, dedupe on `id`.
+    messages:
+      VendorOnboarded:
+        $ref: '#/components/messages/VendorOnboarded'
+      VendorSuspended:
+        $ref: '#/components/messages/VendorSuspended'
+      VendorReinstated:
+        $ref: '#/components/messages/VendorReinstated'
+      PurchaseOrderIssued:
+        $ref: '#/components/messages/PurchaseOrderIssued'
+      PurchaseOrderAccepted:
+        $ref: '#/components/messages/PurchaseOrderAccepted'
+      PurchaseOrderRejected:
+        $ref: '#/components/messages/PurchaseOrderRejected'
+      PurchaseOrderExpired:
+        $ref: '#/components/messages/PurchaseOrderExpired'
+      VendorShipmentConfirmed:
+        $ref: '#/components/messages/VendorShipmentConfirmed'
+      SubmissionProcessed:
+        $ref: '#/components/messages/SubmissionProcessed'
+  vendorConnectivityAnalytics:
+    address: retailnetwork.vendor-connectivity.analytics
+    title: vendor-connectivity analytics topic
+    description: Analytics-only events. No context consumes them.
+    messages:
+      PurchaseOrderCancelled:
+        $ref: '#/components/messages/PurchaseOrderCancelled'
+  nodeTopologyEvents:
+    address: retailnetwork.node-topology.events
+    title: node-topology integration topic
+    description: The node-topology integration topic, consumed under the mandatory consumer group `VENDOR_CONNECTIVITY_CONSUMER_GROUP`.
+    messages:
+      NodeRegistered:
+        $ref: '#/components/messages/NodeRegistered'
+      NodeOperationalProfileDeclared:
+        $ref: '#/components/messages/NodeOperationalProfileDeclared'
+      NodeActivated:
+        $ref: '#/components/messages/NodeActivated'
+      NodeSuspended:
+        $ref: '#/components/messages/NodeSuspended'
+      NodeRetired:
+        $ref: '#/components/messages/NodeRetired'
+  offerAvailabilityEvents:
+    address: retailnetwork.offer-availability.events
+    title: offer-availability integration topic
+    description: The offer-availability integration topic, consumed under the mandatory consumer group `VENDOR_CONNECTIVITY_CONSUMER_GROUP`.
+    messages:
+      ListingCreated:
+        $ref: '#/components/messages/ListingCreated'
+  orderSourcingEvents:
+    address: retailnetwork.order-sourcing.events
+    title: order-sourcing integration topic
+    description: The order-sourcing integration topic, consumed under the mandatory consumer group `VENDOR_CONNECTIVITY_CONSUMER_GROUP`.
+    messages:
+      FulfillmentReleasedToNode:
+        $ref: '#/components/messages/FulfillmentReleasedToNode'
+      FulfillmentCancelled:
+        $ref: '#/components/messages/FulfillmentCancelled'
+operations:
+  publishVendorConnectivityEvents:
+    action: send
+    title: Publish vendor-connectivity integration events
+    summary: Publish the nine integration events through the transactional outbox.
+    description: The service sends every integration event of its three aggregates (VendorAccount, PurchaseOrder, Submission) to `retailnetwork.vendor-connectivity.events`.
+      Consumers route on the full `type`.
+    tags:
+    - name: vendor-connectivity
+    channel:
+      $ref: '#/channels/vendorConnectivityEvents'
+    messages:
+    - $ref: '#/channels/vendorConnectivityEvents/messages/VendorOnboarded'
+    - $ref: '#/channels/vendorConnectivityEvents/messages/VendorSuspended'
+    - $ref: '#/channels/vendorConnectivityEvents/messages/VendorReinstated'
+    - $ref: '#/channels/vendorConnectivityEvents/messages/PurchaseOrderIssued'
+    - $ref: '#/channels/vendorConnectivityEvents/messages/PurchaseOrderAccepted'
+    - $ref: '#/channels/vendorConnectivityEvents/messages/PurchaseOrderRejected'
+    - $ref: '#/channels/vendorConnectivityEvents/messages/PurchaseOrderExpired'
+    - $ref: '#/channels/vendorConnectivityEvents/messages/VendorShipmentConfirmed'
+    - $ref: '#/channels/vendorConnectivityEvents/messages/SubmissionProcessed'
+  publishVendorConnectivityAnalytics:
+    action: send
+    title: Publish vendor-connectivity analytics events
+    summary: Publish the analytics-only PurchaseOrderCancelled through the transactional outbox.
+    description: PurchaseOrderCancelled goes ONLY to `retailnetwork.vendor-connectivity.analytics`; no context consumes it.
+    tags:
+    - name: purchaseorder
+    channel:
+      $ref: '#/channels/vendorConnectivityAnalytics'
+    messages:
+    - $ref: '#/channels/vendorConnectivityAnalytics/messages/PurchaseOrderCancelled'
+  receiveNodeTopologyEvents:
+    action: receive
+    title: Receive node-topology events
+    summary: Receive the node-topology events this context relies on.
+    description: Consumes NodeRegistered, NodeOperationalProfileDeclared, NodeActivated, NodeSuspended and NodeRetired into the local VendorNodeView (Conformist).
+      NodeOperationalProfileDeclared supplies the handling time of `ackBy` (G4).
+    tags:
+    - name: vendor-connectivity
+    channel:
+      $ref: '#/channels/nodeTopologyEvents'
+    messages:
+    - $ref: '#/channels/nodeTopologyEvents/messages/NodeRegistered'
+    - $ref: '#/channels/nodeTopologyEvents/messages/NodeOperationalProfileDeclared'
+    - $ref: '#/channels/nodeTopologyEvents/messages/NodeActivated'
+    - $ref: '#/channels/nodeTopologyEvents/messages/NodeSuspended'
+    - $ref: '#/channels/nodeTopologyEvents/messages/NodeRetired'
+  receiveOfferAvailabilityEvents:
+    action: receive
+    title: Receive offer-availability events
+    summary: Receive the offer-availability events this context relies on.
+    description: Consumes ListingCreated into the local ListingView (Conformist).
+    tags:
+    - name: vendor-connectivity
+    channel:
+      $ref: '#/channels/offerAvailabilityEvents'
+    messages:
+    - $ref: '#/channels/offerAvailabilityEvents/messages/ListingCreated'
+  receiveOrderSourcingEvents:
+    action: receive
+    title: Receive order-sourcing events
+    summary: Receive the order-sourcing events this context relies on.
+    description: Consumes FulfillmentReleasedToNode (issues a purchase order for a VENDOR node) and FulfillmentCancelled (cancels the ISSUED purchase order of the
+      open release) (Customer/Supplier).
+    tags:
+    - name: vendor-connectivity
+    channel:
+      $ref: '#/channels/orderSourcingEvents'
+    messages:
+    - $ref: '#/channels/orderSourcingEvents/messages/FulfillmentReleasedToNode'
+    - $ref: '#/channels/orderSourcingEvents/messages/FulfillmentCancelled'
+components:
+  messages:
+    VendorOnboarded:
+      name: VendorOnboarded
+      title: VendorOnboarded
+      summary: A vendor account was onboarded (ACTIVE).
+      description: '`type` = `com.retailnetwork.partner.vendor-connectivity.vendoraccount.VendorOnboarded`; subject and key = `vendorId`; stream `events`. Raised
+        by OnboardVendor. Consumers: node-performance.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendoraccount
+      payload:
+        $ref: '#/components/schemas/VendorOnboardedEvent'
+      examples:
+      - name: vendorOnboarded
+        summary: A vendor account was onboarded (ACTIVE).
+        payload:
+          specversion: '1.0'
+          id: 9b2f4c1e-6a7d-4e0b-8f31-2c5d7a9e1b44
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.vendoraccount.VendorOnboarded
+          subject: V-WS
+          time: '2026-10-22T13:05:41Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:events:VendorOnboarded:v1
+          data:
+            vendorId: V-WS
+            name: Warehouse Systems
+            ackWindowMinutes: 240
+    VendorSuspended:
+      name: VendorSuspended
+      title: VendorSuspended
+      summary: A vendor account was suspended; its writes are refused until reinstated (G30).
+      description: '`type` = `com.retailnetwork.partner.vendor-connectivity.vendoraccount.VendorSuspended`; subject and key = `vendorId`; stream `events`. Raised
+        by SuspendVendor. Consumers: none yet (integration event).'
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendoraccount
+      payload:
+        $ref: '#/components/schemas/VendorSuspendedEvent'
+      examples:
+      - name: vendorSuspended
+        summary: A vendor account was suspended; its writes are refused until reinstated (G30).
+        payload:
+          specversion: '1.0'
+          id: 9b2f4c1e-6a7d-4e0b-8f31-2c5d7a9e1b44
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.vendoraccount.VendorSuspended
+          subject: V-WS
+          time: '2026-10-22T13:05:41Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:events:VendorSuspended:v1
+          data:
+            vendorId: V-WS
+            suspendedAt: '2026-10-22T13:00:00Z'
+            reason: contract review
+    VendorReinstated:
+      name: VendorReinstated
+      title: VendorReinstated
+      summary: A suspended vendor account was reinstated (G30).
+      description: '`type` = `com.retailnetwork.partner.vendor-connectivity.vendoraccount.VendorReinstated`; subject and key = `vendorId`; stream `events`. Raised
+        by ReinstateVendor. Consumers: none yet (integration event).'
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendoraccount
+      payload:
+        $ref: '#/components/schemas/VendorReinstatedEvent'
+      examples:
+      - name: vendorReinstated
+        summary: A suspended vendor account was reinstated (G30).
+        payload:
+          specversion: '1.0'
+          id: 9b2f4c1e-6a7d-4e0b-8f31-2c5d7a9e1b44
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.vendoraccount.VendorReinstated
+          subject: V-WS
+          time: '2026-10-22T13:05:41Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:events:VendorReinstated:v1
+          data:
+            vendorId: V-WS
+            reinstatedAt: '2026-10-22T15:00:00Z'
+    PurchaseOrderIssued:
+      name: PurchaseOrderIssued
+      title: PurchaseOrderIssued
+      summary: A purchase order was issued to a vendor node.
+      description: '`type` = `com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderIssued`; subject and key = `poNumber`; stream `events`. Raised
+        by IssuePurchaseOrder (policy IssueOnRelease). Consumers: node-performance.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: purchaseorder
+      payload:
+        $ref: '#/components/schemas/PurchaseOrderIssuedEvent'
+      examples:
+      - name: purchaseOrderIssued
+        summary: A purchase order was issued to a vendor node.
+        payload:
+          specversion: '1.0'
+          id: 9b2f4c1e-6a7d-4e0b-8f31-2c5d7a9e1b44
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderIssued
+          subject: PO-3b9f1c0a7d2e4a18
+          time: '2026-10-22T13:05:41Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:events:PurchaseOrderIssued:v1
+          data:
+            poNumber: PO-3b9f1c0a7d2e4a18
+            vendorId: V-WS
+            nodeId: node-0f3a91
+            assignmentId: asg-41d2
+            releaseNo: 1
+            requiredShipBy: '2026-10-22T18:00:00Z'
+            ackBy: '2026-10-22T16:00:00Z'
+            lines:
+            - lineNo: 1
+              listingId: lst-77
+              quantity: 2
+    PurchaseOrderAccepted:
+      name: PurchaseOrderAccepted
+      title: PurchaseOrderAccepted
+      summary: The vendor accepted the purchase order in full; the acknowledgement transaction succeeded.
+      description: '`type` = `com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderAccepted`; subject and key = `poNumber`; stream `events`. Raised
+        by ProcessSubmission (ACCEPT, SUCCESS). Consumers: order-sourcing, node-performance.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: purchaseorder
+      payload:
+        $ref: '#/components/schemas/PurchaseOrderAcceptedEvent'
+      examples:
+      - name: purchaseOrderAccepted
+        summary: The vendor accepted the purchase order in full; the acknowledgement transaction succeeded.
+        payload:
+          specversion: '1.0'
+          id: 9b2f4c1e-6a7d-4e0b-8f31-2c5d7a9e1b44
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderAccepted
+          subject: PO-3b9f1c0a7d2e4a18
+          time: '2026-10-22T13:05:41Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:events:PurchaseOrderAccepted:v1
+          data:
+            poNumber: PO-3b9f1c0a7d2e4a18
+            assignmentId: asg-41d2
+            releaseNo: 1
+            nodeId: node-0f3a91
+            acceptedAt: '2026-10-22T13:05:41Z'
+            transactionId: tx-9b2f4c1e
+    PurchaseOrderRejected:
+      name: PurchaseOrderRejected
+      title: PurchaseOrderRejected
+      summary: The vendor rejected the purchase order in full; the acknowledgement transaction succeeded.
+      description: '`type` = `com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderRejected`; subject and key = `poNumber`; stream `events`. Raised
+        by ProcessSubmission (REJECT, SUCCESS). Consumers: order-sourcing, node-performance.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: purchaseorder
+      payload:
+        $ref: '#/components/schemas/PurchaseOrderRejectedEvent'
+      examples:
+      - name: purchaseOrderRejected
+        summary: The vendor rejected the purchase order in full; the acknowledgement transaction succeeded.
+        payload:
+          specversion: '1.0'
+          id: 9b2f4c1e-6a7d-4e0b-8f31-2c5d7a9e1b44
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderRejected
+          subject: PO-3b9f1c0a7d2e4a18
+          time: '2026-10-22T13:05:41Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:events:PurchaseOrderRejected:v1
+          data:
+            poNumber: PO-3b9f1c0a7d2e4a18
+            assignmentId: asg-41d2
+            releaseNo: 1
+            nodeId: node-0f3a91
+            reasonCode: OUT_OF_STOCK
+            rejectedAt: '2026-10-22T13:05:41Z'
+    PurchaseOrderExpired:
+      name: PurchaseOrderExpired
+      title: PurchaseOrderExpired
+      summary: The purchase order was not acknowledged before ackBy.
+      description: '`type` = `com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderExpired`; subject and key = `poNumber`; stream `events`. Raised
+        by ExpireUnacknowledgedOrders (policy ExpireUnacknowledged). Consumers: order-sourcing, node-performance.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: purchaseorder
+      payload:
+        $ref: '#/components/schemas/PurchaseOrderExpiredEvent'
+      examples:
+      - name: purchaseOrderExpired
+        summary: The purchase order was not acknowledged before ackBy.
+        payload:
+          specversion: '1.0'
+          id: 9b2f4c1e-6a7d-4e0b-8f31-2c5d7a9e1b44
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderExpired
+          subject: PO-3b9f1c0a7d2e4a18
+          time: '2026-10-22T13:05:41Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:events:PurchaseOrderExpired:v1
+          data:
+            poNumber: PO-3b9f1c0a7d2e4a18
+            assignmentId: asg-41d2
+            releaseNo: 1
+            nodeId: node-0f3a91
+            ackBy: '2026-10-22T16:00:00Z'
+    PurchaseOrderCancelled:
+      name: PurchaseOrderCancelled
+      title: PurchaseOrderCancelled
+      summary: An ISSUED purchase order was cancelled because order-sourcing cancelled the assignment. Analytics only.
+      description: '`type` = `com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderCancelled`; subject and key = `poNumber`; stream `analytics`.
+        Raised by CancelPurchaseOrder (policy CancelOnSourcingCancel). Consumers: analytics only (no context consumer).'
+      contentType: application/cloudevents+json
+      tags:
+      - name: purchaseorder
+      payload:
+        $ref: '#/components/schemas/PurchaseOrderCancelledEvent'
+      examples:
+      - name: purchaseOrderCancelled
+        summary: An ISSUED purchase order was cancelled because order-sourcing cancelled the assignment. Analytics only.
+        payload:
+          specversion: '1.0'
+          id: 9b2f4c1e-6a7d-4e0b-8f31-2c5d7a9e1b44
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderCancelled
+          subject: PO-3b9f1c0a7d2e4a18
+          time: '2026-10-22T13:05:41Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:analytics:PurchaseOrderCancelled:v1
+          data:
+            poNumber: PO-3b9f1c0a7d2e4a18
+            assignmentId: asg-41d2
+            reason: customer cancelled
+    VendorShipmentConfirmed:
+      name: VendorShipmentConfirmed
+      title: VendorShipmentConfirmed
+      summary: The vendor confirmed shipment; the confirmation transaction succeeded.
+      description: '`type` = `com.retailnetwork.partner.vendor-connectivity.purchaseorder.VendorShipmentConfirmed`; subject and key = `poNumber`; stream `events`.
+        Raised by ProcessSubmission (SHIPMENT_CONFIRMATION, SUCCESS). Consumers: order-sourcing, shipping-and-tracking, node-performance.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: purchaseorder
+      payload:
+        $ref: '#/components/schemas/VendorShipmentConfirmedEvent'
+      examples:
+      - name: vendorShipmentConfirmed
+        summary: The vendor confirmed shipment; the confirmation transaction succeeded.
+        payload:
+          specversion: '1.0'
+          id: 9b2f4c1e-6a7d-4e0b-8f31-2c5d7a9e1b44
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.VendorShipmentConfirmed
+          subject: PO-3b9f1c0a7d2e4a18
+          time: '2026-10-22T13:05:41Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:events:VendorShipmentConfirmed:v1
+          data:
+            poNumber: PO-3b9f1c0a7d2e4a18
+            assignmentId: asg-41d2
+            nodeId: node-0f3a91
+            trackingNumbers:
+            - BR123456789
+            shippedAt: '2026-10-22T17:30:00Z'
+            requiredShipBy: '2026-10-22T18:00:00Z'
+    SubmissionProcessed:
+      name: SubmissionProcessed
+      title: SubmissionProcessed
+      summary: An asynchronous vendor write was processed (SUCCESS or FAILURE).
+      description: '`type` = `com.retailnetwork.partner.vendor-connectivity.submission.SubmissionProcessed`; subject and key = `transactionId`; stream `events`. Raised
+        by ProcessSubmission. Consumers: node-performance.'
+      contentType: application/cloudevents+json
+      tags:
+      - name: submission
+      payload:
+        $ref: '#/components/schemas/SubmissionProcessedEvent'
+      examples:
+      - name: submissionProcessed
+        summary: An asynchronous vendor write was processed (SUCCESS or FAILURE).
+        payload:
+          specversion: '1.0'
+          id: 9b2f4c1e-6a7d-4e0b-8f31-2c5d7a9e1b44
+          source: /retailnetwork/vendor-connectivity
+          type: com.retailnetwork.partner.vendor-connectivity.submission.SubmissionProcessed
+          subject: tx-9b2f4c1e
+          time: '2026-10-22T13:05:41Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:vendor-connectivity:events:SubmissionProcessed:v1
+          data:
+            transactionId: tx-9b2f4c1e
+            vendorId: V-WS
+            kind: ACKNOWLEDGEMENT
+            status: SUCCESS
+            errorCount: 0
+    NodeRegistered:
+      name: NodeRegistered
+      title: NodeRegistered
+      summary: A node was registered; fills VendorNodeView.
+      description: Consumed from node-topology. `type` = `com.retailnetwork.logistics.node-topology.node.NodeRegistered`; subject = `nodeId`. Only the listed `data`
+        fields are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendor-connectivity
+      payload:
+        $ref: '#/components/schemas/NodeRegisteredEvent'
+      examples:
+      - name: nodeRegistered
+        summary: A node was registered; fills VendorNodeView.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+          source: /retailnetwork/node-topology
+          type: com.retailnetwork.logistics.node-topology.node.NodeRegistered
+          subject: node-0f3a91
+          time: '2026-10-22T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:node-topology:events:NodeRegistered:v1
+          data:
+            nodeId: node-0f3a91
+            nodeType: FULFILLMENT_CENTER
+            subtype: SORTABLE
+            operator: VENDOR
+            vendorId: V-WS
+            vendorNodeCode: SP-CAJAMAR-01
+            regionId: region-se
+            timezone: America/Sao_Paulo
+    NodeOperationalProfileDeclared:
+      name: NodeOperationalProfileDeclared
+      title: NodeOperationalProfileDeclared
+      summary: A profile revision was declared; supplies handlingTimeMinutes for ackBy (G4).
+      description: Consumed from node-topology. `type` = `com.retailnetwork.logistics.node-topology.node.NodeOperationalProfileDeclared`; subject = `nodeId`. Only
+        the listed `data` fields are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendor-connectivity
+      payload:
+        $ref: '#/components/schemas/NodeOperationalProfileDeclaredEvent'
+      examples:
+      - name: nodeOperationalProfileDeclared
+        summary: A profile revision was declared; supplies handlingTimeMinutes for ackBy (G4).
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+          source: /retailnetwork/node-topology
+          type: com.retailnetwork.logistics.node-topology.node.NodeOperationalProfileDeclared
+          subject: node-0f3a91
+          time: '2026-10-22T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:node-topology:events:NodeOperationalProfileDeclared:v1
+          data:
+            nodeId: node-0f3a91
+            profileRevision: 3
+            handlingTimeMinutes: 90
+    NodeActivated:
+      name: NodeActivated
+      title: NodeActivated
+      summary: A node became ACTIVE.
+      description: Consumed from node-topology. `type` = `com.retailnetwork.logistics.node-topology.node.NodeActivated`; subject = `nodeId`. Only the listed `data`
+        fields are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendor-connectivity
+      payload:
+        $ref: '#/components/schemas/NodeActivatedEvent'
+      examples:
+      - name: nodeActivated
+        summary: A node became ACTIVE.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+          source: /retailnetwork/node-topology
+          type: com.retailnetwork.logistics.node-topology.node.NodeActivated
+          subject: node-0f3a91
+          time: '2026-10-22T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:node-topology:events:NodeActivated:v1
+          data:
+            nodeId: node-0f3a91
+            activatedAt: '2026-10-22T13:00:00Z'
+    NodeSuspended:
+      name: NodeSuspended
+      title: NodeSuspended
+      summary: A node became SUSPENDED.
+      description: Consumed from node-topology. `type` = `com.retailnetwork.logistics.node-topology.node.NodeSuspended`; subject = `nodeId`. Only the listed `data`
+        fields are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendor-connectivity
+      payload:
+        $ref: '#/components/schemas/NodeSuspendedEvent'
+      examples:
+      - name: nodeSuspended
+        summary: A node became SUSPENDED.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+          source: /retailnetwork/node-topology
+          type: com.retailnetwork.logistics.node-topology.node.NodeSuspended
+          subject: node-0f3a91
+          time: '2026-10-22T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:node-topology:events:NodeSuspended:v1
+          data:
+            nodeId: node-0f3a91
+            reason: audit
+            suspendedAt: '2026-10-22T13:00:00Z'
+    NodeRetired:
+      name: NodeRetired
+      title: NodeRetired
+      summary: A node became RETIRED.
+      description: Consumed from node-topology. `type` = `com.retailnetwork.logistics.node-topology.node.NodeRetired`; subject = `nodeId`. Only the listed `data`
+        fields are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendor-connectivity
+      payload:
+        $ref: '#/components/schemas/NodeRetiredEvent'
+      examples:
+      - name: nodeRetired
+        summary: A node became RETIRED.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+          source: /retailnetwork/node-topology
+          type: com.retailnetwork.logistics.node-topology.node.NodeRetired
+          subject: node-0f3a91
+          time: '2026-10-22T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:node-topology:events:NodeRetired:v1
+          data:
+            nodeId: node-0f3a91
+            retiredAt: '2026-10-22T13:00:00Z'
+    ListingCreated:
+      name: ListingCreated
+      title: ListingCreated
+      summary: A listing was created; fills ListingView.
+      description: Consumed from offer-availability. `type` = `com.retailnetwork.commerce.offer-availability.listing.ListingCreated`; subject = `listingId`. Only
+        the listed `data` fields are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendor-connectivity
+      payload:
+        $ref: '#/components/schemas/ListingCreatedEvent'
+      examples:
+      - name: listingCreated
+        summary: A listing was created; fills ListingView.
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+          source: /retailnetwork/offer-availability
+          type: com.retailnetwork.commerce.offer-availability.listing.ListingCreated
+          subject: lst-77
+          time: '2026-10-22T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:offer-availability:events:ListingCreated:v1
+          data:
+            listingId: lst-77
+            catalogItemId: item-12
+            nodeId: node-0f3a91
+    FulfillmentReleasedToNode:
+      name: FulfillmentReleasedToNode
+      title: FulfillmentReleasedToNode
+      summary: An assignment was released to a node; for a VENDOR node issues a purchase order (policy IssueOnRelease).
+      description: Consumed from order-sourcing. `type` = `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode`; subject = `assignmentId`.
+        Only the listed `data` fields are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendor-connectivity
+      payload:
+        $ref: '#/components/schemas/FulfillmentReleasedToNodeEvent'
+      examples:
+      - name: fulfillmentReleasedToNode
+        summary: An assignment was released to a node; for a VENDOR node issues a purchase order (policy IssueOnRelease).
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+          source: /retailnetwork/order-sourcing
+          type: com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode
+          subject: asg-41d2
+          time: '2026-10-22T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:order-sourcing:events:FulfillmentReleasedToNode:v1
+          data:
+            assignmentId: asg-41d2
+            releaseNo: 1
+            orderId: ord-9001
+            groupNo: 1
+            nodeId: node-0f3a91
+            requiredShipBy: '2026-10-22T18:00:00Z'
+            tier: NEXT_DAY
+            lines:
+            - catalogItemId: item-12
+              listingId: lst-77
+              quantity: 2
+    FulfillmentCancelled:
+      name: FulfillmentCancelled
+      title: FulfillmentCancelled
+      summary: An assignment was cancelled; cancels the ISSUED purchase order of its open release (policy CancelOnSourcingCancel).
+      description: Consumed from order-sourcing. `type` = `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled`; subject = `assignmentId`. Only
+        the listed `data` fields are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendor-connectivity
+      payload:
+        $ref: '#/components/schemas/FulfillmentCancelledEvent'
+      examples:
+      - name: fulfillmentCancelled
+        summary: An assignment was cancelled; cancels the ISSUED purchase order of its open release (policy CancelOnSourcingCancel).
+        payload:
+          specversion: '1.0'
+          id: 3f6c2a9e-8b1d-4c7a-9e55-0d2f6b7a1c40
+          source: /retailnetwork/order-sourcing
+          type: com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled
+          subject: asg-41d2
+          time: '2026-10-22T13:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:order-sourcing:events:FulfillmentCancelled:v1
+          data:
+            assignmentId: asg-41d2
+            orderId: ord-9001
+            groupNo: 1
+            reason: customer cancelled
+  schemas:
+    CloudEventEnvelope:
+      type: object
+      required:
+      - specversion
+      - id
+      - source
+      - type
+      - subject
+      - time
+      - datacontenttype
+      - dataschema
+      - data
+      properties:
+        specversion:
+          type: string
+          const: '1.0'
+        id:
+          type: string
+          format: uuid
+        source:
+          type: string
+          const: /retailnetwork/vendor-connectivity
+        type:
+          type: string
+        subject:
+          type: string
+          description: The aggregate root id.
+        time:
+          type: string
+          format: date-time
+        datacontenttype:
+          type: string
+          const: application/json
+        dataschema:
+          type: string
+      description: Published envelope. Consumed envelopes have the same attributes with the producer's `source`.
+    PoLine:
+      type: object
+      required:
+      - lineNo
+      - listingId
+      - quantity
+      properties:
+        lineNo:
+          type: integer
+          minimum: 1
+        listingId: &id001
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+    RejectReason:
+      type: string
+      enum:
+      - OUT_OF_STOCK
+      - UNKNOWN_LISTING
+      - CANNOT_MEET_SHIP_BY
+      - DISCONTINUED
+    SubmissionKind:
+      type: string
+      enum:
+      - ACKNOWLEDGEMENT
+      - INVENTORY
+      - NODE_REGISTRATION
+      - NODE_PROFILE
+      - SHIPMENT_CONFIRMATION
+    VendorOnboardedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - vendorId
+            - name
+            - ackWindowMinutes
+            properties:
+              vendorId:
+                type: string
+              name:
+                type: string
+              ackWindowMinutes:
+                type: integer
+                minimum: 60
+                maximum: 1440
+    VendorSuspendedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - vendorId
+            - suspendedAt
+            properties:
+              vendorId:
+                type: string
+              suspendedAt:
+                type: string
+                format: date-time
+              reason:
+                type: string
+    VendorReinstatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - vendorId
+            - reinstatedAt
+            properties:
+              vendorId:
+                type: string
+              reinstatedAt:
+                type: string
+                format: date-time
+    PurchaseOrderIssuedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - poNumber
+            - vendorId
+            - nodeId
+            - assignmentId
+            - releaseNo
+            - requiredShipBy
+            - ackBy
+            - lines
+            properties:
+              poNumber:
+                type: string
+              vendorId:
+                type: string
+              nodeId:
+                type: string
+              assignmentId:
+                type: string
+              releaseNo:
+                type: integer
+                minimum: 1
+              requiredShipBy:
+                type: string
+                format: date-time
+              ackBy:
+                type: string
+                format: date-time
+              lines:
+                type: array
+                minItems: 1
+                items:
+                  $ref: '#/components/schemas/PoLine'
+    PurchaseOrderAcceptedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - poNumber
+            - assignmentId
+            - releaseNo
+            - nodeId
+            - acceptedAt
+            - transactionId
+            properties:
+              poNumber:
+                type: string
+              assignmentId:
+                type: string
+              releaseNo:
+                type: integer
+                minimum: 1
+              nodeId:
+                type: string
+              acceptedAt:
+                type: string
+                format: date-time
+              transactionId:
+                type: string
+    PurchaseOrderRejectedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - poNumber
+            - assignmentId
+            - releaseNo
+            - nodeId
+            - reasonCode
+            - rejectedAt
+            properties:
+              poNumber:
+                type: string
+              assignmentId:
+                type: string
+              releaseNo:
+                type: integer
+                minimum: 1
+              nodeId:
+                type: string
+              reasonCode:
+                $ref: '#/components/schemas/RejectReason'
+              rejectedAt:
+                type: string
+                format: date-time
+    PurchaseOrderExpiredEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - poNumber
+            - assignmentId
+            - releaseNo
+            - nodeId
+            - ackBy
+            properties:
+              poNumber:
+                type: string
+              assignmentId:
+                type: string
+              releaseNo:
+                type: integer
+                minimum: 1
+              nodeId:
+                type: string
+              ackBy:
+                type: string
+                format: date-time
+    PurchaseOrderCancelledEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - poNumber
+            - assignmentId
+            - reason
+            properties:
+              poNumber:
+                type: string
+              assignmentId:
+                type: string
+              reason:
+                type: string
+    VendorShipmentConfirmedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - poNumber
+            - assignmentId
+            - nodeId
+            - trackingNumbers
+            - shippedAt
+            - requiredShipBy
+            properties:
+              poNumber:
+                type: string
+              assignmentId:
+                type: string
+              nodeId:
+                type: string
+              trackingNumbers:
+                type: array
+                minItems: 1
+                items: *id001
+              shippedAt:
+                type: string
+                format: date-time
+              requiredShipBy:
+                type: string
+                format: date-time
+    SubmissionProcessedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - transactionId
+            - vendorId
+            - kind
+            - status
+            - errorCount
+            properties:
+              transactionId:
+                type: string
+              vendorId:
+                type: string
+              kind:
+                $ref: '#/components/schemas/SubmissionKind'
+              status:
+                type: string
+                enum:
+                - SUCCESS
+                - FAILURE
+              errorCount:
+                type: integer
+                minimum: 0
+    NodeRegisteredEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - nodeId
+            - nodeType
+            - operator
+            properties:
+              nodeId:
+                type: string
+              nodeType:
+                type: string
+              subtype:
+                type: string
+              operator:
+                type: string
+                enum:
+                - NETWORK
+                - VENDOR
+              vendorId:
+                type: string
+              vendorNodeCode:
+                type: string
+              regionId:
+                type: string
+              timezone:
+                type: string
+    NodeOperationalProfileDeclaredEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - nodeId
+            - profileRevision
+            - handlingTimeMinutes
+            properties:
+              nodeId:
+                type: string
+              profileRevision:
+                type: integer
+                minimum: 1
+              handlingTimeMinutes:
+                type: integer
+                minimum: 0
+    NodeActivatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - nodeId
+            properties:
+              nodeId:
+                type: string
+              activatedAt:
+                type: string
+                format: date-time
+    NodeSuspendedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - nodeId
+            properties:
+              nodeId:
+                type: string
+              reason:
+                type: string
+              suspendedAt:
+                type: string
+                format: date-time
+    NodeRetiredEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - nodeId
+            properties:
+              nodeId:
+                type: string
+              retiredAt:
+                type: string
+                format: date-time
+    ListingCreatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - listingId
+            - nodeId
+            properties:
+              listingId:
+                type: string
+              catalogItemId:
+                type: string
+              nodeId:
+                type: string
+    FulfillmentReleasedToNodeEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - assignmentId
+            - releaseNo
+            - orderId
+            - nodeId
+            - requiredShipBy
+            - tier
+            - lines
+            properties:
+              assignmentId:
+                type: string
+              releaseNo:
+                type: integer
+                minimum: 1
+              orderId:
+                type: string
+              groupNo:
+                type: integer
+              nodeId:
+                type: string
+              requiredShipBy:
+                type: string
+                format: date-time
+              tier:
+                type: string
+                enum:
+                - SAME_DAY
+                - NEXT_DAY
+                - TWO_DAY
+                - STANDARD
+              lines:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  required:
+                  - listingId
+                  - quantity
+                  properties:
+                    catalogItemId: *id001
+                    listingId: *id001
+                    quantity:
+                      type: integer
+                      minimum: 1
+    FulfillmentCancelledEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - assignmentId
+            properties:
+              assignmentId:
+                type: string
+              orderId:
+                type: string
+              groupNo:
+                type: integer
+              reason:
+                type: string
