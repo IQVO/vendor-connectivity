@@ -54,3 +54,29 @@ Feature: Labels and shipment confirmation
       """
     Then the response status is 409
     And the problem type is "confirm-without-label"
+
+  Scenario: A confirmed shipment ships the order and publishes VendorShipmentConfirmed
+    Given vendor "V-1" has accepted the purchase order of "asg-1"
+    When I send POST "/vendor/shipping-labels" with:
+      """
+      {"vendorId":"V-1","poNumber":"{po:asg-1}","packages":[{"packageNo":1}]}
+      """
+    Then the response status is 200
+    And the response lists 1 items in "labels"
+    And I remember the tracking numbers of the issued labels
+    When I send POST "/vendor/shipment-confirmations" with:
+      """
+      {"vendorId":"V-1","poNumber":"{po:asg-1}","shippedAt":"2026-10-22T14:00:00Z","trackingNumbers":["{trk:1}"]}
+      """
+    Then the response status is 202
+    When the submission queue is processed
+    Then the purchase order of "asg-1" is in state "SHIPPED"
+    And 1 "VendorShipmentConfirmed" events were published
+    And the "VendorShipmentConfirmed" event about "{po:asg-1}" carries "assignmentId" "asg-1"
+    And the "VendorShipmentConfirmed" event about "{po:asg-1}" carries "trackingNumbers" "{trk:1}"
+    When I send GET "/vendor/purchase-orders/{po:asg-1}?vendorId=V-1"
+    Then the response field "state" is "SHIPPED"
+    And the response field "shippedAt" is present
+    And the response field "trackingNumbers.0" is "{trk:1}"
+    And the response field "labels.0.labelRef" is present
+    And the response field "acknowledgement.decision" is "ACCEPT"

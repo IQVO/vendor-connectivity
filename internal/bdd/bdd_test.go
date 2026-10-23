@@ -71,6 +71,10 @@ type world struct {
 	lastKey  int
 	eventSeq int
 	cfg      usecases.Config
+
+	// lastLabels holds the tracking numbers remembered from a label
+	// response, referenced as {trk:<packageNo>} in later steps.
+	lastLabels map[int]string
 }
 
 func newWorld() *world {
@@ -109,6 +113,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	registerGiven(sc, w)
 	registerWhen(sc, w)
 	registerThen(sc, w)
+	registerWave2(sc, w)
 }
 
 // --- helpers -----------------------------------------------------------------
@@ -142,7 +147,7 @@ func (w *world) expand(s string) string {
 		j := strings.Index(s[i:], "}")
 		s = s[:i] + poNumber(s[i+4:i+j]) + s[i+j+1:]
 	}
-	return strings.ReplaceAll(s, "{tx}", w.lastTx)
+	return w.expandLabels(strings.ReplaceAll(s, "{tx}", w.lastTx))
 }
 
 func (w *world) request(method, path, body string, headers ...string) error {

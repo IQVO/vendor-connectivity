@@ -39,6 +39,8 @@ Feature: Purchase order lifecycle
     And I send GET "/vendor/transactions/{tx}?vendorId=V-1"
     Then the response field "status" is "SUCCESS"
     And the purchase order of "asg-1" is in state "ACCEPTED"
+    And 1 "PurchaseOrderAccepted" events were published
+    And the "PurchaseOrderAccepted" event about "{po:asg-1}" carries "transactionId" "{tx}"
 
   Scenario: A partial acknowledgement is refused
     Given order-sourcing releases assignment "asg-1" to node "N-1" with required ship-by "2026-10-22T21:00:00Z" for 2 lines
@@ -58,6 +60,8 @@ Feature: Purchase order lifecycle
     Then the response status is 202
     When the submission queue is processed
     Then the purchase order of "asg-1" is in state "REJECTED"
+    And 1 "PurchaseOrderRejected" events were published
+    And the "PurchaseOrderRejected" event about "{po:asg-1}" carries "reasonCode" "OUT_OF_STOCK"
 
   Scenario: A second acknowledgement is refused
     Given order-sourcing releases assignment "asg-1" to node "N-1" with required ship-by "2026-10-22T21:00:00Z" for 2 lines
@@ -74,6 +78,7 @@ Feature: Purchase order lifecycle
     When 3 hours pass
     And the expiry sweep runs
     Then the purchase order of "asg-1" is in state "EXPIRED"
+    And 1 "PurchaseOrderExpired" events were published
     When I send POST "/vendor/acknowledgements" with:
       """
       {"vendorId":"V-1","poNumber":"{po:asg-1}","decision":"ACCEPT","lines":[{"lineNo":1,"quantity":2},{"lineNo":2,"quantity":1}]}
@@ -91,6 +96,17 @@ Feature: Purchase order lifecycle
     Given order-sourcing releases assignment "asg-1" to node "N-1" with required ship-by "2026-10-22T21:00:00Z" for 2 lines
     When order-sourcing cancels assignment "asg-1"
     Then the purchase order of "asg-1" is in state "CANCELLED"
+    And 1 "PurchaseOrderCancelled" events were published
+    And the "PurchaseOrderCancelled" event about "{po:asg-1}" carries "assignmentId" "asg-1"
+
+  Scenario: A malformed body is refused as validation-failed
+    Given order-sourcing releases assignment "asg-1" to node "N-1" with required ship-by "2026-10-22T21:00:00Z" for 1 line
+    When I send POST "/vendor/acknowledgements" with:
+      """
+      {"vendorId":"V-1","poNumber":
+      """
+    Then the response status is 422
+    And the problem type is "validation-failed"
 
   Scenario: A cancel after acceptance leaves the order accepted
     Given order-sourcing releases assignment "asg-1" to node "N-1" with required ship-by "2026-10-22T21:00:00Z" for 2 lines
