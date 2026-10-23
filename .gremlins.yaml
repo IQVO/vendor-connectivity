@@ -27,5 +27,5 @@ unleash:
     # differs. See HARNESS.md's mutation-testing section for the
     # tagless-switch-under-reports pitfall before assuming a low number
     # means missing tests.
-    efficacy: "0"
-    mutant-coverage: "0"
+    efficacy: "95"
+    mutant-coverage: "95"

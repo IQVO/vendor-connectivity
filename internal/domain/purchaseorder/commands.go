@@ -1,9 +1,10 @@
 package purchaseorder
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
@@ -352,7 +353,7 @@ func (p *PurchaseOrder) LabelPlan(packageNos []int) ([]Label, []int, error) {
 }
 
 func sortedLabels(ls []Label) []Label {
-	sort.Slice(ls, func(i, j int) bool { return ls[i].PackageNo < ls[j].PackageNo })
+	slices.SortFunc(ls, func(a, b Label) int { return cmp.Compare(a.PackageNo, b.PackageNo) })
 	return ls
 }
 
@@ -399,7 +400,7 @@ func (p *PurchaseOrder) AddLabels(labels []Label) error {
 		return shared.Invalid("at most %d packages", MaxPackages)
 	}
 	if changed {
-		sort.Slice(next, func(i, j int) bool { return next[i].PackageNo < next[j].PackageNo })
+		slices.SortFunc(next, func(a, b Label) int { return cmp.Compare(a.PackageNo, b.PackageNo) })
 		p.labels = next
 		p.version++
 	}
