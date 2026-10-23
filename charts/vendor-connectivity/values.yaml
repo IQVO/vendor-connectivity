@@ -1,0 +1,189 @@
+# Default values for vendor-connectivity. One component: the api Deployment
+# (cmd/api). The outbox relay, the three Kafka consumers and the three loops run
+# inside it; there is no MCP, frontend, projector or reports component.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/iqvo/vendor-connectivity
+  pullPolicy: IfNotPresent
+  # Empty = the chart's appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+# The image runs as uid/gid 1000 (Dockerfile) and writes nothing to disk.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: vendor-connectivity.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Disabled-by-default alternative to ingress. Routes only to the api Service.
+gatewayApi:
+  enabled: false
+  parentRefs:
+    - name: ""
+      namespace: ""
+      sectionName: "http"
+  hosts:
+    - path: /
+      pathType: PathPrefix
+  stripPath: true
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# HorizontalPodAutoscaler for the api Deployment, off by default. When on, the
+# Deployment omits replicas. More than one replica is safe for the outbox relay
+# (FOR UPDATE SKIP LOCKED), the version-guarded writes and the consumers (stable
+# groups, inbox on the CloudEvents id); it has not been load-tested.
+autoscaling:
+  api:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+
+# Environment read by cmd/api/main.go. Every key maps 1:1 to one env var and is
+# rendered both into the ConfigMap (envFrom) and into the container env.
+config:
+  httpAddr: ":8080"                  # HTTP_ADDR
+  logLevel: "info"                   # LOG_LEVEL: debug | info | warn (or warning) | error
+  # EVENT_PUBLISHER: "kafka" is the only publisher; anything else is refused at
+  # render and by the binary at boot.
+  eventPublisher: "kafka"
+  # OUTBOX_RELAY_INTERVAL: Go duration or plain seconds. Empty = not rendered
+  # (binary default 1s).
+  outboxRelayInterval: ""
+  # OUTBOX_MAX_ATTEMPTS: failures before the relay excludes an outbox row;
+  # 0 = unlimited.
+  outboxMaxAttempts: 20
+  # SHUTDOWN_DRAIN_DELAY: wait after /readyz flips before closing the listener.
+  # Empty = not rendered (binary default 5s). Whole seconds only ("5s", "0")
+  # so the chart can check terminationGracePeriodSeconds against it.
+  shutdownDrainDelay: ""
+
+  # STABLE consumer group ids, service-prefixed, never the pod name: a
+  # rescheduled pod must resume from its committed offsets. All REQUIRED (empty
+  # = the chart refuses to render, the binary refuses to boot).
+  nodeConsumerGroup: ""              # NODE_CONSUMER_GROUP (node-topology events)
+  listingConsumerGroup: ""           # LISTING_CONSUMER_GROUP (offer-availability events)
+  sourcingConsumerGroup: ""          # SOURCING_CONSUMER_GROUP (order-sourcing events)
+
+  # Base URLs of the four synchronous in-organization calls. All REQUIRED, no
+  # default (the binary refuses to boot without them).
+  nodeTopologyUrl: ""                # NODE_TOPOLOGY_URL
+  offerAvailabilityUrl: ""           # OFFER_AVAILABILITY_URL
+  shippingAndTrackingUrl: ""         # SHIPPING_AND_TRACKING_URL
+  nodePerformanceUrl: ""             # NODE_PERFORMANCE_URL
+
+  # Simulation knobs. Empty = not rendered (binary defaults: no delay, no
+  # failures, no redelivery, unlimited rate).
+  txProcessingDelay: ""              # TX_PROCESSING_DELAY: Go duration, e.g. 500ms
+  txFailureRate: ""                  # TX_FAILURE_RATE: 0..1
+  poRedeliveryRate: ""               # PO_REDELIVERY_RATE: 0..1
+  rateLimitRps: ""                   # RATE_LIMIT_RPS: requests a second over /vendor/*, 0 = unlimited
+  # Loop intervals. Empty = not rendered (binary defaults 1s and 30s).
+  submissionPollInterval: ""         # SUBMISSION_POLL_INTERVAL
+  expirySweepInterval: ""            # EXPIRY_SWEEP_INTERVAL
+
+# The chart refuses to render unless database.url or database.existingSecret is
+# set: the service runs on real Postgres only.
+database:
+  url: ""
+  existingSecret: ""
+  existingSecretKey: "DATABASE_URL"
+  # Key, in the same secret, of a DIRECT (non-pooled, session-mode) connection
+  # string used ONLY for the boot migrations (golang-migrate takes a session
+  # advisory lock a transaction-pooling proxy cannot honour). Rendered with
+  # `optional: true`: a secret without this key still starts the pod and the
+  # binary falls back to DATABASE_URL.
+  migrationsExistingSecretKey: "MIGRATIONS_DATABASE_URL"
+
+# KAFKA_BROKERS is MANDATORY (comma-separated host:port): relay, consumers and
+# /readyz all dial Kafka. Produced topic: retailnetwork.vendor-connectivity.events
+# (PurchaseOrderCancelled also on .analytics). The chart refuses to render
+# without the brokers.
+kafka:
+  brokers: ""
+
+# Extra env vars appended to the api container as a raw list. The chart refuses
+# EVENT_PUBLISHER other than "kafka" and any *_MODE variable here: the service
+# has no mode switches.
+extraEnv: []
+
+# The Postgres dial at boot is wrapped in a bounded retry (15 s of backoff);
+# periodSeconds * failureThreshold gives a ~60 s window before the kubelet gives
+# up. Once startupProbe succeeds, liveness takes over; readiness uses /readyz
+# (flipped to not-ready as the FIRST step of graceful shutdown).
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 2
+  failureThreshold: 30
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 5
+
+# Room for the binary's sequential graceful shutdown (cmd/api/main.go):
+# SHUTDOWN_DRAIN_DELAY (5 s) + HTTP drain (10 s) + consumers and loops (10 s) +
+# relay (10 s) = 35 s. The chart refuses anything under 40 and anything not
+# above the drain delay + 30 s: a shorter grace period SIGKILLs the consumers
+# or the relay mid-drain.
+terminationGracePeriodSeconds: 40
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

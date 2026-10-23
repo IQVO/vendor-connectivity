@@ -39,4 +39,4 @@ Aggregates, invariants and assumptions A1-A27 are in docs/adr/0002; consumed con
 
 ## Workflow
 GitFlow: feature/* -> PR into develop, CI green before merge, never push develop or main. lefthook: pre-commit fmt/vet/lint, pre-push `make check`. Commit and push after each step.
-Open follow-up: the Helm chart (docs/before-first-release.md rows 5-9).
+Deploy: `charts/vendor-connectivity` (api only; refuses to render without database, `kafka.brokers`, the three `config.*ConsumerGroup` ids, the four `config.*Url` values, or a grace period under 40 s); tests `bash charts/vendor-connectivity/tests/render_test.sh` and `python3 charts/vendor-connectivity/tests/test_service_selectors.py`. Open follow-up: repository secrets (docs/before-first-release.md row 11).

@@ -1,0 +1,12 @@
+apiVersion: v2
+name: vendor-connectivity
+description: Vendor Connectivity - the Open Host Service of the retail network for vendors that operate fulfillment nodes (VendorAccount, PurchaseOrder, Submission); publishes events on retailnetwork.vendor-connectivity.events
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/IQVO/vendor-connectivity
+keywords:
+  - ddd
+  - hexagonal-architecture
+  - retail-network
+  - golang
