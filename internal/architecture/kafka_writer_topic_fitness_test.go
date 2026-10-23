@@ -5,7 +5,7 @@ package architecture
 //   - TestKafkaWriterTopicNotSetTwice: kafka-go rejects EVERY write whose
 //     Message.Topic is set when the Writer has a Topic too ("kafka.(*Writer):
 //     Topic must not be specified for both Writer and Message"). The escape
-//     (slotting-optimization #25, warehouse-planning's domain DLQ writer): the
+//     (vendor-connectivity #25, warehouse-planning's domain DLQ writer): the
 //     dead-letter writer was built with Topic: topic+DLQSuffix while
 //     publishDeadLetter wrote kafkago.Message{Topic: dlqTopic, ...}, so no dead
 //     letter ever landed and the partition wedged on the poison message.
