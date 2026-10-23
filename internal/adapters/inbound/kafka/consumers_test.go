@@ -90,12 +90,16 @@ func TestNodeEventsFeedTheNodeView(t *testing.T) {
 	if err != nil || n.Status != "ACTIVE" || n.HandlingTimeMinutes != 45 || n.VendorID != "V-1" || n.ProfileRevision != 2 {
 		t.Fatalf("node = %+v %v", n, err)
 	}
-	for typ, want := range map[string]string{kafkaconsumer.TypeNodeSuspended: "SUSPENDED", kafkaconsumer.TypeNodeRetired: "RETIRED"} {
-		if err := c.HandleMessage(ctx, event("s-"+want, typ, "n-1", m{"nodeId": "n-1"})); err != nil {
+	// Ordered on purpose: RETIRED is terminal, so SUSPENDED must be applied first.
+	for _, step := range []struct{ typ, want string }{
+		{kafkaconsumer.TypeNodeSuspended, "SUSPENDED"},
+		{kafkaconsumer.TypeNodeRetired, "RETIRED"},
+	} {
+		if err := c.HandleMessage(ctx, event("s-"+step.want, step.typ, "n-1", m{"nodeId": "n-1"})); err != nil {
 			t.Fatal(err)
 		}
-		if n, _ := f.store.Nodes().Get(ctx, "n-1"); string(n.Status) != want {
-			t.Fatalf("after %s status = %s", typ, n.Status)
+		if n, _ := f.store.Nodes().Get(ctx, "n-1"); string(n.Status) != step.want {
+			t.Fatalf("after %s status = %s", step.typ, n.Status)
 		}
 	}
 }
