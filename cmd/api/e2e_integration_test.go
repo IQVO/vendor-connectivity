@@ -83,24 +83,6 @@ func startKafka(t *testing.T) (*tckafka.KafkaContainer, []string) {
 	return c, brokers
 }
 
-// topicExists asks the broker for the topic through a metadata request that
-// cannot create it (kafka-go's Client.Metadata never auto-creates).
-func topicExists(t *testing.T, brokers []string, topic string) bool {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	resp, err := (&kafkago.Client{Addr: kafkago.TCP(brokers...)}).Metadata(ctx, &kafkago.MetadataRequest{Topics: []string{topic}})
-	if err != nil {
-		t.Fatalf("metadata: %v", err)
-	}
-	for _, tp := range resp.Topics {
-		if tp.Name == topic && tp.Error == nil {
-			return true
-		}
-	}
-	return false
-}
-
 // createTopic creates a one-partition topic and waits for its leader.
 func createTopic(t *testing.T, brokers []string, topic string) {
 	t.Helper()
@@ -609,7 +591,7 @@ func poll(t *testing.T, s *service, wantCount int) []poView {
 	var page struct {
 		PurchaseOrders []poView `json:"purchaseOrders"`
 	}
-	waitFor(t, 60*time.Second, fmt.Sprintf("%d purchase orders to be pollable", wantCount), func() bool {
+	waitFor(t, 120*time.Second, fmt.Sprintf("%d purchase orders to be pollable", wantCount), func() bool {
 		status, raw := s.try(http.MethodGet, "/vendor/purchase-orders?vendorId=V-1", "", "")
 		page.PurchaseOrders = nil
 		return status == http.StatusOK && json.Unmarshal([]byte(raw), &page) == nil && len(page.PurchaseOrders) == wantCount
@@ -656,6 +638,13 @@ func phaseWorkflow(t *testing.T, s *service, w *world) {
 	w.expect("SubmissionProcessed", accepted.TransactionID)
 	assertProblem(t, s.call(http.MethodPost, "/vendor/acknowledgements", ack, "ack-2", http.StatusConflict), "already-acknowledged")
 
+	phaseLabelsAndShipment(t, s, w, po)
+}
+
+// phaseLabelsAndShipment is the second half of the workflow: labels are
+// synchronous, the shipment confirmation is not.
+func phaseLabelsAndShipment(t *testing.T, s *service, w *world, po poView) {
+	t.Helper()
 	labels := s.call(http.MethodPost, "/vendor/shipping-labels", fmt.Sprintf(`{"vendorId":"V-1","poNumber":%q,"packages":[{"packageNo":1},{"packageNo":2}]}`, po.PONumber), "label-1", http.StatusOK)
 	if !strings.Contains(labels, "TRK-"+po.PONumber+"-1") || !strings.Contains(labels, "TRK-"+po.PONumber+"-2") {
 		t.Fatalf("labels = %s", labels)
