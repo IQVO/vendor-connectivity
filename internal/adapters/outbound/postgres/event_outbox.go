@@ -2,6 +2,9 @@ package postgres
 
 import (
 	"context"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/claudioed/vendor-connectivity/internal/application/outbox"
 	"github.com/claudioed/vendor-connectivity/internal/application/ports"
@@ -33,4 +36,15 @@ func (o *EventOutbox) Append(ctx context.Context, events ...shared.Event) error 
 		return err
 	}
 	return o.repo.Insert(ctx, msgs...)
+}
+
+// PurgeIdempotencyKeys deletes the Idempotency-Key rows created before t and
+// returns how many it deleted (the 24 hour TTL of the model conventions; an
+// expired key is also forgotten on its next use).
+func PurgeIdempotencyKeys(ctx context.Context, pool *pgxpool.Pool, t time.Time) (int, error) {
+	tag, err := pool.Exec(ctx, `DELETE FROM idempotency_keys WHERE created_at < $1`, t)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
 }
