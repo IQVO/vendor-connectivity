@@ -298,20 +298,25 @@ func build(s Snapshot) (*PurchaseOrder, error) {
 }
 
 func checkIdentity(s Snapshot) error {
-	switch {
-	case s.Number != NumberFor(s.AssignmentID, s.ReleaseNo):
+	if s.Number != NumberFor(s.AssignmentID, s.ReleaseNo) {
 		return errors.New("poNumber is not derived from assignmentId and releaseNo")
-	case !shared.ValidID(s.VendorID) || !shared.ValidID(s.NodeID) || !shared.ValidID(s.AssignmentID) || !shared.ValidID(s.OrderID):
+	}
+	if !shared.ValidID(s.VendorID) || !shared.ValidID(s.NodeID) || !shared.ValidID(s.AssignmentID) || !shared.ValidID(s.OrderID) {
 		return errors.New("vendorId, nodeId, assignmentId and orderId must be valid ids")
-	case s.GroupNo < 0 || s.GroupNo > MaxGroupNo:
+	}
+	if s.GroupNo < 0 || s.GroupNo > MaxGroupNo {
 		return errors.New("groupNo out of range")
-	case !ValidTier(s.Tier):
+	}
+	if !ValidTier(s.Tier) {
 		return errors.New("tier is not a service tier")
-	case s.ReleaseNo < 1 || s.ReleaseNo > MaxReleaseNo:
+	}
+	if s.ReleaseNo < 1 || s.ReleaseNo > MaxReleaseNo {
 		return errors.New("releaseNo out of range")
-	case s.IssuedAt.IsZero() || s.RequiredShipBy.IsZero() || s.AckBy.IsZero():
+	}
+	if s.IssuedAt.IsZero() || s.RequiredShipBy.IsZero() || s.AckBy.IsZero() {
 		return errors.New("issuedAt, requiredShipBy and ackBy are required")
-	case s.Version < 1:
+	}
+	if s.Version < 1 {
 		return errors.New("version must be at least 1")
 	}
 	return nil

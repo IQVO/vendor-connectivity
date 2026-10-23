@@ -109,16 +109,19 @@ func build(s Snapshot) (*Account, error) {
 }
 
 func checkValues(s Snapshot) error {
-	switch {
-	case !shared.ValidID(string(s.ID)):
+	if !shared.ValidID(string(s.ID)) {
 		return errors.New("vendorId is not a valid id")
-	case !shared.ValidTextN(s.Name, MaxName):
+	}
+	if !shared.ValidTextN(s.Name, MaxName) {
 		return errors.New("name must be non-blank, trimmed and at most 120 characters")
-	case s.AckWindowMinutes < MinAckWindowMinutes || s.AckWindowMinutes > MaxAckWindowMinutes:
+	}
+	if s.AckWindowMinutes < MinAckWindowMinutes || s.AckWindowMinutes > MaxAckWindowMinutes {
 		return ErrAckWindowOutOfRange
-	case s.OnboardedAt.IsZero():
+	}
+	if s.OnboardedAt.IsZero() {
 		return errors.New("onboardedAt is required")
-	case s.Version < 1:
+	}
+	if s.Version < 1 {
 		return errors.New("version must be at least 1")
 	}
 	return checkState(s)

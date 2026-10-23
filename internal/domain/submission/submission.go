@@ -168,32 +168,38 @@ func checkValues(sn Snapshot) error {
 	if err := checkIdentity(sn); err != nil {
 		return err
 	}
-	switch {
-	case sn.ResultNodeID != "" && (!shared.ValidID(sn.ResultNodeID) || sn.Kind != KindNodeRegistration || sn.Status != Success):
+	if sn.ResultNodeID != "" && (!shared.ValidID(sn.ResultNodeID) || sn.Kind != KindNodeRegistration || sn.Status != Success) {
 		return errors.New("a result nodeId belongs to a successful NODE_REGISTRATION")
-	case sn.ReceivedAt.IsZero() || sn.NotBefore.Before(sn.ReceivedAt):
+	}
+	if sn.ReceivedAt.IsZero() || sn.NotBefore.Before(sn.ReceivedAt) {
 		return errors.New("receivedAt is required and notBefore is not before it")
-	case sn.Attempts < 0 || sn.Attempts > MaxAttempts:
+	}
+	if sn.Attempts < 0 || sn.Attempts > MaxAttempts {
 		return errors.New("attempts out of range")
-	case sn.Version < 1:
+	}
+	if sn.Version < 1 {
 		return errors.New("version must be at least 1")
 	}
 	return nil
 }
 
 func checkIdentity(sn Snapshot) error {
-	switch {
-	case !shared.ValidID(string(sn.ID)):
+	if !shared.ValidID(string(sn.ID)) {
 		return errors.New("transactionId is not a valid id")
-	case !shared.ValidID(sn.VendorID):
+	}
+	if !shared.ValidID(sn.VendorID) {
 		return errors.New("vendorId is not a valid id")
-	case !validKind(sn.Kind):
+	}
+	if !validKind(sn.Kind) {
 		return errors.New("kind is not a SubmissionKind")
-	case len(sn.Payload) == 0 || len(sn.Payload) > MaxPayload || !json.Valid(sn.Payload):
+	}
+	if len(sn.Payload) == 0 || len(sn.Payload) > MaxPayload || !json.Valid(sn.Payload) {
 		return errors.New("payload must be valid JSON of at most 4 MiB")
-	case sn.PONumber != "" && !shared.ValidID(sn.PONumber):
+	}
+	if sn.PONumber != "" && !shared.ValidID(sn.PONumber) {
 		return errors.New("poNumber is not a valid id")
-	case sn.NodeID != "" && !shared.ValidID(sn.NodeID):
+	}
+	if sn.NodeID != "" && !shared.ValidID(sn.NodeID) {
 		return errors.New("nodeId is not a valid id")
 	}
 	return nil
