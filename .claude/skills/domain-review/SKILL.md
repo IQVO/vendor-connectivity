@@ -5,13 +5,10 @@ disable-model-invocation: true
 argument-hint: "[git range]"
 ---
 
-<!-- TEMPLATE NOTE (warehouse-harness-template v2): adapt every repo-specific example in this file (file paths, type names, field names) to THIS repo real code. Do not copy-paste verbatim. -->
-
 Perform a ubiquitous-language drift review of the current changes (or
 `$ARGUMENTS` if given), comparing new/changed code against
-`.claude/rules/domain-model.md` (or this repo's equivalent doc — check
-`AGENTS.md`/`CLAUDE.md` for where the ubiquitous language lives if that
-file doesn't exist here).
+`.claude/rules/domain-model.md` and `docs/adr/0002-aggregates-and-invariants.md`
+(the ubiquitous language and the numbered assumptions of this repo).
 
 Ubiquitous language drift is the quiet failure mode DDD is supposed to
 prevent: code that technically works but silently renames, reshapes, or
@@ -22,16 +19,15 @@ readers can no longer map code to domain conversation.
 
 1. **A new type/field/method that duplicates an existing domain concept
    under a different name.** If the domain-model doc already names a
-   concept (e.g. this repo's "Usable inventory" — on-hand minus active
-   reservations minus held/damaged), a new calculation that computes the
-   same thing under a different name (`AvailableQty`, `FreeStock`, etc.)
+   concept (e.g. this repo's "Acknowledgement window" or "ackBy"), a new type that
+   holds the same thing under a different name (`AckDeadline`, `Sla`, etc.)
    is drift — even if the math is correct, it fragments the vocabulary.
    Flag it and point at the existing name.
 2. **A domain type/method named in implementation terms instead of
    domain terms.** `internal/domain/` code should read like the ubiquitous
    language, not like database/HTTP vocabulary — a method called
    `UpdateRow` or `PatchState` where the domain-model doc would call the
-   equivalent operation `Stow`/`Revoke`/`RunCycleCount` is drift, and the
+   equivalent operation `SubmitAcknowledgement`/`RequestLabel`/`ExpireUnacknowledgedOrders` is drift, and the
    fitness-test suite won't catch this because it's a naming problem, not
    an import-direction problem.
 3. **An invariant enforced in code that the domain-model doc doesn't
@@ -41,10 +37,9 @@ readers can no longer map code to domain conversation.
    invisible to the next person who touches that aggregate and may
    accidentally remove it thinking it's dead code.
 4. **A value object that should be closed but was implemented open (or
-   vice versa).** This repo's own domain-model doc calls out
-   `HandlingTag` as a deliberately CLOSED enum (unlike facility-layout's
-   open `LocationType`) because it carries real regulatory meaning —
-   check any new categorical field against whether the domain actually
+   vice versa).** This repo's purchase order states, submission kinds, acknowledgement decisions, reject reasons
+   and basis values are deliberately CLOSED enums (mirrored as CHECK constraints in
+   `internal/adapters/outbound/postgres/migrations/`, so a new value takes a migration) — check any new categorical field against whether the domain actually
    wants an open or closed set, and flag a mismatch either direction.
 5. **A cross-aggregate rule implemented as a cross-aggregate call instead
    of an explicit local check, or vice versa**, per whatever this repo's
