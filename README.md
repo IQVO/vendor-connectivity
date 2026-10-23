@@ -61,6 +61,15 @@ go run ./cmd/api                       # listens on :8080 (HTTP_ADDR)
 
 All settings, the probes, the shutdown order and the outbox runbook: [docs/runtime.md](docs/runtime.md). Packaging checklist: [docs/before-first-release.md](docs/before-first-release.md).
 
+## Deploy (Helm)
+
+`charts/vendor-connectivity/` deploys the `api` component only (Deployment, Service, ConfigMap, Secret or existing secret, ServiceAccount; HPA, Ingress and HTTPRoute are off by default). It refuses to render without `database.url` or `database.existingSecret`, `kafka.brokers`, the three `config.*ConsumerGroup` ids (stable, service-prefixed) and the four `config.*Url` neighbour base URLs, and with `terminationGracePeriodSeconds` under 40.
+
+```sh
+helm template vc charts/vendor-connectivity -f charts/vendor-connectivity/ci/default-values.yaml   # dummy values, nothing is dialled
+bash charts/vendor-connectivity/tests/render_test.sh && python3 charts/vendor-connectivity/tests/test_service_selectors.py
+```
+
 ## Develop
 
 `make check` (format, vet, build, lint, tests incl. the godog scenarios in `features/`), `make coverage` (90% over `internal/domain` and `internal/application`), `make mutation` (gremlins per domain package), `make arch-test`, `make integration` (testcontainers Postgres and Kafka; needs Docker), `make vuln`. Agent guides: `.claude/rules/` and `.claude/skills/`.

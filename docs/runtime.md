@@ -63,3 +63,21 @@ the orchestrator restarts it.
   (ADR 0002 A4).
 - Idempotency keys older than 24 h are purged by the daily retention sweep (an expired key is also
   replaced on its next use); processed submissions are purged after 30 days by the same sweep.
+
+## Deployment (Helm chart)
+
+`charts/vendor-connectivity/` runs `cmd/api` as one Deployment (`component=api`); the relay, the consumers and the loops live in that process. `config.*` values map 1:1 to the variables above and are rendered both into the chart ConfigMap (`envFrom`) and into the container env from one helper; `tests/render_test.sh` fails when `cmd/api` reads a variable the chart does not render, or the chart renders one the binary does not read.
+
+| Value | Variable | Rule |
+| --- | --- | --- |
+| `database.url` or `database.existingSecret` (+ `existingSecretKey`) | `DATABASE_URL` | `secretKeyRef`, never in the ConfigMap; render fails when neither is set. |
+| `database.migrationsExistingSecretKey` | `MIGRATIONS_DATABASE_URL` | `secretKeyRef` with `optional: true`; the binary falls back to `DATABASE_URL`. |
+| `kafka.brokers` | `KAFKA_BROKERS` | Required. |
+| `config.nodeConsumerGroup`, `config.listingConsumerGroup`, `config.sourcingConsumerGroup` | `NODE_`/`LISTING_`/`SOURCING_CONSUMER_GROUP` | Required, stable and service-prefixed (`vendor-connectivity-node`, ...), never the pod name. |
+| `config.nodeTopologyUrl`, `offerAvailabilityUrl`, `shippingAndTrackingUrl`, `nodePerformanceUrl` | `NODE_TOPOLOGY_URL`, `OFFER_AVAILABILITY_URL`, `SHIPPING_AND_TRACKING_URL`, `NODE_PERFORMANCE_URL` | Required, no default. |
+| `config.eventPublisher` | `EVENT_PUBLISHER` | Only `kafka`; `*_MODE` and a non-kafka publisher in `extraEnv` are refused. |
+| `config.txProcessingDelay`, `txFailureRate`, `poRedeliveryRate`, `rateLimitRps`, `submissionPollInterval`, `expirySweepInterval`, `outboxRelayInterval`, `shutdownDrainDelay` | the simulation, loop, relay and drain variables | Optional; not rendered while empty so the binary default applies. `shutdownDrainDelay` takes whole seconds. |
+| `config.outboxMaxAttempts` | `OUTBOX_MAX_ATTEMPTS` | Default 20, `0` = unlimited. |
+| `terminationGracePeriodSeconds` | n/a | Default 40; refused under 40 and under drain delay + 30 s (drain delay 5 s + HTTP 10 s + consumers and loops 10 s + relay 10 s = 35 s). |
+
+The pod runs as uid 1000 with a read-only root filesystem, no privilege escalation, all capabilities dropped and the `RuntimeDefault` seccomp profile; liveness is `/healthz`, readiness `/readyz`, plus a startup probe covering the boot retry. The `release` job packages `vendor-connectivity-<version>.tgz` and pushes it to `oci://ghcr.io/iqvo`.
