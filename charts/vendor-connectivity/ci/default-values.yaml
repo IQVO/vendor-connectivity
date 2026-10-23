@@ -1,0 +1,14 @@
+# Used by `helm lint` / `ct lint`: the chart refuses to render without the real
+# runtime's mandatory values. Dummy DSN, no password; nothing here is ever dialled.
+database:
+  url: "postgres://u@example.invalid:5432/db"
+kafka:
+  brokers: "kafka.example.invalid:9092"
+config:
+  nodeConsumerGroup: "vendor-connectivity-node"
+  listingConsumerGroup: "vendor-connectivity-listing"
+  sourcingConsumerGroup: "vendor-connectivity-sourcing"
+  nodeTopologyUrl: "http://node-topology.example.invalid"
+  offerAvailabilityUrl: "http://offer-availability.example.invalid"
+  shippingAndTrackingUrl: "http://shipping-and-tracking.example.invalid"
+  nodePerformanceUrl: "http://node-performance.example.invalid"

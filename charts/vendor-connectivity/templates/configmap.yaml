@@ -1,0 +1,14 @@
+# Non-secret configuration of the api component, mounted with envFrom by the
+# Deployment (the explicit env entries carry the same values); the Deployment's
+# checksum/config annotation rolls the pods whenever any of it changes. Every
+# key is a variable cmd/api reads (tests/render_test.sh). DATABASE_URL never
+# lands here: it lives in a Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vendor-connectivity.fullname" . }}
+  labels:
+    {{- include "vendor-connectivity.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+data:
+  {{- include "vendor-connectivity.configData" . | nindent 2 }}
