@@ -158,6 +158,7 @@ func registerThenResponse(sc *godog.ScenarioContext, w *world) {
 		return nil
 	})
 	sc.Step(`^the response field "([^"]*)" is "([^"]*)"$`, func(path, want string) error {
+		want = w.expand(want)
 		got, ok, err := w.field(path)
 		if err != nil || !ok || render(got) != want {
 			return fmt.Errorf("%s = %v (present %v), want %q in %s", path, got, ok, want, w.body)

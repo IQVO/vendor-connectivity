@@ -17,6 +17,8 @@ Feature: Node registration and inventory transactions
     Then the response field "status" is "SUCCESS"
     And the response field "nodeId" is "N-9"
     And node-topology received 1 RegisterNode call
+    And 1 "SubmissionProcessed" events were published
+    And the "SubmissionProcessed" event about "{tx}" carries "status" "SUCCESS"
 
   Scenario: A refusal of node-topology fails the transaction with its code
     Given node-topology refuses with "ErrDuplicateVendorNode"
@@ -77,3 +79,19 @@ Feature: Node registration and inventory transactions
     When I send GET "/vendor/nodes/N-1?vendorId=V-1"
     Then the response status is 200
     And the response field "status" is "SUSPENDED"
+
+  Scenario: An unknown transaction is not found
+    When I send GET "/vendor/transactions/tx-404?vendorId=V-1"
+    Then the response status is 404
+    And the problem type is "not-found"
+
+  Scenario: A transaction of another vendor is not found
+    Given node "N-1" of vendor "V-1" has a handling time of 45 minutes
+    And vendor "V-2" is onboarded with an acknowledgement window of 120 minutes
+    When I send POST "/vendor/inventory" with:
+      """
+      {"vendorId":"V-1","nodeId":"N-1","fullUpdate":false,"asOf":"2026-10-22T12:55:00Z","lines":[]}
+      """
+    And I send GET "/vendor/transactions/{tx}?vendorId=V-2"
+    Then the response status is 404
+    And the problem type is "not-found"
