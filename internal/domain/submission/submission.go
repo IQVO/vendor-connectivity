@@ -1,6 +1,6 @@
 // Package submission is the Submission aggregate: one asynchronous vendor
 // write (acknowledgement, inventory feed, node registration, profile
-// declaration, shipment confirmation) and its processing outcome (ADR 0002).
+// declaration, shipment confirmation, inbound receipt) and its processing outcome (ADR 0002).
 //
 // States: PROCESSING (initial), SUCCESS, FAILURE. The outcome is set once
 // (ErrSubmissionAlreadyProcessed) and never before notBefore = receivedAt +
@@ -43,13 +43,14 @@ type ID string
 // Kind is the SubmissionKind.
 type Kind string
 
-// The five kinds of vendor write.
+// The six kinds of vendor write.
 const (
 	KindAcknowledgement      Kind = "ACKNOWLEDGEMENT"
 	KindInventory            Kind = "INVENTORY"
 	KindNodeRegistration     Kind = "NODE_REGISTRATION"
 	KindNodeProfile          Kind = "NODE_PROFILE"
 	KindShipmentConfirmation Kind = "SHIPMENT_CONFIRMATION"
+	KindInboundReceipt       Kind = "INBOUND_RECEIPT"
 )
 
 // Status is the processing state.
@@ -158,7 +159,7 @@ func build(sn Snapshot) (*Submission, error) {
 
 func validKind(k Kind) bool {
 	switch k {
-	case KindAcknowledgement, KindInventory, KindNodeRegistration, KindNodeProfile, KindShipmentConfirmation:
+	case KindAcknowledgement, KindInventory, KindNodeRegistration, KindNodeProfile, KindShipmentConfirmation, KindInboundReceipt:
 		return true
 	}
 	return false

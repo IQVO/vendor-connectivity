@@ -39,6 +39,7 @@ const (
 	topicNodes     = "retailnetwork.node-topology.events"
 	topicOffers    = "retailnetwork.offer-availability.events"
 	topicSourcing  = "retailnetwork.order-sourcing.events"
+	topicInbound   = "retailnetwork.seller-inbound.events"
 	topicEvents    = "retailnetwork.vendor-connectivity.events"
 	topicAnalytics = "retailnetwork.vendor-connectivity.analytics"
 
@@ -213,7 +214,7 @@ func (e env) apply(t *testing.T) {
 	t.Setenv("MIGRATIONS_DATABASE_URL", "")
 	t.Setenv("KAFKA_BROKERS", strings.Join(e.brokers, ","))
 	t.Setenv("EVENT_PUBLISHER", "kafka")
-	for _, c := range []string{"NODE", "LISTING", "SOURCING"} {
+	for _, c := range []string{"NODE", "LISTING", "SOURCING", "INBOUND", "PACKAGING"} {
 		t.Setenv(c+"_CONSUMER_GROUP", "vendor-connectivity-"+strings.ToLower(c)+"-e2e")
 	}
 	for _, name := range []string{"NODE_TOPOLOGY_URL", "OFFER_AVAILABILITY_URL", "SHIPPING_AND_TRACKING_URL", "NODE_PERFORMANCE_URL"} {
@@ -522,6 +523,8 @@ func entityOf(event string) string {
 		return "vendoraccount"
 	case "SubmissionProcessed":
 		return "submission"
+	case "InboundReceiptSubmitted":
+		return "inboundreceipt"
 	default:
 		return "purchaseorder"
 	}
@@ -716,6 +719,85 @@ func phaseNeighboursAndCancel(t *testing.T, s *service, w *world) {
 }
 
 // Phase 4: NUL characters and unknown routes are client errors, never a 500.
+// phaseInbound drives the inbound-shipment leg only through Kafka and REST: the
+// seller-inbound events fill InboundShipmentView, the vendor polls the tree and
+// reports a receipt (202, INBOUND_RECEIPT), InboundReceiptSubmitted leaves
+// through the outbox, and a packaging event shows up on the purchase order line.
+func phaseInbound(t *testing.T, s *service, w *world) {
+	t.Helper()
+	prefix := "com.retailnetwork.partner.seller-inbound.inboundshipment."
+	src := "/retailnetwork/seller-inbound"
+	const (
+		sscc1, sscc2, pallet = "006141410000000012", "006141410000000029", "006141410000000036"
+		each, caseGTIN       = "00614141000036", "10614141000019"
+	)
+	labelled := fmt.Sprintf(`{"shipmentId":"SHP-1","planId":"P-1","sellerId":"S-1","nodeId":"n-1","labelledAt":"2026-10-22T12:00:00Z","cartons":[`+
+		`{"sscc":%q,"parentSscc":%q,"kind":"HOMOGENEOUS_CASE","contents":[{"catalogItemId":"c-1","gtin":%q,"qtyEaches":12}],"grossWeightG":4200},`+
+		`{"sscc":%q,"kind":"MIXED","contents":[{"catalogItemId":"c-1","gtin":%q,"qtyEaches":2}],"grossWeightG":900}]}`, sscc1, pallet, each, sscc2, each)
+	produce(t, w.brokers, topicInbound,
+		kafkago.Message{Key: []byte("SHP-1"), Value: inputEvent(t, "evt-i1", src, prefix+"InboundShipmentLabelled", "SHP-1", labelled)},
+		kafkago.Message{Key: []byte("SHP-1"), Value: inputEvent(t, "evt-i2", src, prefix+"InboundShipmentShipped", "SHP-1",
+			`{"shipmentId":"SHP-1","planId":"P-1","sellerId":"S-1","nodeId":"n-1","shippedAt":"2026-10-22T13:00:00Z"}`)})
+	produce(t, w.brokers, topicOffers, kafkago.Message{Key: []byte("c-1"), Value: inputEvent(t, "evt-p1", "/retailnetwork/offer-availability",
+		"com.retailnetwork.partner.offer-availability.catalogitem.CatalogItemPackagingDeclared", "c-1",
+		fmt.Sprintf(`{"catalogItemId":"c-1","level":"CASE","gtin":%q,"childGtin":%q,"unitsPerPack":12,"declaredAt":"2026-10-20T08:00:00Z"}`, caseGTIN, each))})
+	waitFor(t, 60*time.Second, "the shipment copy", func() bool {
+		return w.db.count(`SELECT count(*) FROM inbound_shipments WHERE status = 'SHIPPED'`) == 1
+	})
+	waitFor(t, 60*time.Second, "the packaging copy", func() bool {
+		return w.db.count(`SELECT count(*) FROM catalog_packaging`) == 1
+	})
+
+	var page struct {
+		InboundShipments []struct {
+			ShipmentID, NodeID, SellerID, Status string
+			Pallets                              []struct{ SSCC string }
+			Cartons                              []struct{ SSCC string }
+		} `json:"inboundShipments"`
+	}
+	mustDecode(t, s.call(http.MethodGet, "/vendor/inbound-shipments?vendorId=V-1", "", "", http.StatusOK), &page)
+	if len(page.InboundShipments) != 1 || page.InboundShipments[0].ShipmentID != "SHP-1" || page.InboundShipments[0].SellerID != "S-1" ||
+		len(page.InboundShipments[0].Pallets) != 1 || page.InboundShipments[0].Pallets[0].SSCC != pallet || len(page.InboundShipments[0].Cartons) != 1 {
+		t.Fatalf("inbound poll = %+v", page)
+	}
+	s.call(http.MethodGet, "/vendor/inbound-shipments/SHP-1?vendorId=V-1", "", "", http.StatusOK)
+	assertProblem(t, s.call(http.MethodGet, "/vendor/inbound-shipments/SHP-1?vendorId=V-404", "", "", http.StatusNotFound), "not-found")
+	if body := s.call(http.MethodGet, "/vendor/purchase-orders?vendorId=V-1", "", "", http.StatusOK); !strings.Contains(body,
+		`"packaging":[{"level":"CASE","gtin":"`+caseGTIN+`","childGtin":"`+each+`","unitsPerPack":12}]`) {
+		t.Fatalf("purchase order lines carry no packaging: %s", body)
+	}
+
+	receipt := fmt.Sprintf(`{"vendorId":"V-1","shipmentId":"SHP-1","nodeId":"n-1","receivedAt":"2026-10-23T09:30:00Z","cartons":[`+
+		`{"sscc":%q,"status":"RECEIVED","items":[{"gtin":%q,"qtyEaches":12}]},{"sscc":%q,"status":"DAMAGED","items":[{"gtin":%q,"qtyEaches":1}],"complianceCodes":["CARTON_CRUSHED"]}]}`,
+		sscc1, each, sscc2, each)
+	var accepted struct {
+		TransactionID string `json:"transactionId"`
+	}
+	mustDecode(t, s.call(http.MethodPost, "/vendor/inbound-receipts", receipt, "rcpt-1", http.StatusAccepted), &accepted)
+	if accepted.TransactionID == "" {
+		t.Fatal("no transactionId for the inbound receipt")
+	}
+	assertProblem(t, s.call(http.MethodPost, "/vendor/inbound-receipts", strings.Replace(receipt, sscc1, pallet, 1), "rcpt-2", http.StatusUnprocessableEntity), "validation-failed")
+	assertProblem(t, s.call(http.MethodPost, "/vendor/inbound-receipts", strings.Replace(receipt, "SHP-1", "SHP-404", 1), "rcpt-3", http.StatusNotFound), "not-found")
+	if raw := waitTransaction(t, s, accepted.TransactionID, "SUCCESS"); !strings.Contains(raw, `"kind":"INBOUND_RECEIPT"`) {
+		t.Fatalf("transaction = %s", raw)
+	}
+	w.expect("InboundReceiptSubmitted", "SHP-1")
+	w.expect("SubmissionProcessed", accepted.TransactionID)
+
+	// seller-inbound closes the shipment: it leaves the poll and cannot be received again.
+	produce(t, w.brokers, topicInbound, kafkago.Message{Key: []byte("SHP-1"), Value: inputEvent(t, "evt-i3", src, prefix+"InboundShipmentReceived", "SHP-1",
+		`{"shipmentId":"SHP-1","sellerId":"S-1","nodeId":"n-1","status":"CLOSED_WITH_DISCREPANCY","receivedAt":"2026-10-23T10:00:00Z"}`)})
+	waitFor(t, 60*time.Second, "the shipment to close", func() bool {
+		return w.db.count(`SELECT count(*) FROM inbound_shipments WHERE status = 'CLOSED_WITH_DISCREPANCY'`) == 1
+	})
+	mustDecode(t, s.call(http.MethodGet, "/vendor/inbound-shipments?vendorId=V-1", "", "", http.StatusOK), &page)
+	if len(page.InboundShipments) != 0 {
+		t.Fatalf("a received shipment is still polled: %+v", page)
+	}
+	assertProblem(t, s.call(http.MethodPost, "/vendor/inbound-receipts", receipt, "rcpt-4", http.StatusConflict), "illegal-transition")
+}
+
 func phaseNUL(t *testing.T, s *service) {
 	t.Helper()
 	assertProblem(t, s.call(http.MethodGet, "/vendor/purchase-orders/a%00b?vendorId=V-1", "", "", http.StatusNotFound), "not-found")
@@ -727,7 +809,7 @@ func phaseNUL(t *testing.T, s *service) {
 func phaseRows(t *testing.T, w *world) {
 	t.Helper()
 	db := w.db
-	for table, want := range map[string]int{"vendor_accounts": 1, "purchase_orders": 2, "submissions": 4} {
+	for table, want := range map[string]int{"vendor_accounts": 1, "purchase_orders": 2, "submissions": 5, "inbound_shipments": 1, "catalog_packaging": 1} {
 		if n := db.count(`SELECT count(*) FROM ` + table); n != want {
 			t.Fatalf("%s rows = %d, want %d", table, n, want)
 		}
@@ -737,8 +819,8 @@ func phaseRows(t *testing.T, w *world) {
 			t.Fatalf("purchase_orders in %s = %d, want %d", state, n, want)
 		}
 	}
-	if n := db.count(`SELECT count(*) FROM processed_events`); n != 7 {
-		t.Fatalf("processed_events = %d, want 7 (3 node, 1 listing, 2 releases, 1 cancellation)", n)
+	if n := db.count(`SELECT count(*) FROM processed_events`); n != 11 {
+		t.Fatalf("processed_events = %d, want 11 (3 node, 1 listing, 2 releases, 1 cancellation, 3 inbound shipment, 1 packaging)", n)
 	}
 	if n := db.count(`SELECT count(*) FROM outbox_events`); n != len(w.expected)+len(w.analyze) {
 		t.Fatalf("outbox rows = %d, want %d", n, len(w.expected)+len(w.analyze))
@@ -791,8 +873,8 @@ func phaseRestart(t *testing.T, w *world, s *service) *service {
 	// Give the restarted consumers time to (wrongly) re-apply and the relay to
 	// (wrongly) re-publish; neither may happen.
 	time.Sleep(3 * time.Second)
-	if n := w.db.count(`SELECT count(*) FROM processed_events`); n != 7 {
-		t.Fatalf("processed_events after the restart = %d, want still 7", n)
+	if n := w.db.count(`SELECT count(*) FROM processed_events`); n != 11 {
+		t.Fatalf("processed_events after the restart = %d, want still 11", n)
 	}
 	noMoreMessages(t, w.brokers, topicEvents, len(w.expected))
 	noMoreMessages(t, w.brokers, topicAnalytics, len(w.analyze))
@@ -857,7 +939,10 @@ func TestRunOnRealPostgresAndKafka(t *testing.T) {
 	pg, dbURL := startPostgres(t)
 	kc, brokers := startKafka(t)
 	// The input topics are the producers': create them the way the cluster has them.
-	for _, topic := range []string{topicNodes, topicOffers, topicSourcing} {
+	// The consumed topics exist before the first start, as in the cluster: a group
+	// that joins before its topic exists is handed no partition and kafka-go does
+	// not retry the assignment.
+	for _, topic := range []string{topicNodes, topicOffers, topicSourcing, topicInbound} {
 		createTopic(t, brokers, topic)
 	}
 	stub := newNeighbourStub(t)
@@ -867,6 +952,7 @@ func TestRunOnRealPostgresAndKafka(t *testing.T) {
 	phaseSetup(t, s, w)
 	phaseWorkflow(t, s, w)
 	phaseNeighboursAndCancel(t, s, w)
+	phaseInbound(t, s, w)
 	phaseNUL(t, s)
 	phaseRows(t, w)
 	phaseTopics(t, w)

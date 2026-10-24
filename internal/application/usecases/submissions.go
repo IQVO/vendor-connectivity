@@ -149,7 +149,7 @@ func (s *Service) execute(ctx context.Context, sub *submission.Submission) resul
 		return failure(CodeSimulatedFailure, "the write failed on purpose (TX_FAILURE_RATE)", "")
 	}
 	switch sub.Kind() {
-	case submission.KindAcknowledgement, submission.KindShipmentConfirmation:
+	case submission.KindAcknowledgement, submission.KindShipmentConfirmation, submission.KindInboundReceipt:
 		return success()
 	case submission.KindNodeRegistration:
 		return s.executeRegistration(ctx, sub)

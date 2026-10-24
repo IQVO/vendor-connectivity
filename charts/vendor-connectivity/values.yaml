@@ -1,7 +1,7 @@
 # Default values for vendor-connectivity. Three components, only the first on
 # by default: the api Deployment (cmd/api), the read-only MCP server
-# (cmd/mcp, mcp below, ADR 0005) and the frontend Module Federation remote
-# (web/, frontend below, ADR 0006). The outbox relay, the three Kafka
+# (cmd/mcp, mcp below, ADR 0006) and the frontend Module Federation remote
+# (web/, frontend below, ADR 0007). The outbox relay, the three Kafka
 # consumers and the three loops run inside the api; the mcp binary runs
 # nothing of that, and the frontend pod serves static bytes only.
 
@@ -112,6 +112,8 @@ config:
   nodeConsumerGroup: ""              # NODE_CONSUMER_GROUP (node-topology events)
   listingConsumerGroup: ""           # LISTING_CONSUMER_GROUP (offer-availability events)
   sourcingConsumerGroup: ""          # SOURCING_CONSUMER_GROUP (order-sourcing events)
+  inboundConsumerGroup: ""           # INBOUND_CONSUMER_GROUP (seller-inbound shipment events)
+  packagingConsumerGroup: ""         # PACKAGING_CONSUMER_GROUP (offer-availability packaging events)
 
   # Base URLs of the four synchronous in-organization calls. All REQUIRED, no
   # default (the binary refuses to boot without them).
@@ -191,7 +193,7 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
-# cmd/mcp (ADR 0005): the read-only MCP server (Streamable HTTP on /mcp and
+# cmd/mcp (ADR 0006): the read-only MCP server (Streamable HTTP on /mcp and
 # /, plus an open /healthz). It reads the service database through the SAME
 # queries the REST adapter serves and writes nothing: no outbox relay, no
 # consumer, no Kafka, no loops. No auth, by fleet decision: the in-cluster
@@ -225,7 +227,7 @@ mcp:
       cpu: 100m
       memory: 128Mi
 
-# web/ (vendor_connectivity_mfe, ADR 0006): the Module Federation remote
+# web/ (vendor_connectivity_mfe, ADR 0007): the Module Federation remote
 # served by its own nginx pod, reached through warehouse-infra's Nginx web
 # gateway at /mfes/vendor-connectivity/. Never routed by Kong; ClusterIP
 # only. Read-only console over the api's GET surface.

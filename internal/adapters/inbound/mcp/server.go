@@ -3,7 +3,7 @@
 // same application-layer read queries the REST adapter serves. It is built on
 // the official MCP Go SDK and served over Streamable HTTP only.
 //
-// Per docs/adr/0005-mcp-server-adoption.md the surface is READ-ONLY: every
+// Per docs/adr/0006-mcp-server-adoption.md the surface is READ-ONLY: every
 // tool reads vendor-connectivity data (poll_purchase_orders,
 // get_purchase_order, list_vendor_nodes, get_vendor_node, get_node_scorecard,
 // get_transaction, get_vendor); the submissions, the vendor lifecycle and the

@@ -1,5 +1,5 @@
 // Command mcp is the composition root for the vendor-connectivity MCP server
-// (docs/adr/0005-mcp-server-adoption.md): it wires env config to the outbound
+// (docs/adr/0006-mcp-server-adoption.md): it wires env config to the outbound
 // Postgres repositories, the repositories to the SAME application Service
 // the REST adapter serves, and that Service's read surface to the inbound
 // MCP adapter, then serves MCP over Streamable HTTP (and nothing else: no

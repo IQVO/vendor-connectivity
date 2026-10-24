@@ -43,6 +43,12 @@ type Reader interface {
 	Close() error
 }
 
+// readerMaxWait bounds how long a fetch blocks on a quiet topic. Reader.Close
+// waits for the in-flight fetch, so with the default (10s) every consumer would
+// add up to 10s to the graceful stop (five consumers must stop inside the
+// chart's termination grace period).
+const readerMaxWait = 500 * time.Millisecond
+
 // readerConfig builds a kafka-go reader configuration shared by both
 // consumers. GroupID always comes from the caller (an env var at the
 // composition root -- never a literal here), satisfying
@@ -65,6 +71,7 @@ func readerConfig(brokers []string, topic, groupID string) kafkago.ReaderConfig 
 		Brokers: brokers,
 		Topic:   topic,
 		GroupID: groupID,
+		MaxWait: readerMaxWait,
 	}
 }
 

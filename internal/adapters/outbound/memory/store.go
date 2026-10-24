@@ -18,6 +18,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/network"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
@@ -35,6 +36,9 @@ type Store struct {
 	listings map[string]network.Listing
 	inbox    map[string]string
 	outbox   []shared.Event
+
+	shipments map[string]inbound.Shipment
+	packaging map[string]inbound.PackLevel
 }
 
 // NewStore returns an empty store.
@@ -42,7 +46,7 @@ func NewStore() *Store {
 	return &Store{
 		vendors: map[vendor.ID]vendor.Snapshot{}, orders: map[purchaseorder.Number]purchaseorder.Snapshot{},
 		subs: map[submission.ID]submission.Snapshot{}, nodes: map[string]network.Node{}, listings: map[string]network.Listing{},
-		inbox: map[string]string{},
+		inbox: map[string]string{}, shipments: map[string]inbound.Shipment{}, packaging: map[string]inbound.PackLevel{},
 	}
 }
 
@@ -56,6 +60,9 @@ type state struct {
 	listings map[string]network.Listing
 	inbox    map[string]string
 	outbox   []shared.Event
+
+	shipments map[string]inbound.Shipment
+	packaging map[string]inbound.PackLevel
 }
 
 func cloneMap[K comparable, V any](m map[K]V) map[K]V {
@@ -70,11 +77,13 @@ func (s *Store) capture() state {
 	return state{
 		vendors: cloneMap(s.vendors), orders: cloneMap(s.orders), subs: cloneMap(s.subs), nodes: cloneMap(s.nodes),
 		listings: cloneMap(s.listings), inbox: cloneMap(s.inbox), outbox: append([]shared.Event(nil), s.outbox...),
+		shipments: cloneMap(s.shipments), packaging: cloneMap(s.packaging),
 	}
 }
 
 func (s *Store) restore(st state) {
 	s.vendors, s.orders, s.subs, s.nodes, s.listings, s.inbox, s.outbox = st.vendors, st.orders, st.subs, st.nodes, st.listings, st.inbox, st.outbox
+	s.shipments, s.packaging = st.shipments, st.packaging
 }
 
 // txKey marks a ctx that carries the open unit of work of one store.
@@ -92,7 +101,7 @@ func (s *Store) enter(ctx context.Context) func() {
 
 // Counts is how many rows each table of the store holds.
 type Counts struct {
-	Vendors, Orders, Submissions, Nodes, Listings, Inbox, OutboxEvents int
+	Vendors, Orders, Submissions, Nodes, Listings, Inbox, OutboxEvents, Shipments, Packaging int
 	// VersionSum is the sum of every aggregate version: any saved change moves it.
 	VersionSum int64
 }
@@ -103,7 +112,7 @@ func (s *Store) Counts() Counts {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := Counts{Vendors: len(s.vendors), Orders: len(s.orders), Submissions: len(s.subs), Nodes: len(s.nodes), Listings: len(s.listings),
-		Inbox: len(s.inbox), OutboxEvents: len(s.outbox)}
+		Inbox: len(s.inbox), OutboxEvents: len(s.outbox), Shipments: len(s.shipments), Packaging: len(s.packaging)}
 	for _, v := range s.vendors {
 		c.VersionSum += v.Version
 	}
@@ -133,6 +142,14 @@ func (s *Store) Nodes() *NodeViewRepository { return &NodeViewRepository{s} }
 
 // Listings returns the ListingViewRepository double.
 func (s *Store) Listings() *ListingViewRepository { return &ListingViewRepository{s} }
+
+// Shipments returns the InboundShipmentViewRepository double.
+func (s *Store) Shipments() *InboundShipmentViewRepository { return &InboundShipmentViewRepository{s} }
+
+// Packaging returns the CatalogPackagingViewRepository double.
+func (s *Store) Packaging() *CatalogPackagingViewRepository {
+	return &CatalogPackagingViewRepository{s}
+}
 
 // Inbox returns the ProcessedEvents double.
 func (s *Store) Inbox() *Inbox { return &Inbox{s} }

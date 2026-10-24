@@ -15,7 +15,7 @@ import (
 // per GET operation of the Vendor API (apis/openapi.yaml), the same methods
 // the REST adapter's handlers call. Reads and writes share the Service type,
 // so read-only is enforced by the narrowest possible interface: through Reads
-// no write use case can even be named (docs/adr/0005). The composition root
+// no write use case can even be named (docs/adr/0006). The composition root
 // (cmd/mcp) satisfies it with the same *usecases.Service cmd/api builds.
 type Reads interface {
 	// PollPurchaseOrders backs GET /vendor/purchase-orders.
@@ -36,7 +36,7 @@ type Reads interface {
 
 // Deps is everything the MCP tools need, injected by the composition root.
 // It carries the read surface only; the adapter never constructs an outbound
-// adapter itself, and it holds no write use case at all (docs/adr/0005). A
+// adapter itself, and it holds no write use case at all (docs/adr/0006). A
 // zero Deps is a valid server with no reachable database, which the transport
 // tests use.
 type Deps struct {
@@ -150,7 +150,7 @@ func (d Deps) getVendor(ctx context.Context, in vendorInput) (views.VendorAccoun
 // registerTools adds the seven read-only tools, one per GET operation of the
 // Vendor API. Every tool is annotated read-only, idempotent and closed-world;
 // TestToolSurface pins the set and fails the build on any write-verb name
-// (docs/adr/0005).
+// (docs/adr/0006).
 func (d Deps) registerTools(server *mcp.Server) {
 	closedWorld := false
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld}

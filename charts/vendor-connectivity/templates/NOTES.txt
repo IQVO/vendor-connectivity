@@ -22,10 +22,12 @@ Vendor events are relayed from the transactional outbox onto
 retailnetwork.vendor-connectivity.events ({{ .Values.kafka.brokers }}); Postgres and Kafka are
 the only runtime.
 
-The three consumers are ON, each under its stable group id:
+The five consumers are ON, each under its stable group id:
   node-topology       group {{ .Values.config.nodeConsumerGroup }}
   offer-availability  group {{ .Values.config.listingConsumerGroup }}
   order-sourcing      group {{ .Values.config.sourcingConsumerGroup }}
+  seller-inbound      group {{ .Values.config.inboundConsumerGroup }}
+  offer-availability  group {{ .Values.config.packagingConsumerGroup }} (packaging)
 
 Synchronous calls: {{ .Values.config.nodeTopologyUrl }}, {{ .Values.config.offerAvailabilityUrl }},
 {{ .Values.config.shippingAndTrackingUrl }}, {{ .Values.config.nodePerformanceUrl }}

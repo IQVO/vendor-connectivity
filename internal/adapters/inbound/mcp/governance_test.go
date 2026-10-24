@@ -21,7 +21,7 @@ import (
 //	go test ./internal/adapters/inbound/mcp -run TestToolRegistryGolden -update
 var update = flag.Bool("update", false, "rewrite the MCP tool registry golden file")
 
-// wantTools is the curated, READ-ONLY tool set (docs/adr/0005): one tool per
+// wantTools is the curated, READ-ONLY tool set (docs/adr/0006): one tool per
 // GET operation of the Vendor API.
 var wantTools = []string{
 	"get_node_scorecard", "get_purchase_order", "get_transaction", "get_vendor",
@@ -56,7 +56,7 @@ func writeVerbViolations(names []string) []string {
 		for _, word := range strings.Split(name, "_") {
 			for _, verb := range writeVerbs {
 				if word == verb {
-					out = append(out, name+": contains the write verb "+verb+" (the MCP surface is read-only, docs/adr/0005)")
+					out = append(out, name+": contains the write verb "+verb+" (the MCP surface is read-only, docs/adr/0006)")
 				}
 			}
 		}
@@ -282,7 +282,7 @@ func TestNoWriteUseCaseIsNamed(t *testing.T) {
 		}
 		for _, useCase := range writeUseCaseNames {
 			if strings.Contains(string(body), useCase) {
-				t.Errorf("%s names the write use case %s: the MCP surface is read-only (docs/adr/0005)", name, useCase)
+				t.Errorf("%s names the write use case %s: the MCP surface is read-only (docs/adr/0006)", name, useCase)
 			}
 		}
 	}
