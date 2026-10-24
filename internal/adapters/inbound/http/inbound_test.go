@@ -55,6 +55,12 @@ func TestPollAndGetInboundShipments(t *testing.T) {
 	if got := next.json(t); next.code != 200 || len(got["inboundShipments"].([]any)) != 1 || got["nextToken"] != nil {
 		t.Fatalf("second page = %d %s", next.code, next.body)
 	}
+}
+
+func TestInboundPollFiltersAndGetByID(t *testing.T) {
+	a := newAPI(t)
+	a.shipped("SHP-1", "n-1", t0.Add(time.Hour))
+	a.shipped("SHP-2", "n-1", t0.Add(2*time.Hour))
 	if f := a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&nodeId=n-1&createdAfter="+url.QueryEscape(t0.Add(time.Hour).Format(time.RFC3339)), ""); f.code != 200 ||
 		len(f.json(t)["inboundShipments"].([]any)) != 1 {
 		t.Fatalf("filtered = %d %s", f.code, f.body)

@@ -82,7 +82,17 @@ func TestShipmentFollowsTheEventsForwardOnly(t *testing.T) {
 	if shp.SellerID != "S-1" || shp.PlanID != "PLAN-1" {
 		t.Errorf("identity lost: %+v", shp)
 	}
-	// A repeated or late label never moves the status back, and replaces the manifest.
+}
+
+func TestARepeatedLabelReplacesTheManifestWithoutMovingTheStatusBack(t *testing.T) {
+	shp, err := Shipment{}.OnLabelled(labelled(carton(ssccA, Item{GTIN: gtinE13, QtyEaches: 12})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	shp, err = shp.OnShipped(Shipped{ShipmentID: "SHP-1", NodeID: "n-1", ShippedAt: t0})
+	if err != nil {
+		t.Fatal(err)
+	}
 	again, err := shp.OnLabelled(labelled(carton(ssccB, Item{GTIN: gtinF, QtyEaches: 1})))
 	if err != nil || again.Status != StatusShipped || len(again.Cartons) != 1 || again.Cartons[0].SSCC != ssccB {
 		t.Fatalf("relabel = %+v %v", again, err)

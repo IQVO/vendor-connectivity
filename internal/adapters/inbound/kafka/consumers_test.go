@@ -13,6 +13,7 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/application/ports"
 	"github.com/claudioed/vendor-connectivity/internal/application/requests"
 	"github.com/claudioed/vendor-connectivity/internal/application/usecases"
+	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 )
 
@@ -229,6 +230,16 @@ func labelledEvent() []byte {
 		}})
 }
 
+func checkFirstCarton(t *testing.T, c inbound.Carton) {
+	t.Helper()
+	if c.SSCC != ssccA || c.ParentSSCC != ssccP || c.GrossWeightG != 4200 || c.Dims == nil || c.Dims.W != 300 {
+		t.Fatalf("carton = %+v", c)
+	}
+	if it := c.Contents[0]; it.Lot != "L-7" || it.Expiry != "2027-03-01" || it.CatalogItemID != "item-1" {
+		t.Fatalf("item = %+v", it)
+	}
+}
+
 func TestInboundConsumerBuildsInboundShipmentView(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
@@ -244,10 +255,7 @@ func TestInboundConsumerBuildsInboundShipmentView(t *testing.T) {
 	if err != nil || sh.Status != "SHIPPED" || sh.SellerID != "S-1" || sh.PlanID != "P-1" || sh.NodeID != "n-1" || len(sh.Cartons) != 2 || !sh.Pollable() {
 		t.Fatalf("shipment = %+v %v", sh, err)
 	}
-	c0 := sh.Cartons[0]
-	if c0.SSCC != ssccA || c0.ParentSSCC != ssccP || c0.GrossWeightG != 4200 || c0.Dims == nil || c0.Dims.W != 300 || c0.Contents[0].Lot != "L-7" || c0.Contents[0].Expiry != "2027-03-01" || c0.Contents[0].CatalogItemID != "item-1" {
-		t.Fatalf("carton = %+v", c0)
-	}
+	checkFirstCarton(t, sh.Cartons[0])
 	if sh.ShippedAt.Format(time.RFC3339) != "2026-10-24T13:00:00Z" || sh.LabelledAt.Format(time.RFC3339) != "2026-10-24T12:00:00Z" {
 		t.Errorf("times = %v %v", sh.ShippedAt, sh.LabelledAt)
 	}

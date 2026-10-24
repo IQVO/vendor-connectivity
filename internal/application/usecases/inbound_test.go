@@ -10,6 +10,7 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/application/ports"
 	"github.com/claudioed/vendor-connectivity/internal/application/requests"
 	"github.com/claudioed/vendor-connectivity/internal/application/usecases"
+	"github.com/claudioed/vendor-connectivity/internal/application/views"
 	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/network"
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
@@ -167,15 +168,28 @@ func TestGetInboundShipmentBuildsThePalletAndCartonTree(t *testing.T) {
 	h.shipped("SHP-1", "n-1", t0, homogeneous(ssccA, ssccP, gtinE, 12), mixed)
 	got, err := h.svc.GetInboundShipment(h.ctx, "V-1", "SHP-1")
 	h.must(err)
-	if got.ShipmentID != "SHP-1" || got.SellerID != "S-1" || got.NodeID != "n-1" || got.Status != "SHIPPED" || !got.ShippedAt.Equal(t0) {
+	if got.ShipmentID != "SHP-1" || got.SellerID != "S-1" || got.NodeID != "n-1" || got.Status != "SHIPPED" {
 		t.Fatalf("header = %+v", got)
 	}
-	if len(got.Pallets) != 1 || got.Pallets[0].SSCC != ssccP || len(got.Pallets[0].Cartons) != 1 || got.Pallets[0].Cartons[0].SSCC != ssccA || got.Pallets[0].Cartons[0].ParentSSCC != ssccP {
+	if !got.ShippedAt.Equal(t0) {
+		t.Fatalf("shippedAt = %v", got.ShippedAt)
+	}
+	checkTree(t, got)
+}
+
+func checkTree(t *testing.T, got views.InboundShipment) {
+	t.Helper()
+	if len(got.Pallets) != 1 || got.Pallets[0].SSCC != ssccP || len(got.Pallets[0].Cartons) != 1 {
 		t.Fatalf("pallets = %+v", got.Pallets)
 	}
-	if len(got.Cartons) != 1 || got.Cartons[0].SSCC != ssccB || got.Cartons[0].DimsMm == nil || got.Cartons[0].DimsMm.H != 6 || len(got.Cartons[0].Contents) != 2 ||
-		got.Cartons[0].Contents[0].Lot != "L1" || got.Cartons[0].Contents[0].Expiry != "2027-03-01" || got.Cartons[0].ParentSSCC != "" {
+	if c := got.Pallets[0].Cartons[0]; c.SSCC != ssccA || c.ParentSSCC != ssccP {
+		t.Fatalf("palletised carton = %+v", c)
+	}
+	if len(got.Cartons) != 1 || got.Cartons[0].SSCC != ssccB || got.Cartons[0].ParentSSCC != "" || len(got.Cartons[0].Contents) != 2 {
 		t.Fatalf("cartons = %+v", got.Cartons)
+	}
+	if c := got.Cartons[0]; c.DimsMm == nil || c.DimsMm.H != 6 || c.Contents[0].Lot != "L1" || c.Contents[0].Expiry != "2027-03-01" {
+		t.Fatalf("top-level carton = %+v", c)
 	}
 }
 
