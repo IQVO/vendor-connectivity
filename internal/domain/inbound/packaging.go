@@ -123,7 +123,7 @@ func (p PackLevel) OnRetired(e Retired) (PackLevel, error) {
 	}
 	out := p
 	out.CatalogItemID, out.Level, out.GTIN = e.CatalogItemID, e.Level, g
-	if p.DeclaredAt.IsZero() || e.RetiredAt.After(p.DeclaredAt) {
+	if p.DeclaredAt.IsZero() || !e.RetiredAt.Before(p.DeclaredAt) {
 		out.Active = false
 	}
 	if e.RetiredAt.After(p.RetiredAt) {
