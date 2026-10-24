@@ -13,6 +13,7 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/adapters/outbound/memory"
 	"github.com/claudioed/vendor-connectivity/internal/application/requests"
 	"github.com/claudioed/vendor-connectivity/internal/application/usecases"
+	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 )
 
@@ -39,7 +40,8 @@ func newHarness(t *testing.T) *harness {
 	perf := &memory.NodePerformance{}
 	svc := usecases.New(usecases.Deps{
 		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(),
-		Nodes: s.Nodes(), Listings: s.Listings(), Outbox: s.Outbox(), Inbox: s.Inbox(),
+		Nodes: s.Nodes(), Listings: s.Listings(), Shipments: s.Shipments(), Packaging: s.Packaging(),
+		Outbox: s.Outbox(), Inbox: s.Inbox(),
 		Clock: clock, IDs: &memory.SequentialIDs{}, Random: memory.NewScriptedRandom(),
 		NodeTopology: &memory.NodeTopology{}, Offers: &memory.OfferAvailability{},
 		Shipping: &memory.ShippingTracking{}, Performance: perf,
@@ -129,6 +131,35 @@ func ackReason(decision string) string {
 		return "OUT_OF_STOCK"
 	}
 	return ""
+}
+
+// ship seeds one SHIPPED inbound shipment bound for the node the way the
+// inbound-shipment consumers would (labelled, then shipped), and returns its
+// id. The pallet is derived from the carton's parent SSCC; one carton sits
+// on it, one is top-level.
+func (h *harness) ship(t *testing.T, id, node string, shippedAt time.Time) string {
+	t.Helper()
+	// GS1 SSCCs are 18 digits; the pallet SSCC exists only as a parent.
+	pallet, onPallet, loose := "006141410000000036", "006141410000000012", "006141410000000029"
+	must(t, h.svc.OnInboundShipmentLabelled(context.Background(), "lab-"+id, "InboundShipmentLabelled", inbound.Labelled{
+		ShipmentID: id, PlanID: "P-1", SellerID: "S-1", NodeID: node, LabelledAt: shippedAt,
+		Cartons: []inbound.Carton{
+			{SSCC: onPallet, ParentSSCC: pallet, Kind: "HOMOGENEOUS_CASE", GrossWeightG: 900,
+				Contents: []inbound.Item{{GTIN: "00614141000036", QtyEaches: 12}}},
+			{SSCC: loose, Kind: "MIXED", Contents: []inbound.Item{{GTIN: "00614141000043", QtyEaches: 2}}},
+		},
+	}))
+	must(t, h.svc.OnInboundShipmentShipped(context.Background(), "shp-"+id, "InboundShipmentShipped", inbound.Shipped{
+		ShipmentID: id, SellerID: "S-1", NodeID: node, ShippedAt: shippedAt,
+	}))
+	return id
+}
+
+// withShipment seeds V-1 with one SHIPPED shipment for n-1 and returns its id.
+func withShipment(t *testing.T) (*harness, string) {
+	t.Helper()
+	h := newHarness(t)
+	return h, h.ship(t, "ish-4b7e", "n-1", now)
 }
 
 // withOrder seeds V-1 with one ISSUED order on n-1 and returns its poNumber.

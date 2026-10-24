@@ -1,7 +1,8 @@
 import { CONNECTIVITY_API_BASE } from "./config";
 import type {
-  PollQuery, PurchaseOrder, PurchaseOrderPage, Scorecard, Transaction,
-  VendorAccount, VendorNode, VendorNodeList,
+  InboundPollQuery, InboundShipment, InboundShipmentPage, PollQuery,
+  PurchaseOrder, PurchaseOrderPage, Scorecard, Transaction, VendorAccount,
+  VendorNode, VendorNodeList,
 } from "./types";
 
 /** RFC 9457 problem+json body every error response from vendor-connectivity
@@ -97,6 +98,24 @@ export async function pollPurchaseOrders(q: PollQuery): Promise<PurchaseOrderPag
     }),
   );
   return { purchaseOrders: res.purchaseOrders ?? [], nextToken: res.nextToken || undefined };
+}
+
+/** GET /vendor/inbound-shipments -- the shipments bound for the vendor's
+ *  nodes, oldest first, paged. */
+export async function pollInboundShipments(q: InboundPollQuery): Promise<InboundShipmentPage> {
+  const res = await get<InboundShipmentPage>(
+    withQuery("/vendor/inbound-shipments", {
+      vendorId: q.vendorId, nodeId: q.nodeId, createdAfter: q.createdAfter,
+      nextToken: q.nextToken, limit: q.limit,
+    }),
+  );
+  return { inboundShipments: res.inboundShipments ?? [], nextToken: res.nextToken || undefined };
+}
+
+/** GET /vendor/inbound-shipments/{shipmentId} -- the pallet-and-carton tree
+ *  (a not-yet-shipped shipment is as absent as an unknown one). */
+export async function getInboundShipment(vendorId: string, shipmentId: string): Promise<InboundShipment> {
+  return get<InboundShipment>(withQuery(`/vendor/inbound-shipments/${seg(shipmentId)}`, { vendorId }));
 }
 
 /** GET /vendor/purchase-orders/{poNumber} (404 not-found, never a ship-to). */

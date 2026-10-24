@@ -262,9 +262,12 @@ func TestGetVendorErrors(t *testing.T) {
 func TestReadsEmitNothing(t *testing.T) {
 	h, po := withOrder(t)
 	tx := h.acknowledge(t, "V-1", po, "ACCEPT")
+	shipment := h.ship(t, "ish-77c2", "n-1", now)
 	before := h.store.Counts()
 	h.ok(t, "poll_purchase_orders", map[string]any{"vendorId": "V-1"})
 	h.ok(t, "get_purchase_order", map[string]any{"vendorId": "V-1", "poNumber": po})
+	h.ok(t, "poll_inbound_shipments", map[string]any{"vendorId": "V-1"})
+	h.ok(t, "get_inbound_shipment", map[string]any{"vendorId": "V-1", "shipmentId": shipment})
 	h.ok(t, "list_vendor_nodes", map[string]any{"vendorId": "V-1"})
 	h.ok(t, "get_vendor_node", map[string]any{"vendorId": "V-1", "nodeId": "n-1"})
 	h.ok(t, "get_node_scorecard", map[string]any{"vendorId": "V-1", "nodeId": "n-1"})
@@ -273,4 +276,84 @@ func TestReadsEmitNothing(t *testing.T) {
 	if after := h.store.Counts(); after != before {
 		t.Fatalf("store counts %v -> %v: a read tool wrote something", before, after)
 	}
+}
+
+func TestPollInboundShipments(t *testing.T) {
+	h := newHarness(t)
+	h.ship(t, "ish-4b7e", "n-1", now)
+	h.clock.Set(now.Add(time.Hour))
+	h.ship(t, "ish-9a10", "n-1", now.Add(time.Hour))
+
+	got := h.ok(t, "poll_inbound_shipments", map[string]any{"vendorId": "V-1"})
+	shipments := got["inboundShipments"].([]any)
+	if len(shipments) != 2 {
+		t.Fatalf("poll_inbound_shipments = %d shipments, want 2: %v", len(shipments), got)
+	}
+	// Oldest first, the head carrying the read shape.
+	head := shipments[0].(map[string]any)
+	for key, want := range map[string]any{
+		"shipmentId": "ish-4b7e", "nodeId": "n-1", "status": "SHIPPED", "sellerId": "S-1",
+	} {
+		if head[key] != want {
+			t.Errorf("polled shipment %q = %#v, want %#v", key, head[key], want)
+		}
+	}
+	if shipped, _ := head["shippedAt"].(string); shipped == "" {
+		t.Error("shippedAt is absent")
+	}
+
+	// The nodeId filter narrows; limit pages with the opaque nextToken.
+	byNode := h.ok(t, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "nodeId": "n-1"})
+	if len(byNode["inboundShipments"].([]any)) != 2 {
+		t.Errorf("nodeId=n-1 = %v", byNode)
+	}
+	one := h.ok(t, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "limit": 1})
+	if len(one["inboundShipments"].([]any)) != 1 || one["nextToken"] == nil || one["nextToken"] == "" {
+		t.Fatalf("limit=1 page = %#v, want 1 shipment and a nextToken", one)
+	}
+	token, _ := one["nextToken"].(string)
+	second := h.ok(t, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "limit": 1, "nextToken": token})
+	if len(second["inboundShipments"].([]any)) != 1 || second["nextToken"] != nil {
+		t.Fatalf("second page = %#v, want the last shipment and no nextToken", second)
+	}
+}
+
+func TestPollInboundShipmentsErrors(t *testing.T) {
+	h, _ := withShipment(t)
+	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "V-404"}, "not-found")
+	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "a/b"}, "validation-failed")
+	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "createdAfter": "nope"}, "validation-failed")
+	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "limit": -1}, "validation-failed")
+	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "nodeId": "n-other"}, "not-found")
+	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "nextToken": "!!"}, "validation-failed")
+}
+
+func TestGetInboundShipment(t *testing.T) {
+	h, id := withShipment(t)
+	got := h.ok(t, "get_inbound_shipment", map[string]any{"vendorId": "V-1", "shipmentId": id})
+	if got["shipmentId"] != id || got["status"] != "SHIPPED" {
+		t.Fatalf("get_inbound_shipment = %#v", got)
+	}
+	pallets := got["pallets"].([]any)
+	if len(pallets) != 1 || pallets[0].(map[string]any)["sscc"] != "006141410000000036" {
+		t.Fatalf("pallets = %#v, want the derived pallet", got["pallets"])
+	}
+	onPallet := pallets[0].(map[string]any)["cartons"].([]any)
+	if len(onPallet) != 1 || onPallet[0].(map[string]any)["sscc"] != "006141410000000012" {
+		t.Fatalf("pallet cartons = %#v", onPallet)
+	}
+	if items := onPallet[0].(map[string]any)["contents"].([]any); len(items) != 1 || items[0].(map[string]any)["qtyEaches"] != float64(12) {
+		t.Fatalf("carton contents = %#v", items)
+	}
+	topLevel := got["cartons"].([]any)
+	if len(topLevel) != 1 || topLevel[0].(map[string]any)["sscc"] != "006141410000000029" {
+		t.Fatalf("top-level cartons = %#v", topLevel)
+	}
+}
+
+func TestGetInboundShipmentErrors(t *testing.T) {
+	h, id := withShipment(t)
+	failWith(t, h.session, "get_inbound_shipment", map[string]any{"vendorId": "V-1", "shipmentId": "ish-nope"}, "not-found")
+	h.onboard(t, "V-2")
+	failWith(t, h.session, "get_inbound_shipment", map[string]any{"vendorId": "V-2", "shipmentId": id}, "not-found")
 }

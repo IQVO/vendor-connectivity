@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import App from "./App";
 import { json, mockApi } from "./test/fetchMock";
-import { purchaseOrder, vendorNode } from "./test/fixtures";
+import { inboundShipment, purchaseOrder, vendorNode } from "./test/fixtures";
 
 // The console mounts the remote under its own splat route; the remote's
 // relative links must resolve against the mount point, not the full URL.
@@ -21,6 +21,8 @@ function renderUnderHost(path: string) {
 const ROUTES = {
   "GET /vendor/purchase-orders": json({ purchaseOrders: [purchaseOrder()] }),
   "GET /vendor/purchase-orders/PO-9A1B-0001": json(purchaseOrder()),
+  "GET /vendor/inbound-shipments": json({ inboundShipments: [inboundShipment()] }),
+  "GET /vendor/inbound-shipments/ish-4b7e": json(inboundShipment()),
   "GET /vendor/nodes": json({ nodes: [vendorNode()] }),
 };
 
@@ -32,6 +34,17 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Purchase orders" })).toHaveAttribute(
       "href", "/vendor-connectivity/orders",
     );
+  });
+
+  it("navigates into an inbound shipment's pallet-and-carton tree", async () => {
+    mockApi(ROUTES);
+    renderUnderHost("/vendor-connectivity/inbound");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Vendor id/), "vend-south-1");
+    await user.click(screen.getByRole("button", { name: "Show shipments" }));
+    await user.click(await screen.findByRole("link", { name: "ish-4b7e" }));
+    expect(await screen.findByRole("heading", { name: "Inbound shipment ish-4b7e" })).toBeInTheDocument();
+    expect(await screen.findByText("Pallet 006141410000000036")).toBeInTheDocument();
   });
 
   it("keeps the sub-nav at the mount point from a deep route", async () => {

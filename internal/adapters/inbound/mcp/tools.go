@@ -22,6 +22,10 @@ type Reads interface {
 	PollPurchaseOrders(ctx context.Context, q requests.PollQuery) (views.PurchaseOrderPage, error)
 	// GetPurchaseOrder backs GET /vendor/purchase-orders/{poNumber}.
 	GetPurchaseOrder(ctx context.Context, vendorID, poNumber string) (views.PurchaseOrder, error)
+	// PollInboundShipments backs GET /vendor/inbound-shipments.
+	PollInboundShipments(ctx context.Context, q requests.InboundPollQuery) (views.InboundShipmentPage, error)
+	// GetInboundShipment backs GET /vendor/inbound-shipments/{shipmentId}.
+	GetInboundShipment(ctx context.Context, vendorID, shipmentID string) (views.InboundShipment, error)
 	// ListVendorNodes backs GET /vendor/nodes.
 	ListVendorNodes(ctx context.Context, vendorID string) (views.VendorNodeList, error)
 	// GetNode backs GET /vendor/nodes/{nodeId}.
@@ -72,6 +76,19 @@ type pollPurchaseOrdersInput struct {
 	Limit        int    `json:"limit,omitempty" jsonschema:"page size, 1..200; omitted or 0 means the service default of 50"`
 }
 
+type vendorShipmentInput struct {
+	VendorID   string `json:"vendorId" jsonschema:"the vendor whose node the shipment is bound for, e.g. vend-south-1"`
+	ShipmentID string `json:"shipmentId" jsonschema:"the inbound shipment id, e.g. shp-4b7e"`
+}
+
+type pollInboundShipmentsInput struct {
+	VendorID     string `json:"vendorId" jsonschema:"the vendor whose inbound shipments to poll, e.g. vend-south-1"`
+	NodeID       string `json:"nodeId,omitempty" jsonschema:"keep only shipments bound for this node; omitted means every node of the vendor"`
+	CreatedAfter string `json:"createdAfter,omitempty" jsonschema:"keep only shipments shipped after this moment, an RFC 3339 date-time such as 2026-10-01T00:00:00Z; omitted means every ship date"`
+	NextToken    string `json:"nextToken,omitempty" jsonschema:"the opaque nextToken returned by the previous page; omitted means the first page"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"page size, 1..200; omitted or 0 means the service default of 50"`
+}
+
 // --- handlers -----------------------------------------------------------------
 
 // pollPurchaseOrders mirrors GET /vendor/purchase-orders: the vendor's orders,
@@ -103,6 +120,37 @@ func (d Deps) getPurchaseOrder(ctx context.Context, in vendorPOInput) (views.Pur
 		return views.PurchaseOrder{}, mapError(err)
 	}
 	return po, nil
+}
+
+// pollInboundShipments mirrors GET /vendor/inbound-shipments: the SHIPPED
+// shipments bound for the vendor's nodes, oldest first, a page at a time.
+// A malformed createdAfter or a negative limit is refused here exactly as
+// the REST adapter refuses it, with validation-failed.
+func (d Deps) pollInboundShipments(ctx context.Context, in pollInboundShipmentsInput) (views.InboundShipmentPage, error) {
+	q := requests.InboundPollQuery{VendorID: in.VendorID, NodeID: in.NodeID, NextToken: in.NextToken, Limit: in.Limit}
+	if in.CreatedAfter != "" {
+		t, err := time.Parse(time.RFC3339, in.CreatedAfter)
+		if err != nil {
+			return views.InboundShipmentPage{}, mapError(shared.Invalid("createdAfter must be an RFC 3339 date-time"))
+		}
+		q.CreatedAfter = &t
+	}
+	if in.Limit < 0 {
+		return views.InboundShipmentPage{}, mapError(shared.Invalid("limit must be a positive integer"))
+	}
+	page, err := d.Reads.PollInboundShipments(ctx, q)
+	if err != nil {
+		return views.InboundShipmentPage{}, mapError(err)
+	}
+	return page, nil
+}
+
+func (d Deps) getInboundShipment(ctx context.Context, in vendorShipmentInput) (views.InboundShipment, error) {
+	sh, err := d.Reads.GetInboundShipment(ctx, in.VendorID, in.ShipmentID)
+	if err != nil {
+		return views.InboundShipment{}, mapError(err)
+	}
+	return sh, nil
 }
 
 func (d Deps) listVendorNodes(ctx context.Context, in vendorInput) (views.VendorNodeList, error) {
@@ -147,13 +195,21 @@ func (d Deps) getVendor(ctx context.Context, in vendorInput) (views.VendorAccoun
 
 // --- registry -----------------------------------------------------------------
 
-// registerTools adds the seven read-only tools, one per GET operation of the
-// Vendor API. Every tool is annotated read-only, idempotent and closed-world;
-// TestToolSurface pins the set and fails the build on any write-verb name
-// (docs/adr/0006).
+// registerTools adds the nine read-only tools, one per GET operation of the
+// Vendor API, grouped the way the Vendor API groups them. Every tool is
+// annotated read-only, idempotent and closed-world; TestToolSurface pins the
+// set and fails the build on any write-verb name (docs/adr/0006).
 func (d Deps) registerTools(server *mcp.Server) {
 	closedWorld := false
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld}
+	d.registerOrderTools(server, readOnly)
+	d.registerInboundTools(server, readOnly)
+	d.registerNodeTools(server, readOnly)
+	d.registerAccountTools(server, readOnly)
+}
+
+// registerOrderTools registers the purchase-order reads.
+func (d Deps) registerOrderTools(server *mcp.Server, readOnly *mcp.ToolAnnotations) {
 
 	addTool(server, &mcp.Tool{
 		Name: "poll_purchase_orders",
@@ -176,7 +232,34 @@ func (d Deps) registerTools(server *mcp.Server) {
 			"node-not-owned-by-vendor, an unknown one with not-found and a malformed vendorId with validation-failed.",
 		Annotations: readOnly,
 	}, d.getPurchaseOrder)
+}
 
+// registerInboundTools registers the inbound-shipment reads (ADR 0005).
+func (d Deps) registerInboundTools(server *mcp.Server, readOnly *mcp.ToolAnnotations) {
+	addTool(server, &mcp.Tool{
+		Name: "poll_inbound_shipments",
+		Description: "Page through the inbound shipments bound for one vendor's nodes, oldest shipment first: " +
+			"shipmentId, sellerId, nodeId, shippedAt, status (SHIPPED or RECEIVED) and the pallet-and-carton tree " +
+			"(pallet SSCC, carton SSCC and parent, kind, eaches, lot, expiry). Narrow to one node (nodeId) or to " +
+			"shipments shipped after a moment (createdAfter, RFC 3339); pass the returned nextToken to get the next " +
+			"page, absent on the last one. Read-only; an unknown vendor fails with not-found, a malformed one with " +
+			"validation-failed, a node of another vendor with node-not-owned-by-vendor and a bad nextToken with " +
+			"validation-failed.",
+		Annotations: readOnly,
+	}, d.pollInboundShipments)
+
+	addTool(server, &mcp.Tool{
+		Name: "get_inbound_shipment",
+		Description: "Read one inbound shipment by shipmentId: the pallets with the cartons stacked on them, the " +
+			"top-level cartons, and every item line in eaches (gtin, sku, qtyEaches, lot, expiry). A shipment that has " +
+			"not shipped yet, or is bound for another vendor's node, is as absent as an unknown one. Read-only; fails " +
+			"with not-found for an unknown or not-yet-shipped shipment and validation-failed for a malformed id.",
+		Annotations: readOnly,
+	}, d.getInboundShipment)
+}
+
+// registerNodeTools registers the node and scorecard reads.
+func (d Deps) registerNodeTools(server *mcp.Server, readOnly *mcp.ToolAnnotations) {
 	addTool(server, &mcp.Tool{
 		Name: "list_vendor_nodes",
 		Description: "List the fulfilment nodes the network has registered for one vendor, sorted by nodeId: type and " +
@@ -204,7 +287,10 @@ func (d Deps) registerTools(server *mcp.Server) {
 			"outage surfaces as upstream-unavailable or upstream-refused.",
 		Annotations: readOnly,
 	}, d.getNodeScorecard)
+}
 
+// registerAccountTools registers the transaction and vendor-account reads.
+func (d Deps) registerAccountTools(server *mcp.Server, readOnly *mcp.ToolAnnotations) {
 	addTool(server, &mcp.Tool{
 		Name: "get_transaction",
 		Description: "Follow one asynchronous write of a vendor by the transactionId its 202 answer returned: kind " +

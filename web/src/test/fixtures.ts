@@ -1,4 +1,4 @@
-import type { PurchaseOrder, Scorecard, VendorAccount, VendorNode } from "../types";
+import type { InboundShipment, PurchaseOrder, Scorecard, VendorAccount, VendorNode } from "../types";
 
 export function purchaseOrder(over: Partial<PurchaseOrder> = {}): PurchaseOrder {
   return {
@@ -56,6 +56,31 @@ export function vendor(over: Partial<VendorAccount> = {}): VendorAccount {
     name: "North Fulfilment",
     ackWindowMinutes: 240,
     state: "ACTIVE",
+    ...over,
+  };
+}
+
+export function inboundShipment(over: Partial<InboundShipment> = {}): InboundShipment {
+  return {
+    shipmentId: "ish-4b7e",
+    sellerId: "S-1",
+    nodeId: "node-76c2",
+    shippedAt: "2026-10-23T18:30:00Z",
+    status: "SHIPPED",
+    pallets: [
+      {
+        sscc: "006141410000000036",
+        cartons: [
+          {
+            sscc: "006141410000000012", parentSscc: "006141410000000036", kind: "HOMOGENEOUS_CASE",
+            grossWeightG: 900, contents: [{ gtin: "00614141000036", qtyEaches: 12 }],
+          },
+        ],
+      },
+    ],
+    cartons: [
+      { sscc: "006141410000000029", kind: "MIXED", contents: [{ gtin: "00614141000036", qtyEaches: 2 }] },
+    ],
     ...over,
   };
 }

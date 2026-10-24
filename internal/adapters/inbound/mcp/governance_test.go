@@ -24,13 +24,14 @@ var update = flag.Bool("update", false, "rewrite the MCP tool registry golden fi
 // wantTools is the curated, READ-ONLY tool set (docs/adr/0006): one tool per
 // GET operation of the Vendor API.
 var wantTools = []string{
-	"get_node_scorecard", "get_purchase_order", "get_transaction", "get_vendor",
-	"get_vendor_node", "list_vendor_nodes", "poll_purchase_orders",
+	"get_inbound_shipment", "get_node_scorecard", "get_purchase_order",
+	"get_transaction", "get_vendor", "get_vendor_node", "list_vendor_nodes",
+	"poll_inbound_shipments", "poll_purchase_orders",
 }
 
 // maxTools is the tool budget. Raising it is a deliberate, reviewed act (an
-// ADR 0005 amendment): TestToolSurface still pins the exact curated set.
-const maxTools = 7
+// ADR 0006 amendment): TestToolSurface still pins the exact curated set.
+const maxTools = 9
 
 // writeVerbs are the verbs of this service's write use cases (onboard a
 // vendor, suspend and reinstate it, register a node, declare a profile,
@@ -199,7 +200,8 @@ func TestOptionalInputsAreNotRequired(t *testing.T) {
 		t.Fatalf("list tools: %v", err)
 	}
 	optional := map[string]map[string]bool{
-		"poll_purchase_orders": {"nodeId": true, "createdAfter": true, "nextToken": true, "limit": true},
+		"poll_purchase_orders":   {"nodeId": true, "createdAfter": true, "nextToken": true, "limit": true},
+		"poll_inbound_shipments": {"nodeId": true, "createdAfter": true, "nextToken": true, "limit": true},
 	}
 	for _, tool := range res.Tools {
 		schema := tool.InputSchema.(map[string]any)
@@ -224,21 +226,22 @@ func TestOptionalInputsAreNotRequired(t *testing.T) {
 }
 
 // Reads is the narrow read surface, and it must stay that way: exactly the
-// seven read methods the REST adapter's GET routes call, in the shape the
+// nine read methods the REST adapter's GET routes call, in the shape the
 // service declares them. A renamed or added method shows up here (and in
 // cmd/mcp, which must keep compiling) before it becomes a silent drift
 // between the two driving adapters.
 func TestReadsSurfacePinsTheReadMethods(t *testing.T) {
 	rt := reflect.TypeOf((*inboundmcp.Reads)(nil)).Elem()
 	want := map[string]bool{
-		"PollPurchaseOrders": true, "GetPurchaseOrder": true, "ListVendorNodes": true,
-		"GetNode": true, "GetScorecard": true, "GetTransaction": true, "GetVendor": true,
+		"PollPurchaseOrders": true, "GetPurchaseOrder": true, "PollInboundShipments": true,
+		"GetInboundShipment": true, "ListVendorNodes": true, "GetNode": true,
+		"GetScorecard": true, "GetTransaction": true, "GetVendor": true,
 	}
 	got := map[string]bool{}
 	for i := range rt.NumMethod() {
 		name := rt.Method(i).Name
 		if !want[name] {
-			t.Errorf("Reads gained the method %s: not one of the seven Vendor API reads", name)
+			t.Errorf("Reads gained the method %s: not one of the nine Vendor API reads", name)
 		}
 		got[name] = true
 	}
@@ -260,8 +263,10 @@ func TestReadsSurfacePinsTheReadMethods(t *testing.T) {
 var writeUseCaseNames = []string{
 	"OnboardVendor", "SuspendVendor", "ReinstateVendor", "RegisterVendorNode",
 	"DeclareNodeProfile", "SubmitAcknowledgement", "SubmitInventory",
-	"RequestLabel", "SubmitShipmentConfirmation", "OnNodeRegistered",
-	"OnListingChanged", "OnSourcingReleased", "IssueOnRelease", "OnOrderCancelled",
+	"RequestLabel", "SubmitShipmentConfirmation", "SubmitInboundReceipt",
+	"OnNodeRegistered", "OnListingChanged", "OnSourcingReleased", "IssueOnRelease",
+	"OnOrderCancelled", "OnInboundShipmentLabelled", "OnInboundShipmentShipped",
+	"OnInboundShipmentReceived", "OnPackagingDeclared", "OnPackLevelRetired",
 	"ProcessDueSubmissions", "ExpireOrders", "DeleteExpiredSubmissions",
 }
 

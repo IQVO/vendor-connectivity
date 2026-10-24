@@ -5,6 +5,247 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
+    "description": "Read one inbound shipment by shipmentId: the pallets with the cartons stacked on them, the top-level cartons, and every item line in eaches (gtin, sku, qtyEaches, lot, expiry). A shipment that has not shipped yet, or is bound for another vendor's node, is as absent as an unknown one. Read-only; fails with not-found for an unknown or not-yet-shipped shipment and validation-failed for a malformed id.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "shipmentId": {
+          "description": "the inbound shipment id, e.g. shp-4b7e",
+          "type": "string"
+        },
+        "vendorId": {
+          "description": "the vendor whose node the shipment is bound for, e.g. vend-south-1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId",
+        "shipmentId"
+      ],
+      "type": "object"
+    },
+    "name": "get_inbound_shipment",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "cartons": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "contents": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expiry": {
+                      "type": "string"
+                    },
+                    "gtin": {
+                      "type": "string"
+                    },
+                    "lot": {
+                      "type": "string"
+                    },
+                    "qtyEaches": {
+                      "type": "integer"
+                    },
+                    "sku": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "gtin",
+                    "qtyEaches"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "dimsMm": {
+                "additionalProperties": false,
+                "properties": {
+                  "h": {
+                    "type": "integer"
+                  },
+                  "l": {
+                    "type": "integer"
+                  },
+                  "w": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "l",
+                  "w",
+                  "h"
+                ],
+                "type": [
+                  "null",
+                  "object"
+                ]
+              },
+              "grossWeightG": {
+                "type": "integer"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "parentSscc": {
+                "type": "string"
+              },
+              "sscc": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sscc",
+              "kind",
+              "contents"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "pallets": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "cartons": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "contents": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "expiry": {
+                            "type": "string"
+                          },
+                          "gtin": {
+                            "type": "string"
+                          },
+                          "lot": {
+                            "type": "string"
+                          },
+                          "qtyEaches": {
+                            "type": "integer"
+                          },
+                          "sku": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "gtin",
+                          "qtyEaches"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "dimsMm": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "h": {
+                          "type": "integer"
+                        },
+                        "l": {
+                          "type": "integer"
+                        },
+                        "w": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "l",
+                        "w",
+                        "h"
+                      ],
+                      "type": [
+                        "null",
+                        "object"
+                      ]
+                    },
+                    "grossWeightG": {
+                      "type": "integer"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "parentSscc": {
+                      "type": "string"
+                    },
+                    "sscc": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sscc",
+                    "kind",
+                    "contents"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "sscc": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sscc",
+              "cartons"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "shipmentId": {
+          "type": "string"
+        },
+        "shippedAt": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "shipmentId",
+        "nodeId",
+        "shippedAt",
+        "status",
+        "pallets",
+        "cartons"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
     "description": "Read a vendor node's rolling scorecards, relayed live from the node-performance context: per window (7d, 30d, 90d) the grade, on-time handover rate, late acknowledgement rate, reject rate, expiry rate, promise-kept rate and feed freshness p95, with the observation count. A node without a scorecard yet fails with not-found. Read-only; the node must belong to the vendor (node-not-owned-by-vendor) and a neighbour outage surfaces as upstream-unavailable or upstream-refused.",
     "inputSchema": {
       "additionalProperties": false,
@@ -201,6 +442,35 @@
               "listingId": {
                 "type": "string"
               },
+              "packaging": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "childGtin": {
+                      "type": "string"
+                    },
+                    "gtin": {
+                      "type": "string"
+                    },
+                    "level": {
+                      "type": "string"
+                    },
+                    "unitsPerPack": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "level",
+                    "gtin",
+                    "unitsPerPack"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
               "quantity": {
                 "type": "integer"
               }
@@ -208,7 +478,8 @@
             "required": [
               "lineNo",
               "listingId",
-              "quantity"
+              "quantity",
+              "packaging"
             ],
             "type": "object"
           },
@@ -558,6 +829,276 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
+    "description": "Page through the inbound shipments bound for one vendor's nodes, oldest shipment first: shipmentId, sellerId, nodeId, shippedAt, status (SHIPPED or RECEIVED) and the pallet-and-carton tree (pallet SSCC, carton SSCC and parent, kind, eaches, lot, expiry). Narrow to one node (nodeId) or to shipments shipped after a moment (createdAfter, RFC 3339); pass the returned nextToken to get the next page, absent on the last one. Read-only; an unknown vendor fails with not-found, a malformed one with validation-failed, a node of another vendor with node-not-owned-by-vendor and a bad nextToken with validation-failed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAfter": {
+          "description": "keep only shipments shipped after this moment, an RFC 3339 date-time such as 2026-10-01T00:00:00Z; omitted means every ship date",
+          "type": "string"
+        },
+        "limit": {
+          "description": "page size, 1..200; omitted or 0 means the service default of 50",
+          "type": "integer"
+        },
+        "nextToken": {
+          "description": "the opaque nextToken returned by the previous page; omitted means the first page",
+          "type": "string"
+        },
+        "nodeId": {
+          "description": "keep only shipments bound for this node; omitted means every node of the vendor",
+          "type": "string"
+        },
+        "vendorId": {
+          "description": "the vendor whose inbound shipments to poll, e.g. vend-south-1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId"
+      ],
+      "type": "object"
+    },
+    "name": "poll_inbound_shipments",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "inboundShipments": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "cartons": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "contents": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "expiry": {
+                            "type": "string"
+                          },
+                          "gtin": {
+                            "type": "string"
+                          },
+                          "lot": {
+                            "type": "string"
+                          },
+                          "qtyEaches": {
+                            "type": "integer"
+                          },
+                          "sku": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "gtin",
+                          "qtyEaches"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "dimsMm": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "h": {
+                          "type": "integer"
+                        },
+                        "l": {
+                          "type": "integer"
+                        },
+                        "w": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "l",
+                        "w",
+                        "h"
+                      ],
+                      "type": [
+                        "null",
+                        "object"
+                      ]
+                    },
+                    "grossWeightG": {
+                      "type": "integer"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "parentSscc": {
+                      "type": "string"
+                    },
+                    "sscc": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sscc",
+                    "kind",
+                    "contents"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "nodeId": {
+                "type": "string"
+              },
+              "pallets": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "cartons": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "contents": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "expiry": {
+                                  "type": "string"
+                                },
+                                "gtin": {
+                                  "type": "string"
+                                },
+                                "lot": {
+                                  "type": "string"
+                                },
+                                "qtyEaches": {
+                                  "type": "integer"
+                                },
+                                "sku": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "gtin",
+                                "qtyEaches"
+                              ],
+                              "type": "object"
+                            },
+                            "type": [
+                              "null",
+                              "array"
+                            ]
+                          },
+                          "dimsMm": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "h": {
+                                "type": "integer"
+                              },
+                              "l": {
+                                "type": "integer"
+                              },
+                              "w": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "l",
+                              "w",
+                              "h"
+                            ],
+                            "type": [
+                              "null",
+                              "object"
+                            ]
+                          },
+                          "grossWeightG": {
+                            "type": "integer"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "parentSscc": {
+                            "type": "string"
+                          },
+                          "sscc": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "sscc",
+                          "kind",
+                          "contents"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "sscc": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sscc",
+                    "cartons"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "sellerId": {
+                "type": "string"
+              },
+              "shipmentId": {
+                "type": "string"
+              },
+              "shippedAt": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "shipmentId",
+              "nodeId",
+              "shippedAt",
+              "status",
+              "pallets",
+              "cartons"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "nextToken": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "inboundShipments"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
     "description": "Page through the purchase orders released to one vendor, oldest first: poNumber, nodeId, state (ISSUED, ACK_PROCESSING, ACCEPTED, REJECTED, EXPIRED, SHIPMENT_PROCESSING, SHIPPED or CANCELLED), issuedAt, requiredShipBy, ackBy, the lines (lineNo, listingId, quantity) and, once they exist, the acknowledgement, the labels and the tracking numbers. Never a ship-to address, an orderId or a delivery promise. Narrow to one node (nodeId) or to orders issued after a moment (createdAfter, RFC 3339); pass the returned nextToken to get the next page, absent on the last one. Read-only; an unknown vendor fails with not-found, a malformed one with validation-failed, a node of another vendor with node-not-owned-by-vendor and a bad nextToken with validation-failed.",
     "inputSchema": {
       "additionalProperties": false,
@@ -666,6 +1207,35 @@
                     "listingId": {
                       "type": "string"
                     },
+                    "packaging": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "childGtin": {
+                            "type": "string"
+                          },
+                          "gtin": {
+                            "type": "string"
+                          },
+                          "level": {
+                            "type": "string"
+                          },
+                          "unitsPerPack": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "gtin",
+                          "unitsPerPack"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
                     "quantity": {
                       "type": "integer"
                     }
@@ -673,7 +1243,8 @@
                   "required": [
                     "lineNo",
                     "listingId",
-                    "quantity"
+                    "quantity",
+                    "packaging"
                   ],
                   "type": "object"
                 },

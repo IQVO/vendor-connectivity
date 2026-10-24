@@ -5,13 +5,14 @@
 //
 // Per docs/adr/0006-mcp-server-adoption.md the surface is READ-ONLY: every
 // tool reads vendor-connectivity data (poll_purchase_orders,
-// get_purchase_order, list_vendor_nodes, get_vendor_node, get_node_scorecard,
-// get_transaction, get_vendor); the submissions, the vendor lifecycle and the
-// node registrations stay on REST, on the consumers and on the background
-// loops of cmd/api, and governance_test.go fails the build on a write-verb
-// tool name. Read-only is structural here: reads and writes share the
-// application Service, so the adapter holds a Reads interface that names
-// EXACTLY the seven read methods the REST adapter's GET routes call — through
+// get_purchase_order, poll_inbound_shipments, get_inbound_shipment,
+// list_vendor_nodes, get_vendor_node, get_node_scorecard, get_transaction,
+// get_vendor); the submissions, the vendor lifecycle, the node registrations
+// and the inbound receipts stay on REST, on the consumers and on the
+// background loops of cmd/api, and governance_test.go fails the build on a
+// write-verb tool name. Read-only is structural here: reads and writes share
+// the application Service, so the adapter holds a Reads interface that names
+// EXACTLY the nine read methods the REST adapter's GET routes call — through
 // it no write use case is reachable, and TestReadsSurfacePinsTheReadMethods
 // plus TestNoWriteUseCaseIsNamed pin that. This package depends inward on the
 // application layer and the domain only, never on an outbound adapter or the
@@ -39,11 +40,13 @@ const (
 const instructions = "Vendor connectivity of the retail network (read-only): page through the purchase orders released " +
 	"to one vendor with poll_purchase_orders (optionally narrowed to a node and to orders issued after a moment, " +
 	"paged with nextToken) or read one order with get_purchase_order (its lines, its acknowledgement and its labels " +
-	"— never a ship-to address); see the vendor's fulfilment nodes with list_vendor_nodes or one with get_vendor_node, " +
-	"and its rolling scorecards with get_node_scorecard; follow an asynchronous write with get_transaction (the 202 " +
-	"transactionId, its status and its errors); and read the vendor account itself (state and acknowledgement window) " +
-	"with get_vendor. Nothing here changes data: acknowledgements, inventory feeds, shipment confirmations and label " +
-	"requests are REST operations of vendor-connectivity."
+	"— never a ship-to address); page through the inbound shipments bound for the vendor's nodes with " +
+	"poll_inbound_shipments or read one shipment's pallet-and-carton tree with get_inbound_shipment; see the " +
+	"vendor's fulfilment nodes with list_vendor_nodes or one with get_vendor_node, and its rolling scorecards with " +
+	"get_node_scorecard; follow an asynchronous write with get_transaction (the 202 transactionId, its status and " +
+	"its errors); and read the vendor account itself (state and acknowledgement window) with get_vendor. Nothing " +
+	"here changes data: acknowledgements, inventory feeds, shipment confirmations, label requests and inbound " +
+	"receipts are REST operations of vendor-connectivity."
 
 // NewServer builds the MCP server for this bounded context with every tool
 // registered.

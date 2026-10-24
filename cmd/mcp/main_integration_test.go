@@ -18,6 +18,7 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/adapters/outbound/postgres"
 	"github.com/claudioed/vendor-connectivity/internal/application/requests"
 	"github.com/claudioed/vendor-connectivity/internal/application/usecases"
+	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 	"github.com/claudioed/vendor-connectivity/internal/testing/pgtest"
 )
@@ -84,6 +85,7 @@ func seedThroughWriteUseCases(t *testing.T, url string, urls map[string]string) 
 		UoW: postgres.NewUnitOfWork(pool), Vendors: postgres.NewVendorRepo(pool),
 		Orders: postgres.NewPurchaseOrderRepo(pool), Submissions: postgres.NewSubmissionRepo(pool),
 		Nodes: postgres.NewNodeViewRepo(pool), Listings: postgres.NewListingViewRepo(pool),
+		Shipments: postgres.NewInboundShipmentViewRepo(pool), Packaging: postgres.NewCatalogPackagingViewRepo(pool),
 		Outbox: postgres.NewEventOutbox(ob, outboundkafka.NewEncoder()), Inbox: postgres.NewProcessedEventRepo(pool),
 		Clock: clock.System{}, IDs: ids.UUID{}, Random: ids.Random{},
 		NodeTopology: httpclient.NewNodeTopology(urls["NODE_TOPOLOGY_URL"], nil),
@@ -115,6 +117,23 @@ func seedThroughWriteUseCases(t *testing.T, url string, urls map[string]string) 
 	}
 	if _, err := svc.ProcessDueSubmissions(ctx); err != nil {
 		t.Fatalf("process submissions: %v", err)
+	}
+	// One SHIPPED inbound shipment for n-1, the way the inbound consumers
+	// would (labelled, then shipped); the pallet is the carton's parent.
+	if err := svc.OnInboundShipmentLabelled(ctx, "lab-ish-1", "InboundShipmentLabelled", inbound.Labelled{
+		ShipmentID: "ish-1", PlanID: "P-1", SellerID: "S-1", NodeID: "n-1", LabelledAt: time.Now(),
+		Cartons: []inbound.Carton{
+			{SSCC: "006141410000000012", ParentSSCC: "006141410000000036", Kind: "HOMOGENEOUS_CASE", GrossWeightG: 900,
+				Contents: []inbound.Item{{GTIN: "00614141000036", QtyEaches: 12}}},
+			{SSCC: "006141410000000029", Kind: "MIXED", Contents: []inbound.Item{{GTIN: "00614141000036", QtyEaches: 2}}},
+		},
+	}); err != nil {
+		t.Fatalf("label inbound shipment: %v", err)
+	}
+	if err := svc.OnInboundShipmentShipped(ctx, "shp-ish-1", "InboundShipmentShipped", inbound.Shipped{
+		ShipmentID: "ish-1", SellerID: "S-1", NodeID: "n-1", ShippedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("ship inbound shipment: %v", err)
 	}
 	return po
 }
@@ -166,6 +185,22 @@ func assertSeededReads(t *testing.T, session *sdk.ClientSession) {
 	vendor := call("get_vendor", map[string]any{"vendorId": "V-1"})
 	if vendor["name"] != "North Fulfilment" || vendor["state"] != "ACTIVE" || vendor["ackWindowMinutes"] != float64(240) {
 		t.Fatalf("get_vendor = %v", vendor)
+	}
+
+	// The inbound reads of ADR 0005: the poll answers the shipped shipment
+	// with its pallet-and-carton tree, and the detail read agrees.
+	shipments := call("poll_inbound_shipments", map[string]any{"vendorId": "V-1"})
+	shipmentRows, _ := shipments["inboundShipments"].([]any)
+	if len(shipmentRows) != 1 {
+		t.Fatalf("poll_inbound_shipments = %v, want the seeded shipment", shipments)
+	}
+	row := shipmentRows[0].(map[string]any)
+	if row["shipmentId"] != "ish-1" || row["nodeId"] != "n-1" || row["status"] != "SHIPPED" {
+		t.Fatalf("polled shipment = %v", row)
+	}
+	oneShipment := call("get_inbound_shipment", map[string]any{"vendorId": "V-1", "shipmentId": "ish-1"})
+	if pallets := oneShipment["pallets"].([]any); len(pallets) != 1 || pallets[0].(map[string]any)["sscc"] != "006141410000000036" {
+		t.Fatalf("get_inbound_shipment pallets = %v", oneShipment["pallets"])
 	}
 
 	// The acknowledgement's transaction, read by the id its 202 returned:

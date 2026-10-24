@@ -6,7 +6,7 @@
 // stdio, no SSE). It is a second, independent deployable alongside cmd/api.
 //
 // The surface is READ-ONLY: the adapter holds a Reads interface naming
-// exactly the seven read methods the REST adapter's GET routes call, so no
+// exactly the nine read methods the REST adapter's GET routes call, so no
 // write use case is reachable through it. This binary never starts the
 // submission loop, the order-expiry sweep or the retention sweep, never runs
 // the outbox relay, never runs the local-copy consumers and never dials
@@ -146,6 +146,7 @@ func buildDeps(ctx context.Context, logger *slog.Logger, databaseURL, migrations
 		UoW: postgres.NewUnitOfWork(pool), Vendors: postgres.NewVendorRepo(pool),
 		Orders: postgres.NewPurchaseOrderRepo(pool), Submissions: postgres.NewSubmissionRepo(pool),
 		Nodes: postgres.NewNodeViewRepo(pool), Listings: postgres.NewListingViewRepo(pool),
+		Shipments: postgres.NewInboundShipmentViewRepo(pool), Packaging: postgres.NewCatalogPackagingViewRepo(pool),
 		Outbox: postgres.NewEventOutbox(ob, outboundkafka.NewEncoder()), Inbox: postgres.NewProcessedEventRepo(pool),
 		Clock: clock.System{}, IDs: ids.UUID{}, Random: ids.Random{},
 		NodeTopology: httpclient.NewNodeTopology(urls["NODE_TOPOLOGY_URL"], nil),

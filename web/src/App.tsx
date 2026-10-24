@@ -1,10 +1,12 @@
 import { Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
+import { InboundScreen, InboundShipmentRoute } from "./screens/InboundScreen";
 import { OrderDetailRoute } from "./screens/OrderDetailScreen";
 import { OrdersScreen } from "./screens/OrdersScreen";
 import { NodesScreen } from "./screens/NodesScreen";
 
 const SUB_NAV = [
   { to: "orders", label: "Purchase orders" },
+  { to: "inbound", label: "Inbound" },
   { to: "nodes", label: "Nodes" },
 ];
 
@@ -59,6 +61,8 @@ function ConnectivityLayout() {
  *     nextToken, narrowable to one node.
  *   - orders/:poNumber: one order -- its windows, lines, acknowledgement,
  *     labels and tracking numbers.
+ *   - inbound: the inbound shipments bound for the vendor's nodes, paged;
+ *     inbound/:shipmentId: one shipment's pallet-and-carton tree.
  *   - nodes: the vendor's fulfilment nodes and, for the selected one, its
  *     rolling scorecard relayed from node-performance. */
 export default function App() {
@@ -68,6 +72,8 @@ export default function App() {
         <Route index element={<Navigate to="orders" replace />} />
         <Route path="orders" element={<OrdersScreen />} />
         <Route path="orders/:poNumber" element={<OrderDetailRoute />} />
+        <Route path="inbound" element={<InboundScreen />} />
+        <Route path="inbound/:shipmentId" element={<InboundShipmentRoute />} />
         <Route path="nodes" element={<NodesScreen />} />
       </Route>
     </Routes>

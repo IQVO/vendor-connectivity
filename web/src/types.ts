@@ -129,3 +129,53 @@ export interface PollQuery {
   nextToken?: string;
   limit?: number;
 }
+
+/** One SKU line of an inbound carton, in eaches. */
+export interface ShipmentItem {
+  gtin: string;
+  sku?: string;
+  qtyEaches: number;
+  lot?: string;
+  expiry?: string;
+}
+
+/** One carton of a shipment; parentSscc names its pallet when it sits on one. */
+export interface ShipmentCarton {
+  sscc: string;
+  parentSscc?: string;
+  kind: string;
+  contents: ShipmentItem[];
+  grossWeightG?: number;
+}
+
+/** A pallet with the cartons stacked on it. */
+export interface ShipmentPallet {
+  sscc: string;
+  cartons: ShipmentCarton[];
+}
+
+/** The pallet-and-carton tree of one inbound shipment. */
+export interface InboundShipment {
+  shipmentId: string;
+  sellerId?: string;
+  nodeId: string;
+  shippedAt: string;
+  status: "SHIPPED" | "RECEIVED";
+  pallets: ShipmentPallet[];
+  cartons: ShipmentCarton[];
+}
+
+/** One page of GET /vendor/inbound-shipments. */
+export interface InboundShipmentPage {
+  inboundShipments: InboundShipment[];
+  nextToken?: string;
+}
+
+/** Filters of the inbound-shipment poll. */
+export interface InboundPollQuery {
+  vendorId: string;
+  nodeId?: string;
+  createdAfter?: string;
+  nextToken?: string;
+  limit?: number;
+}

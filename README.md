@@ -65,12 +65,14 @@ All settings, the probes, the shutdown order and the outbox runbook: [docs/runti
 
 ## MCP server (read-only)
 
-`cmd/mcp` is a second binary exposing the same seven reads to the AI ecosystem over the official MCP Go SDK, Streamable HTTP only, at `/mcp` and `/` with an open `/healthz` ([ADR 0006](docs/adr/0006-mcp-server-adoption.md)). It is read-only by construction — the adapter holds exactly the read methods the REST GETs call — and it never dials Kafka, runs the relay, the consumers or the loops. No auth (fleet-wide decision); access control is the ClusterIP boundary, and Kong rewrites `/api/mcp/vendor-connectivity` to `/mcp`.
+`cmd/mcp` is a second binary exposing the same nine reads to the AI ecosystem over the official MCP Go SDK, Streamable HTTP only, at `/mcp` and `/` with an open `/healthz` ([ADR 0006](docs/adr/0006-mcp-server-adoption.md)). It is read-only by construction — the adapter holds exactly the read methods the REST GETs call — and it never dials Kafka, runs the relay, the consumers or the loops. No auth (fleet-wide decision); access control is the ClusterIP boundary, and Kong rewrites `/api/mcp/vendor-connectivity` to `/mcp`.
 
 | Tool | Read |
 | --- | --- |
 | `poll_purchase_orders` | the vendor's orders, paged with `nextToken`, narrowable to a node and an issue date |
 | `get_purchase_order` | one order: windows, lines, acknowledgement, labels, tracking |
+| `poll_inbound_shipments` | the shipments bound for the vendor's nodes, paged, with their pallet-and-carton trees |
+| `get_inbound_shipment` | one inbound shipment: pallets, cartons, item lines in eaches |
 | `list_vendor_nodes`, `get_vendor_node` | the vendor's fulfilment nodes |
 | `get_node_scorecard` | a node's rolling scorecards (relayed from node-performance) |
 | `get_transaction` | the outcome of an asynchronous write, by its 202 `transactionId` |
@@ -83,7 +85,7 @@ go run ./cmd/mcp                          # listens on :8090 (MCP_ADDR)
 
 ## Web console remote
 
-`web/` is the `vendor_connectivity_mfe` Module Federation remote ([ADR 0007](docs/adr/0007-console-remote.md)): three read-only screens over the REST GETs (the purchase-order list with `nextToken` paging, one order's lifecycle and acknowledgement transaction, and the vendor's nodes with their scorecards). The shell mounts it under `/vendor-connectivity/*` and serves it at `/mfes/vendor-connectivity/`; the API base comes from the console's runtime `apiOrigin`.
+`web/` is the `vendor_connectivity_mfe` Module Federation remote ([ADR 0007](docs/adr/0007-console-remote.md)): four read-only screens over the REST GETs (the purchase-order list with `nextToken` paging, one order's lifecycle and acknowledgement transaction, the inbound shipments with their pallet-and-carton trees, and the vendor's nodes with their scorecards). The shell mounts it under `/vendor-connectivity/*` and serves it at `/mfes/vendor-connectivity/`; the API base comes from the console's runtime `apiOrigin`.
 
 ```sh
 cd web && npm ci && npm run dev            # standalone on :4021
