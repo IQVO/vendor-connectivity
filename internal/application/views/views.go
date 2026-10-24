@@ -163,7 +163,7 @@ type ShipmentPallet struct {
 	Cartons []ShipmentCarton `json:"cartons"`
 }
 
-// InboundShipment is the SOTPI-shaped tree of one shipment: shipment, pallets,
+// InboundShipment is the pallet-and-carton tree of one shipment: shipment, pallets,
 // cartons, items. Cartons that are not on a pallet are top-level.
 type InboundShipment struct {
 	ShipmentID string           `json:"shipmentId"`

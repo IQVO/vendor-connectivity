@@ -10,3 +10,4 @@ The *Status* column is copied from each ADR's own `## Status` section.
 | [0002](./0002-aggregates-and-invariants.md) | the VendorAccount, PurchaseOrder and Submission aggregates, their invariants and the assumptions the model left open | Accepted (2026-10-23) |
 | [0003](./0003-consumed-contracts-and-local-read-models.md) | consumed contracts, local read models, synchronous calls and relationships | Accepted (2026-10-23) |
 | [0004](./0004-cloudevents-envelope-and-type-catalogue.md) | CloudEvents envelope and type catalogue | Accepted (2026-10-23) |
+| [0005](./0005-inbound-shipments-receipts-and-catalog-packaging.md) | inbound shipments, inbound receipts and catalogue packaging | Accepted (2026-10-24) |

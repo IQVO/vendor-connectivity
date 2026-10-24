@@ -83,3 +83,5 @@ behind ports in `internal/application/ports`; the fleet and the neighbours are n
 
 - The hot paths (poll, acknowledge, label) read local tables; only the label and scorecard reads call a neighbour in-request.
 - A neighbour that is down delays a transaction (it stays `PROCESSING`) instead of losing it.
+
+> Amended by [ADR 0005](./0005-inbound-shipments-receipts-and-catalog-packaging.md): two more consumed producers (seller-inbound, offer-availability packaging events) and two more local read models.

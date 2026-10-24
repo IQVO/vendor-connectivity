@@ -134,7 +134,7 @@ func (s *Service) GetInboundShipment(ctx context.Context, vendorID, shipmentID s
 	return shipmentView(sh), nil
 }
 
-// shipmentView builds the SOTPI-shaped tree: cartons whose parentSscc names a
+// shipmentView builds the pallet-and-carton tree: cartons whose parentSscc names a
 // pallet are grouped under it (pallets in order of first appearance); the rest
 // stay top-level.
 func shipmentView(sh inbound.Shipment) views.InboundShipment {

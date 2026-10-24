@@ -160,7 +160,7 @@ func TestPollInboundShipmentsRefusals(t *testing.T) {
 	}
 }
 
-func TestGetInboundShipmentBuildsTheSotpiTree(t *testing.T) {
+func TestGetInboundShipmentBuildsThePalletAndCartonTree(t *testing.T) {
 	h := newHarness(t, usecases.Config{})
 	h.onboard("V-1")
 	h.onboard("V-2")

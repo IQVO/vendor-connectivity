@@ -407,7 +407,7 @@ paths:
       summary: Poll inbound shipments (PollInboundShipments)
       description: |
         Returns the `SHIPPED` inbound shipments bound for the vendor's nodes after
-        `createdAfter`, oldest first, in pages. Every shipment is the SOTPI-shaped
+        `createdAfter`, oldest first, in pages. Every shipment is the pallet-and-carton
         tree shipment > pallet > carton > item. `createdAfter` compares with `shippedAt`,
         the instant the seller handed the shipment over. Pass the returned `nextToken`
         for the next page; an absent `nextToken` means the last page. A shipment
@@ -485,7 +485,7 @@ paths:
       operationId: getInboundShipment
       summary: Get one inbound shipment (GetInboundShipment)
       description: |
-        One inbound shipment as the SOTPI-shaped tree. A shipment that has not shipped
+        One inbound shipment as the pallet-and-carton tree. A shipment that has not shipped
         yet, or that is bound for another vendor's node, is `not-found`. Unlike the
         poll, this read also answers for a shipment that was already received
         (`status` `CLOSED` or `CLOSED_WITH_DISCREPANCY`).
@@ -1497,7 +1497,7 @@ components:
     InboundShipment:
       type: object
       description: |
-        The SOTPI-shaped tree of one inbound shipment: shipment > pallet > carton > item.
+        The pallet-and-carton tree of one inbound shipment: shipment > pallet > carton > item.
         Cartons that are not on a pallet are top-level; a pallet SSCC is the `parentSscc` of its cartons.
       required:
       - shipmentId
