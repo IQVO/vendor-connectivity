@@ -8,7 +8,7 @@ This project is a domain-driven design study. It is not associated with, endorse
 
 Publishes the Vendor API and its Published Language: vendors register nodes, declare their operational profile, send inventory feeds, poll purchase orders, acknowledge them in full inside the acknowledgement window, request labels and confirm shipment. Every write is an asynchronous transaction a vendor reconciles.
 
-The design is proposed in [retail-network-docs](https://iqvo.github.io/retail-network-docs/contexts/vendor-connectivity); `model/model.yaml` there is the single source of truth.
+The design is proposed in [retail-network docs](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity); `model/model.yaml` there is the single source of truth.
 This repository is a service of the retail network, not of the warehouse-systems fleet; the fleet reaches the network only through the
 `vendor-connectivity` Vendor API.
 
