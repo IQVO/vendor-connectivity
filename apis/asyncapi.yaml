@@ -254,6 +254,7 @@ components:
             name: Warehouse Systems
             ackWindowMinutes: 240
     VendorSuspended:
+      x-no-consumer-reason: "vendor-account lifecycle fact (G30); integration event, no consumer yet"
       name: VendorSuspended
       title: VendorSuspended
       summary: A vendor account was suspended; its writes are refused until reinstated (G30).
@@ -281,6 +282,7 @@ components:
             suspendedAt: '2026-10-22T13:00:00Z'
             reason: contract review
     VendorReinstated:
+      x-no-consumer-reason: "vendor-account lifecycle fact (G30); integration event, no consumer yet"
       name: VendorReinstated
       title: VendorReinstated
       summary: A suspended vendor account was reinstated (G30).
