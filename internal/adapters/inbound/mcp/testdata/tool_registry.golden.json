@@ -1,0 +1,1313 @@
+[
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read one inbound shipment by shipmentId: the pallets with the cartons stacked on them, the top-level cartons, and every item line in eaches (gtin, sku, qtyEaches, lot, expiry). A shipment that has not shipped yet, or is bound for another vendor's node, is as absent as an unknown one. Read-only; fails with not-found for an unknown or not-yet-shipped shipment and validation-failed for a malformed id.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "shipmentId": {
+          "description": "the inbound shipment id, e.g. shp-4b7e",
+          "type": "string"
+        },
+        "vendorId": {
+          "description": "the vendor whose node the shipment is bound for, e.g. vend-south-1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId",
+        "shipmentId"
+      ],
+      "type": "object"
+    },
+    "name": "get_inbound_shipment",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "cartons": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "contents": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expiry": {
+                      "type": "string"
+                    },
+                    "gtin": {
+                      "type": "string"
+                    },
+                    "lot": {
+                      "type": "string"
+                    },
+                    "qtyEaches": {
+                      "type": "integer"
+                    },
+                    "sku": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "gtin",
+                    "qtyEaches"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "dimsMm": {
+                "additionalProperties": false,
+                "properties": {
+                  "h": {
+                    "type": "integer"
+                  },
+                  "l": {
+                    "type": "integer"
+                  },
+                  "w": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "l",
+                  "w",
+                  "h"
+                ],
+                "type": [
+                  "null",
+                  "object"
+                ]
+              },
+              "grossWeightG": {
+                "type": "integer"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "parentSscc": {
+                "type": "string"
+              },
+              "sscc": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sscc",
+              "kind",
+              "contents"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "pallets": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "cartons": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "contents": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "expiry": {
+                            "type": "string"
+                          },
+                          "gtin": {
+                            "type": "string"
+                          },
+                          "lot": {
+                            "type": "string"
+                          },
+                          "qtyEaches": {
+                            "type": "integer"
+                          },
+                          "sku": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "gtin",
+                          "qtyEaches"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "dimsMm": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "h": {
+                          "type": "integer"
+                        },
+                        "l": {
+                          "type": "integer"
+                        },
+                        "w": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "l",
+                        "w",
+                        "h"
+                      ],
+                      "type": [
+                        "null",
+                        "object"
+                      ]
+                    },
+                    "grossWeightG": {
+                      "type": "integer"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "parentSscc": {
+                      "type": "string"
+                    },
+                    "sscc": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sscc",
+                    "kind",
+                    "contents"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "sscc": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sscc",
+              "cartons"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "sellerId": {
+          "type": "string"
+        },
+        "shipmentId": {
+          "type": "string"
+        },
+        "shippedAt": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "shipmentId",
+        "nodeId",
+        "shippedAt",
+        "status",
+        "pallets",
+        "cartons"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read a vendor node's rolling scorecards, relayed live from the node-performance context: per window (7d, 30d, 90d) the grade, on-time handover rate, late acknowledgement rate, reject rate, expiry rate, promise-kept rate and feed freshness p95, with the observation count. A node without a scorecard yet fails with not-found. Read-only; the node must belong to the vendor (node-not-owned-by-vendor) and a neighbour outage surfaces as upstream-unavailable or upstream-refused.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": {
+          "description": "the fulfilment node, e.g. node-76c2",
+          "type": "string"
+        },
+        "vendorId": {
+          "description": "the vendor that operates the node, e.g. vend-south-1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId",
+        "nodeId"
+      ],
+      "type": "object"
+    },
+    "name": "get_node_scorecard",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": {
+          "type": "string"
+        },
+        "windows": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "computedAt": {
+                "type": "string"
+              },
+              "expiryRate": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "feedFreshnessP95Minutes": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "grade": {
+                "type": "string"
+              },
+              "lateAckRate": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "observations": {
+                "type": "integer"
+              },
+              "onTimeHandoverRate": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "promiseKeptRate": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "rejectRate": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "window": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "window",
+              "grade",
+              "observations",
+              "computedAt"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        }
+      },
+      "required": [
+        "nodeId",
+        "windows"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read one purchase order by poNumber as the vendor sees it: state and windows (issuedAt, requiredShipBy, ackBy), the lines, the acknowledgement once its transaction succeeded, the shipping labels and tracking numbers, and shippedAt once confirmed. Read-only; an order of another vendor fails with node-not-owned-by-vendor, an unknown one with not-found and a malformed vendorId with validation-failed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "poNumber": {
+          "description": "the purchase order number, e.g. PO-9a1b-0001",
+          "type": "string"
+        },
+        "vendorId": {
+          "description": "the vendor the order was released to, e.g. vend-south-1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId",
+        "poNumber"
+      ],
+      "type": "object"
+    },
+    "name": "get_purchase_order",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "ackBy": {
+          "type": "string"
+        },
+        "acknowledgement": {
+          "additionalProperties": false,
+          "properties": {
+            "decision": {
+              "type": "string"
+            },
+            "reasonCode": {
+              "type": "string"
+            },
+            "transactionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "decision",
+            "transactionId"
+          ],
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "issuedAt": {
+          "type": "string"
+        },
+        "labels": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "carrier": {
+                "type": "string"
+              },
+              "labelRef": {
+                "type": "string"
+              },
+              "packageNo": {
+                "type": "integer"
+              },
+              "trackingNumber": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "labelRef",
+              "trackingNumber",
+              "carrier"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "lines": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "lineNo": {
+                "type": "integer"
+              },
+              "listingId": {
+                "type": "string"
+              },
+              "packaging": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "childGtin": {
+                      "type": "string"
+                    },
+                    "gtin": {
+                      "type": "string"
+                    },
+                    "level": {
+                      "type": "string"
+                    },
+                    "unitsPerPack": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "level",
+                    "gtin",
+                    "unitsPerPack"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "quantity": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "lineNo",
+              "listingId",
+              "quantity",
+              "packaging"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "poNumber": {
+          "type": "string"
+        },
+        "requiredShipBy": {
+          "type": "string"
+        },
+        "shippedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "state": {
+          "type": "string"
+        },
+        "trackingNumbers": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "vendorId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "poNumber",
+        "vendorId",
+        "nodeId",
+        "state",
+        "issuedAt",
+        "requiredShipBy",
+        "ackBy",
+        "lines",
+        "labels",
+        "trackingNumbers"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Follow one asynchronous write of a vendor by the transactionId its 202 answer returned: kind (ACKNOWLEDGEMENT, INVENTORY, NODE_REGISTRATION, NODE_PROFILE or SHIPMENT_CONFIRMATION), status (PROCESSING, SUCCESS or FAILURE), receivedAt and processedAt, the node and poNumber it concerns and, when it failed, every error (code, message, path). Read-only; a transaction of another vendor is not-found, an unknown one not-found, a malformed vendorId validation-failed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "transactionId": {
+          "description": "the transactionId a 202 answer returned, e.g. tx-3f0c9d",
+          "type": "string"
+        },
+        "vendorId": {
+          "description": "the vendor that submitted the write, e.g. vend-south-1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId",
+        "transactionId"
+      ],
+      "type": "object"
+    },
+    "name": "get_transaction",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "errors": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "poNumber": {
+          "type": "string"
+        },
+        "processedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "receivedAt": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "transactionId": {
+          "type": "string"
+        },
+        "vendorId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "transactionId",
+        "vendorId",
+        "kind",
+        "status",
+        "receivedAt",
+        "errors"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read a vendor account: name, acknowledgement window in minutes (how long after issuedAt an acknowledgement is accepted) and state (ACTIVE or SUSPENDED). Reads stay allowed while the vendor is suspended; only writes are refused. Read-only; an unknown vendor fails with not-found and a malformed one with validation-failed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "vendorId": {
+          "description": "the vendor account every read is scoped to, e.g. vend-south-1; a vendor of another account is never visible",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId"
+      ],
+      "type": "object"
+    },
+    "name": "get_vendor",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "ackWindowMinutes": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "vendorId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId",
+        "name",
+        "ackWindowMinutes",
+        "state"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read one fulfilment node of a vendor: type, subtype, status, region, timezone, handling time minutes and profile revision. A node the network registered under another vendor is as absent as an unknown one. Read-only; fails with node-not-owned-by-vendor for a node of another vendor, not-found for an unknown one and validation-failed for a malformed id.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": {
+          "description": "the fulfilment node, e.g. node-76c2",
+          "type": "string"
+        },
+        "vendorId": {
+          "description": "the vendor that operates the node, e.g. vend-south-1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId",
+        "nodeId"
+      ],
+      "type": "object"
+    },
+    "name": "get_vendor_node",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "handlingTimeMinutes": {
+          "type": "integer"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "nodeType": {
+          "type": "string"
+        },
+        "profileRevision": {
+          "type": "integer"
+        },
+        "regionId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "subtype": {
+          "type": "string"
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "vendorId": {
+          "type": "string"
+        },
+        "vendorNodeCode": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "nodeId",
+        "vendorId",
+        "vendorNodeCode",
+        "nodeType",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List the fulfilment nodes the network has registered for one vendor, sorted by nodeId: type and subtype, status (PROPOSED, ACTIVE, SUSPENDED or RETIRED), region, timezone, handling time and profile revision. The local copy of node-topology events, as GET /vendor/nodes serves it. Read-only; an unknown vendor fails with not-found and a malformed one with validation-failed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "vendorId": {
+          "description": "the vendor account every read is scoped to, e.g. vend-south-1; a vendor of another account is never visible",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId"
+      ],
+      "type": "object"
+    },
+    "name": "list_vendor_nodes",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "handlingTimeMinutes": {
+                "type": "integer"
+              },
+              "nodeId": {
+                "type": "string"
+              },
+              "nodeType": {
+                "type": "string"
+              },
+              "profileRevision": {
+                "type": "integer"
+              },
+              "regionId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "subtype": {
+                "type": "string"
+              },
+              "timezone": {
+                "type": "string"
+              },
+              "vendorId": {
+                "type": "string"
+              },
+              "vendorNodeCode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "nodeId",
+              "vendorId",
+              "vendorNodeCode",
+              "nodeType",
+              "status"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        }
+      },
+      "required": [
+        "nodes"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Page through the inbound shipments bound for one vendor's nodes, oldest shipment first: shipmentId, sellerId, nodeId, shippedAt, status (SHIPPED or RECEIVED) and the pallet-and-carton tree (pallet SSCC, carton SSCC and parent, kind, eaches, lot, expiry). Narrow to one node (nodeId) or to shipments shipped after a moment (createdAfter, RFC 3339); pass the returned nextToken to get the next page, absent on the last one. Read-only; an unknown vendor fails with not-found, a malformed one with validation-failed, a node of another vendor with node-not-owned-by-vendor and a bad nextToken with validation-failed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAfter": {
+          "description": "keep only shipments shipped after this moment, an RFC 3339 date-time such as 2026-10-01T00:00:00Z; omitted means every ship date",
+          "type": "string"
+        },
+        "limit": {
+          "description": "page size, 1..200; omitted or 0 means the service default of 50",
+          "type": "integer"
+        },
+        "nextToken": {
+          "description": "the opaque nextToken returned by the previous page; omitted means the first page",
+          "type": "string"
+        },
+        "nodeId": {
+          "description": "keep only shipments bound for this node; omitted means every node of the vendor",
+          "type": "string"
+        },
+        "vendorId": {
+          "description": "the vendor whose inbound shipments to poll, e.g. vend-south-1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId"
+      ],
+      "type": "object"
+    },
+    "name": "poll_inbound_shipments",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "inboundShipments": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "cartons": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "contents": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "expiry": {
+                            "type": "string"
+                          },
+                          "gtin": {
+                            "type": "string"
+                          },
+                          "lot": {
+                            "type": "string"
+                          },
+                          "qtyEaches": {
+                            "type": "integer"
+                          },
+                          "sku": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "gtin",
+                          "qtyEaches"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "dimsMm": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "h": {
+                          "type": "integer"
+                        },
+                        "l": {
+                          "type": "integer"
+                        },
+                        "w": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "l",
+                        "w",
+                        "h"
+                      ],
+                      "type": [
+                        "null",
+                        "object"
+                      ]
+                    },
+                    "grossWeightG": {
+                      "type": "integer"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "parentSscc": {
+                      "type": "string"
+                    },
+                    "sscc": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sscc",
+                    "kind",
+                    "contents"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "nodeId": {
+                "type": "string"
+              },
+              "pallets": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "cartons": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "contents": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "expiry": {
+                                  "type": "string"
+                                },
+                                "gtin": {
+                                  "type": "string"
+                                },
+                                "lot": {
+                                  "type": "string"
+                                },
+                                "qtyEaches": {
+                                  "type": "integer"
+                                },
+                                "sku": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "gtin",
+                                "qtyEaches"
+                              ],
+                              "type": "object"
+                            },
+                            "type": [
+                              "null",
+                              "array"
+                            ]
+                          },
+                          "dimsMm": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "h": {
+                                "type": "integer"
+                              },
+                              "l": {
+                                "type": "integer"
+                              },
+                              "w": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "l",
+                              "w",
+                              "h"
+                            ],
+                            "type": [
+                              "null",
+                              "object"
+                            ]
+                          },
+                          "grossWeightG": {
+                            "type": "integer"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "parentSscc": {
+                            "type": "string"
+                          },
+                          "sscc": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "sscc",
+                          "kind",
+                          "contents"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "sscc": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sscc",
+                    "cartons"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "sellerId": {
+                "type": "string"
+              },
+              "shipmentId": {
+                "type": "string"
+              },
+              "shippedAt": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "shipmentId",
+              "nodeId",
+              "shippedAt",
+              "status",
+              "pallets",
+              "cartons"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "nextToken": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "inboundShipments"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Page through the purchase orders released to one vendor, oldest first: poNumber, nodeId, state (ISSUED, ACK_PROCESSING, ACCEPTED, REJECTED, EXPIRED, SHIPMENT_PROCESSING, SHIPPED or CANCELLED), issuedAt, requiredShipBy, ackBy, the lines (lineNo, listingId, quantity) and, once they exist, the acknowledgement, the labels and the tracking numbers. Never a ship-to address, an orderId or a delivery promise. Narrow to one node (nodeId) or to orders issued after a moment (createdAfter, RFC 3339); pass the returned nextToken to get the next page, absent on the last one. Read-only; an unknown vendor fails with not-found, a malformed one with validation-failed, a node of another vendor with node-not-owned-by-vendor and a bad nextToken with validation-failed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAfter": {
+          "description": "keep only orders issued after this moment, an RFC 3339 date-time such as 2026-10-01T00:00:00Z; omitted means every issue date",
+          "type": "string"
+        },
+        "limit": {
+          "description": "page size, 1..200; omitted or 0 means the service default of 50",
+          "type": "integer"
+        },
+        "nextToken": {
+          "description": "the opaque nextToken returned by the previous page; omitted means the first page",
+          "type": "string"
+        },
+        "nodeId": {
+          "description": "keep only orders released to this node; omitted means every node of the vendor",
+          "type": "string"
+        },
+        "vendorId": {
+          "description": "the vendor whose orders to poll, e.g. vend-south-1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendorId"
+      ],
+      "type": "object"
+    },
+    "name": "poll_purchase_orders",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "nextToken": {
+          "type": "string"
+        },
+        "purchaseOrders": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "ackBy": {
+                "type": "string"
+              },
+              "acknowledgement": {
+                "additionalProperties": false,
+                "properties": {
+                  "decision": {
+                    "type": "string"
+                  },
+                  "reasonCode": {
+                    "type": "string"
+                  },
+                  "transactionId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "decision",
+                  "transactionId"
+                ],
+                "type": [
+                  "null",
+                  "object"
+                ]
+              },
+              "issuedAt": {
+                "type": "string"
+              },
+              "labels": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "carrier": {
+                      "type": "string"
+                    },
+                    "labelRef": {
+                      "type": "string"
+                    },
+                    "packageNo": {
+                      "type": "integer"
+                    },
+                    "trackingNumber": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "labelRef",
+                    "trackingNumber",
+                    "carrier"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "lines": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "lineNo": {
+                      "type": "integer"
+                    },
+                    "listingId": {
+                      "type": "string"
+                    },
+                    "packaging": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "childGtin": {
+                            "type": "string"
+                          },
+                          "gtin": {
+                            "type": "string"
+                          },
+                          "level": {
+                            "type": "string"
+                          },
+                          "unitsPerPack": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "gtin",
+                          "unitsPerPack"
+                        ],
+                        "type": "object"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "quantity": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "lineNo",
+                    "listingId",
+                    "quantity",
+                    "packaging"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "nodeId": {
+                "type": "string"
+              },
+              "poNumber": {
+                "type": "string"
+              },
+              "requiredShipBy": {
+                "type": "string"
+              },
+              "shippedAt": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "state": {
+                "type": "string"
+              },
+              "trackingNumbers": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "vendorId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "poNumber",
+              "vendorId",
+              "nodeId",
+              "state",
+              "issuedAt",
+              "requiredShipBy",
+              "ackBy",
+              "lines",
+              "labels",
+              "trackingNumbers"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        }
+      },
+      "required": [
+        "purchaseOrders"
+      ],
+      "type": "object"
+    }
+  }
+]

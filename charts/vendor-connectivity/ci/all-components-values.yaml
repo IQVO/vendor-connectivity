@@ -1,0 +1,33 @@
+# Used by `helm lint` / `ct lint`: every optional component enabled at once
+# (api + mcp + frontend). The mandatory values mirror ci/default-values.yaml;
+# none is ever dialled.
+database:
+  url: "postgres://u@example.invalid:5432/db"
+kafka:
+  brokers: "kafka.example.invalid:9092"
+config:
+  nodeConsumerGroup: "vendor-connectivity-node"
+  listingConsumerGroup: "vendor-connectivity-listing"
+  sourcingConsumerGroup: "vendor-connectivity-sourcing"
+  nodeTopologyUrl: "http://node-topology.example.invalid"
+  offerAvailabilityUrl: "http://offer-availability.example.invalid"
+  shippingAndTrackingUrl: "http://shipping-and-tracking.example.invalid"
+  nodePerformanceUrl: "http://node-performance.example.invalid"
+gatewayApi:
+  enabled: true
+  hosts:
+    - path: /api/vendor-connectivity
+      pathType: PathPrefix
+autoscaling:
+  api:
+    enabled: true
+mcp:
+  enabled: true
+  route:
+    enabled: true
+    parentRefs:
+      - name: warehouse-gateway
+        namespace: kong
+        sectionName: http
+frontend:
+  enabled: true

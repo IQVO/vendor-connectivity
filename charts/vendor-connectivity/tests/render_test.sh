@@ -189,4 +189,71 @@ helm template "$release" "$chart_dir" "${base[@]}" --set terminationGracePeriodS
 helm template "$release" "$chart_dir" "${base[@]}" --set config.shutdownDrainDelay=30s --set terminationGracePeriodSeconds=61 >/dev/null \
   || fail "a 30s drain delay with a 61s grace period must render"
 
+# --- cmd/mcp: the mcp component -------------------------------------------------------
+mcp_go="$repo_dir/cmd/mcp/main.go"
+mcp_on=(--set mcp.enabled=true)
+mcp_deployment="$(helm template "$release" "$chart_dir" "${base[@]}" "${mcp_on[@]}" --show-only templates/mcp-deployment.yaml)"
+mcp_service="$(helm template "$release" "$chart_dir" "${base[@]}" "${mcp_on[@]}" --show-only templates/mcp-service.yaml)"
+[[ "$(awk '/^  name:/ {print $2; exit}' <<<"$mcp_service")" == "$release-mcp" ]] || fail "the mcp Service is not named $release-mcp"
+grep -q 'app.kubernetes.io/component: mcp' <<<"$mcp_deployment" || fail "the mcp Deployment lacks component=mcp"
+grep -q 'command: \["/app/mcp"\]' <<<"$mcp_deployment" || fail "the mcp Deployment must run /app/mcp"
+grep -A2 'livenessProbe:' <<<"$mcp_deployment" | grep -q 'path: /healthz' || fail "mcp liveness must probe /healthz"
+grep -q 'terminationGracePeriodSeconds: 40' <<<"$mcp_deployment" || fail "the mcp Deployment must carry the grace period"
+
+# Chart vs binary: every env var cmd/mcp reads must be rendered into the mcp
+# Deployment; and nothing the binary never reads (Kafka, publisher, consumer
+# groups, api tuning) may appear on the mcp pod.
+# shellcheck disable=SC2207
+mcp_vars=($(grep -ohE '(Getenv|getenv)\("[A-Z][A-Z0-9_]*"' "$mcp_go" | sed -E 's/.*\("//; s/"$//' | sort -u))
+# The neighbour URL names live in cmd/mcp/main.go's own neighbourURLs slice.
+# shellcheck disable=SC2207
+mcp_slice=($(grep -E '^var neighbourURLs = ' "$mcp_go" | grep -oE '"[A-Z][A-Z0-9_]*"' | tr -d '"' | sort -u))
+mcp_vars=($(printf '%s\n' "${mcp_vars[@]}" "${mcp_slice[@]}" | sort -u))
+(( ${#mcp_vars[@]} >= 6 )) || fail "found only ${#mcp_vars[@]} env names in cmd/mcp/main.go; the scan is looking in the wrong place"
+for var in "${mcp_vars[@]}"; do
+  grep -q "name: $var\$" <<<"$mcp_deployment" || fail "the mcp Deployment does not render $var, which cmd/mcp reads"
+done
+for forbidden in KAFKA_BROKERS EVENT_PUBLISHER NODE_CONSUMER_GROUP LISTING_CONSUMER_GROUP SOURCING_CONSUMER_GROUP \
+  OUTBOX_RELAY_INTERVAL SUBMISSION_POLL_INTERVAL EXPIRY_SWEEP_INTERVAL RATE_LIMIT_RPS HTTP_ADDR; do
+  if grep -q "name: $forbidden\$" <<<"$mcp_deployment"; then fail "the mcp Deployment renders $forbidden, which cmd/mcp never reads"; fi
+done
+grep -A4 'name: DATABASE_URL$' <<<"$mcp_deployment" | grep -q 'secretKeyRef:' || fail "mcp DATABASE_URL must come from a Secret"
+grep -A6 'name: MIGRATIONS_DATABASE_URL$' <<<"$mcp_deployment" | grep -q 'optional: true' || fail "mcp MIGRATIONS_DATABASE_URL must be an optional secretKeyRef"
+[[ "$(env_value "$mcp_deployment" MCP_ADDR)" == ":8090" ]] || fail "the mcp Deployment must default MCP_ADDR to :8090"
+[[ "$(env_value "$mcp_deployment" NODE_PERFORMANCE_URL)" == "http://node-performance.example.invalid" ]] \
+  || fail "the mcp Deployment must render the neighbour URLs from config.*Url"
+
+# The mcp route is off by default and rewrites /api/mcp/vendor-connectivity to /mcp.
+mcp_all_on=(--set mcp.enabled=true --set mcp.route.enabled=true --set 'mcp.route.parentRefs[0].name=warehouse-gateway' --set 'mcp.route.parentRefs[0].namespace=kong')
+mcp_route="$(helm template "$release" "$chart_dir" "${base[@]}" "${mcp_all_on[@]}" --show-only templates/mcp-route.yaml)"
+grep -q "name: $release-mcp" <<<"$mcp_route" || fail "the mcp HTTPRoute is not named $release-mcp"
+grep -q 'value: /api/mcp/vendor-connectivity' <<<"$mcp_route" || fail "the mcp route path is not /api/mcp/vendor-connectivity"
+grep -q 'replacePrefixMatch: /mcp' <<<"$mcp_route" || fail "the mcp route must rewrite the prefix to /mcp"
+grep -q "name: $release-mcp" <<<"$mcp_route" || fail "the mcp route must back the mcp Service"
+mcp_no_route="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true 2>/dev/null | grep -c 'kind: HTTPRoute' || true)"
+[[ "$mcp_no_route" == "0" ]] || fail "the mcp HTTPRoute must be off unless mcp.route.enabled"
+
+# --- web/: the frontend component ----------------------------------------------------
+front_on=(--set frontend.enabled=true)
+front_deployment="$(helm template "$release" "$chart_dir" "${base[@]}" "${front_on[@]}" --show-only templates/frontend-deployment.yaml)"
+front_service="$(helm template "$release" "$chart_dir" "${base[@]}" "${front_on[@]}" --show-only templates/frontend-service.yaml)"
+[[ "$(awk '/^  name:/ {print $2; exit}' <<<"$front_service")" == "$release-frontend" ]] || fail "the frontend Service is not named $release-frontend"
+grep -q 'app.kubernetes.io/component: frontend' <<<"$front_deployment" || fail "the frontend Deployment lacks component=frontend"
+grep -q 'type: ClusterIP' <<<"$front_service" || fail "the frontend Service must stay ClusterIP"
+grep -A2 'readinessProbe:' <<<"$front_deployment" | grep -q 'path: /healthz' || fail "frontend readiness must probe /healthz"
+grep -q 'readOnlyRootFilesystem: true' <<<"$front_deployment" || fail "the frontend container must run read-only"
+if grep -qE '^\s+env:' <<<"$front_deployment"; then fail "the frontend container must render no env (static bytes only)"; fi
+
+# With every component on, exactly api, mcp and frontend render, and each
+# Service selects exactly its own component (see test_service_selectors.py
+# for the selector proof).
+all_components="$(helm template "$release" "$chart_dir" "${base[@]}" "${mcp_all_on[@]}" "${front_on[@]}")"
+components="$(grep -E 'app.kubernetes.io/component: ' <<<"$all_components" | sed -E 's/^[[:space:]]+//; s/.*component: //' | sort -u | tr '\n' ' ')"
+[[ "$components" == "api frontend mcp " ]] || fail "components with everything on = '$components', want 'api frontend mcp'"
+
+# Off by default: neither the mcp nor the frontend workload renders.
+if grep -qE 'component: (mcp|frontend)$' <<<"$render_all"; then
+  fail "the mcp/frontend components must be off by default"
+fi
+
 echo "PASS: vendor-connectivity chart render assertions"
