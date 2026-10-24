@@ -42,5 +42,7 @@ COPY --from=build --chown=app:app /out/ ./
 USER 1000
 EXPOSE 8080
 # cmd/api is the service's main binary (HTTP on :8080). Additional cmd/*
-# binaries are run by the chart with `command: ["/app/<dirname>"]`.
+# binaries are run by the chart with `command: ["/app/<dirname>"]`: cmd/mcp
+# serves MCP on :8090 (expose it separately, e.g. `docker run -p 8090:8090`,
+# when running that binary directly; the chart's mcp Service owns the port).
 ENTRYPOINT ["./api"]
