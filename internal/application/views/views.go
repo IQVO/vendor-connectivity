@@ -18,6 +18,9 @@ type PoLine struct {
 	LineNo    int    `json:"lineNo"`
 	ListingID string `json:"listingId"`
 	Quantity  int    `json:"quantity"`
+	// Packaging is the active packaging of the listing's catalogue item, from
+	// CatalogPackagingView (empty when none was declared).
+	Packaging []Packaging `json:"packaging"`
 }
 
 // Label is a shipping label; it never carries the ship-to address.
@@ -126,4 +129,61 @@ type ScorecardWindow struct {
 type Scorecard struct {
 	NodeID  string            `json:"nodeId"`
 	Windows []ScorecardWindow `json:"windows"`
+}
+
+// Dims is the outer size of a carton in millimetres.
+type Dims struct {
+	L int `json:"l"`
+	W int `json:"w"`
+	H int `json:"h"`
+}
+
+// ShipmentItem is one SKU line of a carton, in eaches.
+type ShipmentItem struct {
+	GTIN      string `json:"gtin"`
+	SKU       string `json:"sku,omitempty"`
+	QtyEaches int    `json:"qtyEaches"`
+	Lot       string `json:"lot,omitempty"`
+	Expiry    string `json:"expiry,omitempty"`
+}
+
+// ShipmentCarton is one carton of the tree; its parentSscc is its pallet.
+type ShipmentCarton struct {
+	SSCC         string         `json:"sscc"`
+	ParentSSCC   string         `json:"parentSscc,omitempty"`
+	Kind         string         `json:"kind"`
+	Contents     []ShipmentItem `json:"contents"`
+	GrossWeightG int            `json:"grossWeightG,omitempty"`
+	DimsMm       *Dims          `json:"dimsMm,omitempty"`
+}
+
+// ShipmentPallet is a pallet SSCC with the cartons stacked on it.
+type ShipmentPallet struct {
+	SSCC    string           `json:"sscc"`
+	Cartons []ShipmentCarton `json:"cartons"`
+}
+
+// InboundShipment is the SOTPI-shaped tree of one shipment: shipment, pallets,
+// cartons, items. Cartons that are not on a pallet are top-level.
+type InboundShipment struct {
+	ShipmentID string           `json:"shipmentId"`
+	SellerID   string           `json:"sellerId,omitempty"`
+	NodeID     string           `json:"nodeId"`
+	ShippedAt  time.Time        `json:"shippedAt"`
+	Pallets    []ShipmentPallet `json:"pallets"`
+	Cartons    []ShipmentCarton `json:"cartons"`
+}
+
+// InboundShipmentPage is one page of the inbound shipment poll.
+type InboundShipmentPage struct {
+	InboundShipments []InboundShipment `json:"inboundShipments"`
+	NextToken        string            `json:"nextToken,omitempty"`
+}
+
+// Packaging is one active packaging level of a listing's catalogue item.
+type Packaging struct {
+	Level        string `json:"level"`
+	GTIN         string `json:"gtin"`
+	ChildGTIN    string `json:"childGtin,omitempty"`
+	UnitsPerPack int    `json:"unitsPerPack"`
 }

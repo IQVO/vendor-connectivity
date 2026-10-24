@@ -134,7 +134,7 @@ var (
 )
 
 // consumerGroups are the mandatory consumer group variables.
-var consumerGroups = []string{"NODE_CONSUMER_GROUP", "LISTING_CONSUMER_GROUP", "SOURCING_CONSUMER_GROUP"}
+var consumerGroups = []string{"NODE_CONSUMER_GROUP", "LISTING_CONSUMER_GROUP", "SOURCING_CONSUMER_GROUP", "INBOUND_CONSUMER_GROUP", "PACKAGING_CONSUMER_GROUP"}
 
 // neighbourURLs are the mandatory base URLs of the four sync calls (A24).
 var neighbourURLs = []string{"NODE_TOPOLOGY_URL", "OFFER_AVAILABILITY_URL", "SHIPPING_AND_TRACKING_URL", "NODE_PERFORMANCE_URL"}
@@ -305,6 +305,7 @@ func postgresAdapters(pool *pgxpool.Pool) adapters {
 		deps: usecases.Deps{
 			UoW: postgres.NewUnitOfWork(pool), Vendors: postgres.NewVendorRepo(pool), Orders: postgres.NewPurchaseOrderRepo(pool),
 			Submissions: postgres.NewSubmissionRepo(pool), Nodes: postgres.NewNodeViewRepo(pool), Listings: postgres.NewListingViewRepo(pool),
+			Shipments: postgres.NewInboundShipmentViewRepo(pool), Packaging: postgres.NewCatalogPackagingViewRepo(pool),
 			Outbox: postgres.NewEventOutbox(ob, outboundkafka.NewEncoder()), Inbox: postgres.NewProcessedEventRepo(pool),
 			Clock: clock.System{}, IDs: ids.UUID{}, Random: ids.Random{},
 		},
@@ -352,6 +353,8 @@ func startBackground(ad adapters, rt runtimeEnv, svc *usecases.Service, logger *
 		inboundkafka.NewNodeConsumer(rt.brokers, rt.groups["NODE_CONSUMER_GROUP"], svc, logger),
 		inboundkafka.NewListingConsumer(rt.brokers, rt.groups["LISTING_CONSUMER_GROUP"], svc, logger),
 		inboundkafka.NewSourcingConsumer(rt.brokers, rt.groups["SOURCING_CONSUMER_GROUP"], svc, logger),
+		inboundkafka.NewInboundConsumer(rt.brokers, rt.groups["INBOUND_CONSUMER_GROUP"], svc, logger),
+		inboundkafka.NewPackagingConsumer(rt.brokers, rt.groups["PACKAGING_CONSUMER_GROUP"], svc, logger),
 	}
 	for _, c := range consumers {
 		w := &worker{name: c.Name, done: make(chan struct{})}

@@ -64,6 +64,9 @@ func (s *Service) PollPurchaseOrders(ctx context.Context, q requests.PollQuery) 
 	for _, o := range orders {
 		page.PurchaseOrders = append(page.PurchaseOrders, orderView(o))
 	}
+	if err := s.withPackaging(ctx, page.PurchaseOrders); err != nil {
+		return views.PurchaseOrderPage{}, err
+	}
 	if len(page.PurchaseOrders) > 0 && s.d.Random.Float64() < s.cfg.Knobs.PORedeliveryRate {
 		page.PurchaseOrders = append(page.PurchaseOrders, page.PurchaseOrders[0])
 	}
@@ -119,7 +122,11 @@ func (s *Service) GetPurchaseOrder(ctx context.Context, vendorID, poNumber strin
 	if err != nil {
 		return views.PurchaseOrder{}, err
 	}
-	return orderView(p), nil
+	one := []views.PurchaseOrder{orderView(p)}
+	if err := s.withPackaging(ctx, one); err != nil {
+		return views.PurchaseOrder{}, err
+	}
+	return one[0], nil
 }
 
 // GetTransaction is query GetTransaction (GET /vendor/transactions/{transactionId}).
