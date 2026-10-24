@@ -3,7 +3,7 @@
 harness-template: v4
 
 Retail network, bounded context Vendor Connectivity (Supporting, partner tier). The Open Host Service of the network for vendors that operate fulfillment nodes: owns VendorAccount, PurchaseOrder and Submission, publishes the Vendor API, consumes node-topology, offer-availability and order-sourcing events and makes four synchronous in-org calls.
-Design source of truth: IQVO/retail-network-docs `model/model.yaml` (context vendor-connectivity) plus the orchestrator's contracts-delta. This service belongs to the retail network, not the warehouse-systems fleet.
+Design source of truth: IQVO/warehouse-docs `network/model/model.yaml` (context vendor-connectivity) plus the orchestrator's contracts-delta. This service belongs to the retail network, not the warehouse-systems fleet.
 This project is a domain-driven design study, not associated with any company: never name a real company, brand or product in code, comments, ADRs, specs, tests or fixtures (README `## Disclaimer`).
 
 ## Commands

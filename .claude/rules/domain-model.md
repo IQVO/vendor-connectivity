@@ -1,6 +1,6 @@
 # Domain model: ubiquitous language, aggregates, events, use cases
 
-Source of truth: retail-network-docs `model/model.yaml` (context `vendor-connectivity`) plus
+Source of truth: warehouse-docs `network/model/model.yaml` (context `vendor-connectivity`) plus
 the orchestrator's `contracts-delta`. Invariants, transitions and every assumption the model
 left open are in `docs/adr/0002-aggregates-and-invariants.md` (assumptions A1-A27).
 
