@@ -8,6 +8,7 @@ import (
 
 	"github.com/claudioed/vendor-connectivity/internal/adapters/kafka/cloudevents"
 	"github.com/claudioed/vendor-connectivity/internal/application/outbox"
+	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
 	"github.com/claudioed/vendor-connectivity/internal/domain/submission"
@@ -110,6 +111,44 @@ type processedData struct {
 	ErrorCount    int    `json:"errorCount"`
 }
 
+type receiptItemData struct {
+	GTIN      string `json:"gtin"`
+	QtyEaches int    `json:"qtyEaches"`
+}
+
+type receiptCartonData struct {
+	SSCC            string            `json:"sscc"`
+	Status          string            `json:"status"`
+	Items           []receiptItemData `json:"items"`
+	ComplianceCodes []string          `json:"complianceCodes"`
+}
+
+type receiptSubmittedData struct {
+	TransactionID string              `json:"transactionId"`
+	VendorID      string              `json:"vendorId"`
+	NodeID        string              `json:"nodeId"`
+	ShipmentID    string              `json:"shipmentId"`
+	ReceivedAt    string              `json:"receivedAt"`
+	Cartons       []receiptCartonData `json:"cartons"`
+}
+
+func receiptPayload(e inbound.ReceiptSubmitted) receiptSubmittedData {
+	cartons := make([]receiptCartonData, len(e.Cartons))
+	for i, c := range e.Cartons {
+		items := make([]receiptItemData, len(c.Items))
+		for j, it := range c.Items {
+			items[j] = receiptItemData{GTIN: it.GTIN, QtyEaches: it.QtyEaches}
+		}
+		codes := c.ComplianceCodes
+		if codes == nil {
+			codes = []string{}
+		}
+		cartons[i] = receiptCartonData{SSCC: c.SSCC, Status: string(c.Status), Items: items, ComplianceCodes: codes}
+	}
+	return receiptSubmittedData{TransactionID: e.TransactionID, VendorID: e.VendorID, NodeID: e.NodeID, ShipmentID: e.ShipmentID,
+		ReceivedAt: ts(e.ReceivedAt), Cartons: cartons}
+}
+
 // Encoder implements outbox.Encoder: each domain event becomes one
 // outbox.Message holding the CloudEvents bytes, the Kafka key (the aggregate
 // root id) and the content-type header. The CloudEvents `id` is minted HERE,
@@ -184,6 +223,8 @@ func payloadFor(ev shared.Event) (any, error) {
 		return vendorReinstatedData{VendorID: string(e.VendorID), ReinstatedAt: ts(e.At)}, nil
 	case submission.SubmissionProcessed:
 		return processedData{TransactionID: string(e.TransactionID), VendorID: e.VendorID, Kind: string(e.Kind), Status: string(e.Status), ErrorCount: e.ErrorCount}, nil
+	case inbound.ReceiptSubmitted:
+		return receiptPayload(e), nil
 	default:
 		return purchaseOrderPayload(ev)
 	}

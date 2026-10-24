@@ -8,6 +8,8 @@ config:
   nodeConsumerGroup: "vendor-connectivity-node"
   listingConsumerGroup: "vendor-connectivity-listing"
   sourcingConsumerGroup: "vendor-connectivity-sourcing"
+  inboundConsumerGroup: "vendor-connectivity-inbound"
+  packagingConsumerGroup: "vendor-connectivity-packaging"
   nodeTopologyUrl: "http://node-topology.example.invalid"
   offerAvailabilityUrl: "http://offer-availability.example.invalid"
   shippingAndTrackingUrl: "http://shipping-and-tracking.example.invalid"

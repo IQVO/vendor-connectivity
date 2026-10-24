@@ -94,7 +94,7 @@ func (w *world) build() {
 	w.store = memory.NewStore()
 	s := w.store
 	w.svc = usecases.New(usecases.Deps{
-		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(),
+		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(), Shipments: s.Shipments(), Packaging: s.Packaging(),
 		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: w.clock, IDs: &memory.SequentialIDs{}, Random: w.random,
 		NodeTopology: w.nt, Offers: w.offers, Shipping: w.ship, Performance: w.perf,
 	}, w.cfg)
@@ -114,6 +114,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	registerWhen(sc, w)
 	registerThen(sc, w)
 	registerWave2(sc, w)
+	registerInbound(sc, w)
 }
 
 // --- helpers -----------------------------------------------------------------

@@ -36,7 +36,7 @@ the orchestrator restarts it (`watchWorkers`); it never sits "alive" with a dead
   Both from the Secret `vendor-connectivity-db` (chart `database.existingSecret`; the
   migrations key is `optional: true`, the binary falls back to `DATABASE_URL`).
   Embedded migrations run at boot with backoff (`internal/bootretry`).
-- **Kafka** — `KAFKA_BROKERS` (required): relay sink, the three consumers, `/readyz`.
+- **Kafka** — `KAFKA_BROKERS` (required): relay sink, the five consumers, `/readyz`.
   Topics are auto-created by the first writer (`AllowAutoTopicCreation: true`,
   `internal/adapters/outbound/kafka/writer.go`). Publishes
   `retailnetwork.vendor-connectivity.events` (`.../outbound/kafka/encoder.go`);
@@ -81,6 +81,8 @@ change rolls the pods); secret keys come from the `vendor-connectivity-db` Secre
 | `NODE_CONSUMER_GROUP` | `config.nodeConsumerGroup` | required, stable group id (node-topology) |
 | `LISTING_CONSUMER_GROUP` | `config.listingConsumerGroup` | required (offer-availability) |
 | `SOURCING_CONSUMER_GROUP` | `config.sourcingConsumerGroup` | required (order-sourcing) |
+| `INBOUND_CONSUMER_GROUP` | `config.inboundConsumerGroup` | required (seller-inbound shipments, ADR 0005) |
+| `PACKAGING_CONSUMER_GROUP` | `config.packagingConsumerGroup` | required (offer-availability packaging, ADR 0005) |
 | `NODE_TOPOLOGY_URL` | `config.nodeTopologyUrl` | required, sibling base URL |
 | `OFFER_AVAILABILITY_URL` | `config.offerAvailabilityUrl` | required |
 | `SHIPPING_AND_TRACKING_URL` | `config.shippingAndTrackingUrl` | required |

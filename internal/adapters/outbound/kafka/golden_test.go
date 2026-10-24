@@ -42,6 +42,10 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 			`{"poNumber":"PO-asg-1-1","assignmentId":"asg-1","nodeId":"n-1","trackingNumbers":["TRK-1"],"shippedAt":"2026-10-22T13:00:00Z","requiredShipBy":"2026-10-24T13:00:00Z"}`},
 		{"submission", "SubmissionProcessed", "tx-1", "events", TopicEvents,
 			`{"transactionId":"tx-1","vendorId":"V-1","kind":"ACKNOWLEDGEMENT","status":"SUCCESS","errorCount":0}`},
+		{"inboundreceipt", "InboundReceiptSubmitted", "SHP-1", "events", TopicEvents,
+			`{"transactionId":"tx-1","vendorId":"V-1","nodeId":"n-1","shipmentId":"SHP-1","receivedAt":"2026-10-22T12:00:00Z","cartons":[` +
+				`{"sscc":"006141410000000012","status":"RECEIVED","items":[{"gtin":"00614141000036","qtyEaches":12}],"complianceCodes":[]},` +
+				`{"sscc":"006141410000000029","status":"MISSING","items":[],"complianceCodes":["LABEL_UNREADABLE"]}]}`},
 	}
 	events := published()
 	if len(events) != len(cases) {

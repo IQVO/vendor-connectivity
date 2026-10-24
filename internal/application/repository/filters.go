@@ -21,3 +21,20 @@ type PurchaseOrderFilter struct {
 	After       *Cursor
 	Limit       int
 }
+
+// ShipmentCursor is the keyset position after which an inbound shipment page
+// continues: shipments are ordered by (shippedAt, shipmentId) ascending.
+type ShipmentCursor struct {
+	ShippedAt  time.Time
+	ShipmentID string
+}
+
+// InboundShipmentFilter narrows the poll of SHIPPED inbound shipments. NodeIDs
+// is the set of nodes the caller may see (never empty); the other fields do not
+// filter when zero. Limit is the page size (0 = no limit).
+type InboundShipmentFilter struct {
+	NodeIDs      []string
+	ShippedAfter *time.Time
+	After        *ShipmentCursor
+	Limit        int
+}

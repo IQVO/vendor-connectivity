@@ -31,11 +31,11 @@ ADR 0003.
   arrays are always present; timestamps are RFC 3339 UTC.
 - Built and decoded only through `internal/adapters/kafka/cloudevents`.
 - `<entity>` is the raising aggregate, lowercase, no separators: `vendoraccount`,
-  `purchaseorder`, `submission`. Tier is `partner`.
+  `purchaseorder`, `submission`, `inboundreceipt`. Tier is `partner`.
 
 ### Published types
 
-Nine types go to the topic `retailnetwork.vendor-connectivity.events`.
+Ten types go to the topic `retailnetwork.vendor-connectivity.events`.
 `PurchaseOrderCancelled` is the one analytics-only event of the model ("analytics
 only" consumers) and goes ONLY to `retailnetwork.vendor-connectivity.analytics`.
 
@@ -50,6 +50,7 @@ type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderE
 type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderCancelled stream: analytics
 type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.VendorShipmentConfirmed stream: events
 type: com.retailnetwork.partner.vendor-connectivity.submission.SubmissionProcessed stream: events
+type: com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceiptSubmitted stream: events
 ```
 
 | Event | Subject / key | Raised when | `data` | Consumers |
@@ -64,6 +65,7 @@ type: com.retailnetwork.partner.vendor-connectivity.submission.SubmissionProcess
 | `PurchaseOrderCancelled` | `poNumber` | CancelPurchaseOrder is saved (analytics stream) | `{poNumber, assignmentId, reason}` | analytics only |
 | `VendorShipmentConfirmed` | `poNumber` | the shipment confirmation transaction succeeded | `{poNumber, assignmentId, nodeId, trackingNumbers[], shippedAt, requiredShipBy}` | order-sourcing, shipping-and-tracking, node-performance |
 | `SubmissionProcessed` | `transactionId` | a submission left PROCESSING (SUCCESS or FAILURE) | `{transactionId, vendorId, kind, status, errorCount}` | node-performance |
+| `InboundReceiptSubmitted` | `shipmentId` | SubmitInboundReceipt accepted a receipt (ADR 0005) | `{transactionId, vendorId, nodeId, shipmentId, receivedAt, cartons[{sscc, status, items[{gtin, qtyEaches}], complianceCodes[]}]}` | seller-inbound, node-performance |
 
 Payload rules:
 

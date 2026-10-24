@@ -10,7 +10,7 @@ alternative runtime and no log sink.
 | `DATABASE_URL` | required | Postgres DSN of the service's pool. A boot error names it when unset. |
 | `MIGRATIONS_DATABASE_URL` | `DATABASE_URL` | Direct DSN for the boot migrations (golang-migrate holds a session advisory lock, which breaks behind a transaction-pooling proxy). |
 | `KAFKA_BROKERS` | required | Comma-separated `host:port` list (relay, consumers and `/readyz`). A boot error names it when unset or blank. |
-| `NODE_CONSUMER_GROUP`, `LISTING_CONSUMER_GROUP`, `SOURCING_CONSUMER_GROUP` | required | Stable consumer group ids of the node-topology, offer-availability and order-sourcing consumers. A boot error names the missing one. |
+| `NODE_CONSUMER_GROUP`, `LISTING_CONSUMER_GROUP`, `SOURCING_CONSUMER_GROUP`, `INBOUND_CONSUMER_GROUP`, `PACKAGING_CONSUMER_GROUP` | required | Stable consumer group ids of the node-topology, offer-availability (listings), order-sourcing, seller-inbound (shipments) and offer-availability (packaging) consumers. A boot error names the missing one. |
 | `NODE_TOPOLOGY_URL`, `OFFER_AVAILABILITY_URL`, `SHIPPING_AND_TRACKING_URL`, `NODE_PERFORMANCE_URL` | required | Base URLs of the four synchronous in-org calls (ADR 0002 A24). |
 | `EVENT_PUBLISHER` | `kafka` | Only `kafka` is accepted; any other value is a boot error. |
 | `HTTP_ADDR` | `:8080` | Listen address. |
@@ -30,7 +30,7 @@ Configuration errors are raised before anything is opened or bound.
 ## Boot and stop
 
 1. Validate the environment. 2. Run the embedded migrations and ping Postgres, both with
-backoff. 3. Start the outbox relay, the three consumers and the three loops (submission
+backoff. 3. Start the outbox relay, the five consumers and the three loops (submission
 processor, expiry sweeper, daily retention sweeper). 4. Serve.
 
 On SIGINT/SIGTERM: `/readyz` flips to 503 `not_ready`, wait `SHUTDOWN_DRAIN_DELAY`, drain
@@ -73,7 +73,7 @@ the orchestrator restarts it.
 | `database.url` or `database.existingSecret` (+ `existingSecretKey`) | `DATABASE_URL` | `secretKeyRef`, never in the ConfigMap; render fails when neither is set. |
 | `database.migrationsExistingSecretKey` | `MIGRATIONS_DATABASE_URL` | `secretKeyRef` with `optional: true`; the binary falls back to `DATABASE_URL`. |
 | `kafka.brokers` | `KAFKA_BROKERS` | Required. |
-| `config.nodeConsumerGroup`, `config.listingConsumerGroup`, `config.sourcingConsumerGroup` | `NODE_`/`LISTING_`/`SOURCING_CONSUMER_GROUP` | Required, stable and service-prefixed (`vendor-connectivity-node`, ...), never the pod name. |
+| `config.nodeConsumerGroup`, `config.listingConsumerGroup`, `config.sourcingConsumerGroup`, `config.inboundConsumerGroup`, `config.packagingConsumerGroup` | `NODE_`/`LISTING_`/`SOURCING_`/`INBOUND_`/`PACKAGING_CONSUMER_GROUP` | Required, stable and service-prefixed (`vendor-connectivity-node`, ...), never the pod name. |
 | `config.nodeTopologyUrl`, `offerAvailabilityUrl`, `shippingAndTrackingUrl`, `nodePerformanceUrl` | `NODE_TOPOLOGY_URL`, `OFFER_AVAILABILITY_URL`, `SHIPPING_AND_TRACKING_URL`, `NODE_PERFORMANCE_URL` | Required, no default. |
 | `config.eventPublisher` | `EVENT_PUBLISHER` | Only `kafka`; `*_MODE` and a non-kafka publisher in `extraEnv` are refused. |
 | `config.txProcessingDelay`, `txFailureRate`, `poRedeliveryRate`, `rateLimitRps`, `submissionPollInterval`, `expirySweepInterval`, `outboxRelayInterval`, `shutdownDrainDelay` | the simulation, loop, relay and drain variables | Optional; not rendered while empty so the binary default applies. `shutdownDrainDelay` takes whole seconds. |

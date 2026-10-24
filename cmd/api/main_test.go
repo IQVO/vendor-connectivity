@@ -18,6 +18,7 @@ func validEnv() map[string]string {
 	return map[string]string{
 		"DATABASE_URL": "postgres://u@h/db", "KAFKA_BROKERS": "b1:9092, b2:9092",
 		"NODE_CONSUMER_GROUP": "g-node", "LISTING_CONSUMER_GROUP": "g-listing", "SOURCING_CONSUMER_GROUP": "g-sourcing",
+		"INBOUND_CONSUMER_GROUP": "g-inbound", "PACKAGING_CONSUMER_GROUP": "g-packaging",
 		"NODE_TOPOLOGY_URL": "http://nt", "OFFER_AVAILABILITY_URL": "http://oa", "SHIPPING_AND_TRACKING_URL": "http://st", "NODE_PERFORMANCE_URL": "http://np",
 	}
 }
@@ -68,6 +69,8 @@ func TestLoadRuntimeRefusesWithTheVariableName(t *testing.T) {
 		"node group":      {map[string]string{"NODE_CONSUMER_GROUP": ""}, "NODE_CONSUMER_GROUP"},
 		"listing group":   {map[string]string{"LISTING_CONSUMER_GROUP": ""}, "LISTING_CONSUMER_GROUP"},
 		"sourcing group":  {map[string]string{"SOURCING_CONSUMER_GROUP": ""}, "SOURCING_CONSUMER_GROUP"},
+		"inbound group":   {map[string]string{"INBOUND_CONSUMER_GROUP": ""}, "INBOUND_CONSUMER_GROUP"},
+		"packaging group": {map[string]string{"PACKAGING_CONSUMER_GROUP": ""}, "PACKAGING_CONSUMER_GROUP"},
 		"node topology":   {map[string]string{"NODE_TOPOLOGY_URL": ""}, "NODE_TOPOLOGY_URL"},
 		"offers":          {map[string]string{"OFFER_AVAILABILITY_URL": ""}, "OFFER_AVAILABILITY_URL"},
 		"shipping":        {map[string]string{"SHIPPING_AND_TRACKING_URL": ""}, "SHIPPING_AND_TRACKING_URL"},

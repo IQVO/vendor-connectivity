@@ -36,26 +36,61 @@ func respond[T any](w http.ResponseWriter, r *http.Request, v T, err error) {
 	writeJSON(w, http.StatusOK, v)
 }
 
+// pollParams reads the query shared by both polls: nodeId, nextToken, an RFC
+// 3339 createdAfter and a positive limit.
+func pollParams(r *http.Request) (nodeID, nextToken string, createdAfter *time.Time, limit int, err error) {
+	q := r.URL.Query()
+	nodeID, nextToken = q.Get("nodeId"), q.Get("nextToken")
+	if raw := q.Get("createdAfter"); raw != "" {
+		t, perr := time.Parse(time.RFC3339, raw)
+		if perr != nil {
+			return "", "", nil, 0, fmt.Errorf("%w: createdAfter must be an RFC 3339 date-time", errMalformedRequest)
+		}
+		createdAfter = &t
+	}
+	if raw := q.Get("limit"); raw != "" {
+		n, perr := strconv.Atoi(raw)
+		if perr != nil || n < 1 {
+			return "", "", nil, 0, fmt.Errorf("%w: limit must be a positive integer", errMalformedRequest)
+		}
+		limit = n
+	}
+	return nodeID, nextToken, createdAfter, limit, nil
+}
+
 func (s *Server) handlePoll(w http.ResponseWriter, r *http.Request) {
-	q := requests.PollQuery{VendorID: vendorID(r), NodeID: r.URL.Query().Get("nodeId"), NextToken: r.URL.Query().Get("nextToken")}
-	if raw := r.URL.Query().Get("createdAfter"); raw != "" {
-		t, err := time.Parse(time.RFC3339, raw)
-		if err != nil {
-			writeError(w, r, fmt.Errorf("%w: createdAfter must be an RFC 3339 date-time", errMalformedRequest))
-			return
-		}
-		q.CreatedAfter = &t
+	nodeID, token, after, limit, err := pollParams(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
 	}
-	if raw := r.URL.Query().Get("limit"); raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil || n < 1 {
-			writeError(w, r, fmt.Errorf("%w: limit must be a positive integer", errMalformedRequest))
-			return
-		}
-		q.Limit = n
-	}
-	page, err := s.Service.PollPurchaseOrders(r.Context(), q)
+	page, err := s.Service.PollPurchaseOrders(r.Context(), requests.PollQuery{VendorID: vendorID(r), NodeID: nodeID, NextToken: token, CreatedAfter: after, Limit: limit})
 	respond(w, r, page, err)
+}
+
+func (s *Server) handlePollInbound(w http.ResponseWriter, r *http.Request) {
+	nodeID, token, after, limit, err := pollParams(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	page, err := s.Service.PollInboundShipments(r.Context(), requests.InboundPollQuery{VendorID: vendorID(r), NodeID: nodeID, NextToken: token, CreatedAfter: after, Limit: limit})
+	respond(w, r, page, err)
+}
+
+func (s *Server) handleGetInboundShipment(w http.ResponseWriter, r *http.Request) {
+	sh, err := s.Service.GetInboundShipment(r.Context(), vendorID(r), chi.URLParam(r, "shipmentId"))
+	respond(w, r, sh, err)
+}
+
+func (s *Server) handleInboundReceipt(w http.ResponseWriter, r *http.Request) {
+	var in requests.InboundReceipt
+	if err := decodeJSON(r, &in); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	v, err := s.Service.SubmitInboundReceipt(r.Context(), in)
+	accepted(w, v, err, r)
 }
 
 func (s *Server) handleGetPurchaseOrder(w http.ResponseWriter, r *http.Request) {

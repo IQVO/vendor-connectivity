@@ -18,6 +18,7 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/application/repository"
 	"github.com/claudioed/vendor-connectivity/internal/application/requests"
 	"github.com/claudioed/vendor-connectivity/internal/application/views"
+	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/network"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
@@ -83,6 +84,29 @@ type ListingViewRepository interface {
 	Get(ctx context.Context, listingID string) (network.Listing, error)
 	// Save inserts or replaces the listing row.
 	Save(ctx context.Context, l network.Listing) error
+}
+
+// InboundShipmentViewRepository stores the InboundShipmentView read model
+// (upsert, no version): seller-inbound's shipments as this context saw them.
+type InboundShipmentViewRepository interface {
+	// Get returns the shipment, or ErrNotFound.
+	Get(ctx context.Context, shipmentID string) (inbound.Shipment, error)
+	// Save inserts or replaces the shipment row.
+	Save(ctx context.Context, s inbound.Shipment) error
+	// ListShipped returns the SHIPPED shipments with a manifest that match the
+	// filter, ordered by (shippedAt, shipmentId) ascending.
+	ListShipped(ctx context.Context, filter repository.InboundShipmentFilter) ([]inbound.Shipment, error)
+}
+
+// CatalogPackagingViewRepository stores the CatalogPackagingView read model
+// (upsert): the packaging levels offer-availability declared per catalogue item.
+type CatalogPackagingViewRepository interface {
+	// Get returns the (item, level, gtin) row, or ErrNotFound.
+	Get(ctx context.Context, catalogItemID string, level inbound.Level, gtin string) (inbound.PackLevel, error)
+	// Save inserts or replaces the row.
+	Save(ctx context.Context, p inbound.PackLevel) error
+	// ListByItem returns every row of the catalogue item, active or not.
+	ListByItem(ctx context.Context, catalogItemID string) ([]inbound.PackLevel, error)
 }
 
 // EventOutbox is the write side of the transactional outbox. Called with the
