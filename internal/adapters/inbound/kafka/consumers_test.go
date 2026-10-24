@@ -211,3 +211,105 @@ func TestConsumerConstructorsDoNotDial(t *testing.T) {
 		}
 	}
 }
+
+const (
+	ssccA = "006141410000000012"
+	ssccB = "006141410000000029"
+	ssccP = "006141410000000036"
+	gtinE = "00614141000036"
+	gtinC = "10614141000019"
+)
+
+func TestInboundConsumerBuildsInboundShipmentView(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	c := f.consumer(kafkaconsumer.InboundHandlers)
+	lab := event("e1", kafkaconsumer.TypeShipmentLabelled, "SHP-1", m{"shipmentId": "SHP-1", "planId": "P-1", "sellerId": "S-1", "nodeId": "n-1", "labelledAt": "2026-10-24T12:00:00Z", "somethingNew": 1,
+		"cartons": []m{
+			{"sscc": ssccA, "parentSscc": ssccP, "kind": "HOMOGENEOUS_CASE", "grossWeightG": 4200, "dimsMm": m{"l": 400, "w": 300, "h": 200},
+				"contents": []m{{"catalogItemId": "item-1", "gtin": gtinE, "qtyEaches": 12, "lot": "L-7", "expiry": "2027-03-01"}}},
+			{"sscc": ssccB, "kind": "MIXED", "contents": []m{{"gtin": gtinE, "qtyEaches": 2}}},
+		}})
+	ship := event("e2", kafkaconsumer.TypeShipmentShipped, "SHP-1", m{"shipmentId": "SHP-1", "planId": "P-1", "sellerId": "S-1", "nodeId": "n-1", "shippedAt": "2026-10-24T13:00:00Z"})
+	for _, msg := range [][]byte{lab, ship, lab} { // the repeated label carries the same id and is skipped
+		if err := c.HandleMessage(ctx, msg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sh, err := f.store.Shipments().Get(ctx, "SHP-1")
+	if err != nil || sh.Status != "SHIPPED" || sh.SellerID != "S-1" || sh.PlanID != "P-1" || sh.NodeID != "n-1" || len(sh.Cartons) != 2 || !sh.Pollable() {
+		t.Fatalf("shipment = %+v %v", sh, err)
+	}
+	c0 := sh.Cartons[0]
+	if c0.SSCC != ssccA || c0.ParentSSCC != ssccP || c0.GrossWeightG != 4200 || c0.Dims == nil || c0.Dims.W != 300 || c0.Contents[0].Lot != "L-7" || c0.Contents[0].Expiry != "2027-03-01" || c0.Contents[0].CatalogItemID != "item-1" {
+		t.Fatalf("carton = %+v", c0)
+	}
+	if sh.ShippedAt.Format(time.RFC3339) != "2026-10-24T13:00:00Z" || sh.LabelledAt.Format(time.RFC3339) != "2026-10-24T12:00:00Z" {
+		t.Errorf("times = %v %v", sh.ShippedAt, sh.LabelledAt)
+	}
+	rcv := event("e3", kafkaconsumer.TypeShipmentReceived, "SHP-1", m{"shipmentId": "SHP-1", "sellerId": "S-1", "nodeId": "n-1", "status": "CLOSED_WITH_DISCREPANCY",
+		"receivedAt": "2026-10-25T10:00:00Z", "cartons": []m{{"sscc": ssccA, "status": "RECEIVED"}}})
+	if err := c.HandleMessage(ctx, rcv); err != nil {
+		t.Fatal(err)
+	}
+	if sh, _ = f.store.Shipments().Get(ctx, "SHP-1"); sh.Status != "CLOSED_WITH_DISCREPANCY" || sh.ReceivedAt.IsZero() {
+		t.Errorf("after receive = %+v", sh)
+	}
+}
+
+func TestPackagingConsumerAcceptsBothTierSpellings(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	c := f.consumer(kafkaconsumer.PackagingHandlers)
+	declared := m{"catalogItemId": "item-1", "level": "CASE", "gtin": gtinC, "childGtin": gtinE, "unitsPerPack": 12, "declaredAt": "2026-10-20T08:00:00Z", "extra": true}
+	for i, typ := range []string{kafkaconsumer.TypePackagingDeclared, "com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackagingDeclared"} {
+		if err := c.HandleMessage(ctx, event(fmt.Sprintf("p%d", i), typ, "item-1", declared)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p, err := f.store.Packaging().Get(ctx, "item-1", "CASE", gtinC)
+	if err != nil || !p.Active || p.UnitsPerPack != 12 || p.ChildGTIN != gtinE || p.DeclaredAt.Format(time.RFC3339) != "2026-10-20T08:00:00Z" {
+		t.Fatalf("packaging = %+v %v", p, err)
+	}
+	retired := m{"catalogItemId": "item-1", "level": "CASE", "gtin": gtinC, "retiredAt": "2026-10-23T08:00:00Z"}
+	if err := c.HandleMessage(ctx, event("r1", kafkaconsumer.TypePackLevelRetired, "item-1", retired)); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ = f.store.Packaging().Get(ctx, "item-1", "CASE", gtinC); p.Active || p.RetiredAt.Format(time.RFC3339) != "2026-10-23T08:00:00Z" {
+		t.Errorf("after retirement = %+v", p)
+	}
+	other := "com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackLevelRetired"
+	if err := c.HandleMessage(ctx, event("r2", other, "item-1", retired)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInboundAndPackagingPayloadsThatCannotDecodeAreDeadLettered(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	for _, tc := range []struct {
+		c   *kafkaconsumer.Consumer
+		typ string
+	}{
+		{f.consumer(kafkaconsumer.InboundHandlers), kafkaconsumer.TypeShipmentLabelled},
+		{f.consumer(kafkaconsumer.InboundHandlers), kafkaconsumer.TypeShipmentShipped},
+		{f.consumer(kafkaconsumer.InboundHandlers), kafkaconsumer.TypeShipmentReceived},
+		{f.consumer(kafkaconsumer.PackagingHandlers), kafkaconsumer.TypePackagingDeclared},
+		{f.consumer(kafkaconsumer.PackagingHandlers), kafkaconsumer.TypePackLevelRetired},
+	} {
+		if err := tc.c.HandleMessage(ctx, event("bad", tc.typ, "x", m{"shipmentId": 7, "catalogItemId": 7})); err == nil {
+			t.Errorf("%s: a payload of the wrong type must not be acknowledged", tc.typ)
+		}
+	}
+}
+
+func TestInboundConsumerConstructorsDoNotDial(t *testing.T) {
+	f := newFixture(t)
+	in := kafkaconsumer.NewInboundConsumer([]string{"127.0.0.1:1"}, "g", f.svc, nil)
+	pk := kafkaconsumer.NewPackagingConsumer([]string{"127.0.0.1:1"}, "g", f.svc, nil)
+	if in.Topic != "retailnetwork.seller-inbound.events" || pk.Topic != "retailnetwork.offer-availability.events" || in.DLQ == nil || pk.DLQ == nil {
+		t.Errorf("consumers = %+v %+v", in, pk)
+	}
+	_ = in.Close()
+	_ = pk.Close()
+}
