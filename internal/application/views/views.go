@@ -170,6 +170,7 @@ type InboundShipment struct {
 	SellerID   string           `json:"sellerId,omitempty"`
 	NodeID     string           `json:"nodeId"`
 	ShippedAt  time.Time        `json:"shippedAt"`
+	Status     string           `json:"status"`
 	Pallets    []ShipmentPallet `json:"pallets"`
 	Cartons    []ShipmentCarton `json:"cartons"`
 }

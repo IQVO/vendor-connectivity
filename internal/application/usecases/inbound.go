@@ -138,7 +138,7 @@ func (s *Service) GetInboundShipment(ctx context.Context, vendorID, shipmentID s
 // pallet are grouped under it (pallets in order of first appearance); the rest
 // stay top-level.
 func shipmentView(sh inbound.Shipment) views.InboundShipment {
-	v := views.InboundShipment{ShipmentID: sh.ID, SellerID: sh.SellerID, NodeID: sh.NodeID, ShippedAt: sh.ShippedAt,
+	v := views.InboundShipment{ShipmentID: sh.ID, SellerID: sh.SellerID, NodeID: sh.NodeID, ShippedAt: sh.ShippedAt, Status: string(sh.Status),
 		Pallets: []views.ShipmentPallet{}, Cartons: []views.ShipmentCarton{}}
 	at := map[string]int{}
 	for _, c := range sh.Cartons {
