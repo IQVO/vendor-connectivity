@@ -244,17 +244,8 @@ func normaliseCarton(c Carton) (Carton, error) {
 			return Carton{}, err
 		}
 	}
-	if !shared.ValidTextN(c.Kind, maxKind) {
-		return Carton{}, fmt.Errorf("kind is required")
-	}
-	if c.GrossWeightG < 0 || c.GrossWeightG > maxGrossWeightGrams {
-		return Carton{}, fmt.Errorf("grossWeightG is out of range")
-	}
-	if len(c.Contents) > maxItemsPerCarton {
-		return Carton{}, fmt.Errorf("a carton holds at most %d item lines", maxItemsPerCarton)
-	}
-	if d := c.Dims; d != nil && (d.L < 0 || d.W < 0 || d.H < 0 || d.L > maxDimMillimetres || d.W > maxDimMillimetres || d.H > maxDimMillimetres) {
-		return Carton{}, fmt.Errorf("dimsMm is out of range")
+	if err := checkCartonBounds(c); err != nil {
+		return Carton{}, err
 	}
 	out := c
 	out.Contents = make([]Item, 0, len(c.Contents))
@@ -266,6 +257,23 @@ func normaliseCarton(c Carton) (Carton, error) {
 		out.Contents = append(out.Contents, n)
 	}
 	return out, nil
+}
+
+// checkCartonBounds checks the scalar fields of a manifest carton.
+func checkCartonBounds(c Carton) error {
+	if !shared.ValidTextN(c.Kind, maxKind) {
+		return fmt.Errorf("kind is required")
+	}
+	if c.GrossWeightG < 0 || c.GrossWeightG > maxGrossWeightGrams {
+		return fmt.Errorf("grossWeightG is out of range")
+	}
+	if len(c.Contents) > maxItemsPerCarton {
+		return fmt.Errorf("a carton holds at most %d item lines", maxItemsPerCarton)
+	}
+	if d := c.Dims; d != nil && (d.L < 0 || d.W < 0 || d.H < 0 || d.L > maxDimMillimetres || d.W > maxDimMillimetres || d.H > maxDimMillimetres) {
+		return fmt.Errorf("dimsMm is out of range")
+	}
+	return nil
 }
 
 func normaliseItem(it Item) (Item, error) {

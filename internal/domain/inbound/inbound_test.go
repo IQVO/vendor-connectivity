@@ -50,6 +50,23 @@ func labelled(cartons ...Carton) Labelled {
 	return Labelled{ShipmentID: "SHP-1", PlanID: "PLAN-1", SellerID: "S-1", NodeID: "n-1", Cartons: cartons, LabelledAt: t0}
 }
 
+func closedShipment(t *testing.T) Shipment {
+	t.Helper()
+	lab, err := Shipment{}.OnLabelled(labelled(carton(ssccA, Item{GTIN: gtinE13, QtyEaches: 12})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	shp, err := lab.OnShipped(Shipped{ShipmentID: "SHP-1", NodeID: "n-1", ShippedAt: t0.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done, err := shp.OnReceived(Received{ShipmentID: "SHP-1", NodeID: "n-1", Status: StatusClosedWithDiscrepancy, ReceivedAt: t0.Add(48 * time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return done
+}
+
 func TestShipmentFollowsTheEventsForwardOnly(t *testing.T) {
 	lab, err := Shipment{}.OnLabelled(labelled(carton(ssccA, Item{GTIN: gtinE13, QtyEaches: 12})))
 	if err != nil {
@@ -74,11 +91,13 @@ func TestShipmentFollowsTheEventsForwardOnly(t *testing.T) {
 	if err != nil || done.Status != StatusClosedWithDiscrepancy || done.Pollable() || done.ReceivedAt.IsZero() {
 		t.Fatalf("received = %+v %v", done, err)
 	}
-	// The first close wins: a second Received with the other closed status does not change it.
-	if again2, _ := done.OnReceived(Received{ShipmentID: "SHP-1", NodeID: "n-1", Status: StatusClosed}); again2.Status != StatusClosedWithDiscrepancy {
-		t.Errorf("a repeated Received changed the status to %s", again2.Status)
+}
+
+func TestTheFirstCloseWinsAndNothingReopensAShipment(t *testing.T) {
+	done := closedShipment(t)
+	if again, _ := done.OnReceived(Received{ShipmentID: "SHP-1", NodeID: "n-1", Status: StatusClosed}); again.Status != StatusClosedWithDiscrepancy {
+		t.Errorf("a repeated Received changed the status to %s", again.Status)
 	}
-	// Nothing after the close reopens it.
 	late, _ := done.OnShipped(Shipped{ShipmentID: "SHP-1", NodeID: "n-1", ShippedAt: t0})
 	relabel, _ := done.OnLabelled(labelled(carton(ssccA, Item{GTIN: gtinE, QtyEaches: 1})))
 	if late.Status != StatusClosedWithDiscrepancy || relabel.Status != StatusClosedWithDiscrepancy {

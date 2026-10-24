@@ -220,16 +220,20 @@ const (
 	gtinC = "10614141000019"
 )
 
-func TestInboundConsumerBuildsInboundShipmentView(t *testing.T) {
-	f := newFixture(t)
-	ctx := context.Background()
-	c := f.consumer(kafkaconsumer.InboundHandlers)
-	lab := event("e1", kafkaconsumer.TypeShipmentLabelled, "SHP-1", m{"shipmentId": "SHP-1", "planId": "P-1", "sellerId": "S-1", "nodeId": "n-1", "labelledAt": "2026-10-24T12:00:00Z", "somethingNew": 1,
+func labelledEvent() []byte {
+	return event("e1", kafkaconsumer.TypeShipmentLabelled, "SHP-1", m{"shipmentId": "SHP-1", "planId": "P-1", "sellerId": "S-1", "nodeId": "n-1", "labelledAt": "2026-10-24T12:00:00Z", "somethingNew": 1,
 		"cartons": []m{
 			{"sscc": ssccA, "parentSscc": ssccP, "kind": "HOMOGENEOUS_CASE", "grossWeightG": 4200, "dimsMm": m{"l": 400, "w": 300, "h": 200},
 				"contents": []m{{"catalogItemId": "item-1", "gtin": gtinE, "qtyEaches": 12, "lot": "L-7", "expiry": "2027-03-01"}}},
 			{"sscc": ssccB, "kind": "MIXED", "contents": []m{{"gtin": gtinE, "qtyEaches": 2}}},
 		}})
+}
+
+func TestInboundConsumerBuildsInboundShipmentView(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	c := f.consumer(kafkaconsumer.InboundHandlers)
+	lab := labelledEvent()
 	ship := event("e2", kafkaconsumer.TypeShipmentShipped, "SHP-1", m{"shipmentId": "SHP-1", "planId": "P-1", "sellerId": "S-1", "nodeId": "n-1", "shippedAt": "2026-10-24T13:00:00Z"})
 	for _, msg := range [][]byte{lab, ship, lab} { // the repeated label carries the same id and is skipped
 		if err := c.HandleMessage(ctx, msg); err != nil {
@@ -247,12 +251,21 @@ func TestInboundConsumerBuildsInboundShipmentView(t *testing.T) {
 	if sh.ShippedAt.Format(time.RFC3339) != "2026-10-24T13:00:00Z" || sh.LabelledAt.Format(time.RFC3339) != "2026-10-24T12:00:00Z" {
 		t.Errorf("times = %v %v", sh.ShippedAt, sh.LabelledAt)
 	}
+}
+
+func TestInboundShipmentReceivedClosesTheView(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	c := f.consumer(kafkaconsumer.InboundHandlers)
+	if err := c.HandleMessage(ctx, labelledEvent()); err != nil {
+		t.Fatal(err)
+	}
 	rcv := event("e3", kafkaconsumer.TypeShipmentReceived, "SHP-1", m{"shipmentId": "SHP-1", "sellerId": "S-1", "nodeId": "n-1", "status": "CLOSED_WITH_DISCREPANCY",
 		"receivedAt": "2026-10-25T10:00:00Z", "cartons": []m{{"sscc": ssccA, "status": "RECEIVED"}}})
 	if err := c.HandleMessage(ctx, rcv); err != nil {
 		t.Fatal(err)
 	}
-	if sh, _ = f.store.Shipments().Get(ctx, "SHP-1"); sh.Status != "CLOSED_WITH_DISCREPANCY" || sh.ReceivedAt.IsZero() {
+	if sh, _ := f.store.Shipments().Get(ctx, "SHP-1"); sh.Status != "CLOSED_WITH_DISCREPANCY" || sh.ReceivedAt.IsZero() {
 		t.Errorf("after receive = %+v", sh)
 	}
 }

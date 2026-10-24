@@ -3,6 +3,7 @@ package usecases_test
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -131,14 +132,11 @@ func TestPollInboundShipmentsRefusals(t *testing.T) {
 	h.vendorNode("n-1", "V-1", 0)
 	h.vendorNode("n-9", "V-2", 0)
 	h.shipped("SHP-1", "n-1", t0, homogeneous(ssccA, "", gtinE, 1))
-	_, token := poll(h, requests.InboundPollQuery{VendorID: "V-1", Limit: 1})
 	h.shipped("SHP-2", "n-1", t0.Add(time.Hour), homogeneous(ssccA, "", gtinE, 1))
-	_, token = poll(h, requests.InboundPollQuery{VendorID: "V-1", Limit: 1})
+	_, token := poll(h, requests.InboundPollQuery{VendorID: "V-1", Limit: 1})
 	if token == "" {
 		t.Fatal("no token")
 	}
-	poTokenPage, _ := h.svc.PollPurchaseOrders(h.ctx, requests.PollQuery{VendorID: "V-1"})
-	_ = poTokenPage
 	cases := map[string]struct {
 		q    requests.InboundPollQuery
 		want error
@@ -163,9 +161,7 @@ func TestPollInboundShipmentsRefusals(t *testing.T) {
 func TestGetInboundShipmentBuildsThePalletAndCartonTree(t *testing.T) {
 	h := newHarness(t, usecases.Config{})
 	h.onboard("V-1")
-	h.onboard("V-2")
 	h.vendorNode("n-1", "V-1", 0)
-	h.vendorNode("n-9", "V-2", 0)
 	mixed := inbound.Carton{SSCC: ssccB, Kind: "MIXED", Contents: []inbound.Item{{GTIN: gtinE, QtyEaches: 2, Lot: "L1", Expiry: "2027-03-01"}, {GTIN: gtinF, QtyEaches: 3}},
 		Dims: &inbound.Dims{L: 4, W: 5, H: 6}}
 	h.shipped("SHP-1", "n-1", t0, homogeneous(ssccA, ssccP, gtinE, 12), mixed)
@@ -181,12 +177,21 @@ func TestGetInboundShipmentBuildsThePalletAndCartonTree(t *testing.T) {
 		got.Cartons[0].Contents[0].Lot != "L1" || got.Cartons[0].Contents[0].Expiry != "2027-03-01" || got.Cartons[0].ParentSSCC != "" {
 		t.Fatalf("cartons = %+v", got.Cartons)
 	}
-	// Another vendor, an unknown id and a shipment that has not shipped are all not found.
-	if _, err := h.svc.GetInboundShipment(h.ctx, "V-2", "SHP-1"); !errors.Is(err, ports.ErrNotFound) {
-		t.Errorf("other vendor: %v", err)
-	}
-	if _, err := h.svc.GetInboundShipment(h.ctx, "V-1", "SHP-404"); !errors.Is(err, ports.ErrNotFound) {
-		t.Errorf("unknown: %v", err)
+}
+
+func TestGetInboundShipmentIsNotFoundUntilItIsOffered(t *testing.T) {
+	h := newHarness(t, usecases.Config{})
+	h.onboard("V-1")
+	h.onboard("V-2")
+	h.vendorNode("n-1", "V-1", 0)
+	h.vendorNode("n-9", "V-2", 0)
+	h.shipped("SHP-1", "n-1", t0, homogeneous(ssccA, "", gtinE, 12))
+	for name, c := range map[string]struct{ vendor, shipment string }{
+		"other vendor": {"V-2", "SHP-1"}, "unknown": {"V-1", "SHP-404"}, "unknown vendor": {"V-X", "SHP-1"},
+	} {
+		if _, err := h.svc.GetInboundShipment(h.ctx, c.vendor, c.shipment); !errors.Is(err, ports.ErrNotFound) {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 	h.must(h.svc.OnInboundShipmentLabelled(h.ctx, h.eventID(), "InboundShipmentLabelled", shipmentLabelled("SHP-2", "n-1", homogeneous(ssccA, "", gtinE, 1))))
 	if _, err := h.svc.GetInboundShipment(h.ctx, "V-1", "SHP-2"); !errors.Is(err, ports.ErrNotFound) {
@@ -198,9 +203,6 @@ func TestGetInboundShipmentBuildsThePalletAndCartonTree(t *testing.T) {
 	}
 	if _, err := h.svc.GetInboundShipment(h.ctx, "", "SHP-1"); !errors.Is(err, shared.ErrValidation) {
 		t.Errorf("no vendor: %v", err)
-	}
-	if _, err := h.svc.GetInboundShipment(h.ctx, "V-X", "SHP-1"); !errors.Is(err, ports.ErrNotFound) {
-		t.Errorf("unknown vendor: %v", err)
 	}
 	// Once received the poll drops it but a direct read still answers.
 	h.must(h.svc.OnInboundShipmentReceived(h.ctx, h.eventID(), "InboundShipmentReceived", inbound.Received{ShipmentID: "SHP-1", NodeID: "n-1", Status: inbound.StatusClosed, ReceivedAt: t0.Add(time.Hour)}))
@@ -246,19 +248,11 @@ func TestSubmitInboundReceiptAcceptsAndPublishes(t *testing.T) {
 	if tx.Kind != "INBOUND_RECEIPT" || tx.Status != "PROCESSING" || tx.PONumber != "" {
 		t.Fatalf("transaction = %+v", tx)
 	}
-	evs := h.store.Outbox().Events()
-	if got := h.eventNames(); got[len(got)-1] != "InboundReceiptSubmitted" {
-		t.Fatalf("events = %v", got)
-	}
-	ev, ok := evs[len(evs)-1].(inbound.ReceiptSubmitted)
-	if !ok || ev.TransactionID != acc.TransactionID || ev.VendorID != "V-1" || ev.ShipmentID != "SHP-1" || ev.SubjectID() != "SHP-1" ||
-		ev.Cartons[0].Items[0].GTIN != gtinE || !ev.OccurredAt().Equal(t0) {
-		t.Fatalf("event = %+v", ev)
-	}
+	checkReceiptEvent(h, acc.TransactionID)
 	// The stored payload is the normalised receipt (GTIN in 14 digits).
 	sub, err := h.store.Submissions().Get(h.ctx, submission.ID(acc.TransactionID))
 	h.must(err)
-	if sub.NodeID() != "n-1" || sub.Kind() != submission.KindInboundReceipt || !contains(string(sub.Payload()), `"gtin":"`+gtinE+`"`) {
+	if sub.NodeID() != "n-1" || sub.Kind() != submission.KindInboundReceipt || !strings.Contains(string(sub.Payload()), `"gtin":"`+gtinE+`"`) {
 		t.Errorf("submission = %s %s %s", sub.NodeID(), sub.Kind(), sub.Payload())
 	}
 	h.clock.Set(t0.Add(time.Minute))
@@ -273,13 +267,17 @@ func TestSubmitInboundReceiptAcceptsAndPublishes(t *testing.T) {
 	}
 }
 
-func contains(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
+func checkReceiptEvent(h *harness, txID string) {
+	h.t.Helper()
+	evs := h.store.Outbox().Events()
+	if got := h.eventNames(); got[len(got)-1] != "InboundReceiptSubmitted" {
+		h.t.Fatalf("events = %v", got)
 	}
-	return false
+	ev, ok := evs[len(evs)-1].(inbound.ReceiptSubmitted)
+	if !ok || ev.TransactionID != txID || ev.VendorID != "V-1" || ev.ShipmentID != "SHP-1" || ev.SubjectID() != "SHP-1" ||
+		ev.Cartons[0].Items[0].GTIN != gtinE || !ev.OccurredAt().Equal(t0) {
+		h.t.Fatalf("event = %+v", ev)
+	}
 }
 
 func TestSubmitInboundReceiptRefusals(t *testing.T) {

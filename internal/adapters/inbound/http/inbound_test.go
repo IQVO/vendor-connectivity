@@ -63,8 +63,13 @@ func TestPollAndGetInboundShipments(t *testing.T) {
 	if one.code != 200 || one.json(t)["shipmentId"] != "SHP-2" {
 		t.Fatalf("get = %d %s", one.code, one.body)
 	}
+}
+
+func TestInboundShipmentReadsRefuseWhatTheyCannotAnswer(t *testing.T) {
+	a := newAPI(t)
+	a.shipped("SHP-1", "n-1", t0)
 	a.do("GET", "/vendor/inbound-shipments/SHP-404?vendorId=V-1", "").problem(t, 404, "not-found")
-	a.do("GET", "/vendor/inbound-shipments/SHP-2", "").problem(t, 422, "validation-failed")
+	a.do("GET", "/vendor/inbound-shipments/SHP-1", "").problem(t, 422, "validation-failed")
 	a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&createdAfter=yesterday", "").problem(t, 422, "validation-failed")
 	a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&limit=0", "").problem(t, 422, "validation-failed")
 	a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&nodeId=n-404", "").problem(t, 404, "not-found")

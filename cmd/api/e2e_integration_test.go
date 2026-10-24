@@ -523,6 +523,8 @@ func entityOf(event string) string {
 		return "vendoraccount"
 	case "SubmissionProcessed":
 		return "submission"
+	case "InboundReceiptSubmitted":
+		return "inboundreceipt"
 	default:
 		return "purchaseorder"
 	}
@@ -739,8 +741,11 @@ func phaseInbound(t *testing.T, s *service, w *world) {
 	produce(t, w.brokers, topicOffers, kafkago.Message{Key: []byte("c-1"), Value: inputEvent(t, "evt-p1", "/retailnetwork/offer-availability",
 		"com.retailnetwork.partner.offer-availability.catalogitem.CatalogItemPackagingDeclared", "c-1",
 		fmt.Sprintf(`{"catalogItemId":"c-1","level":"CASE","gtin":%q,"childGtin":%q,"unitsPerPack":12,"declaredAt":"2026-10-20T08:00:00Z"}`, caseGTIN, each))})
-	waitFor(t, 60*time.Second, "the shipment and packaging copies", func() bool {
-		return w.db.count(`SELECT count(*) FROM inbound_shipments WHERE status = 'SHIPPED'`) == 1 && w.db.count(`SELECT count(*) FROM catalog_packaging`) == 1
+	waitFor(t, 60*time.Second, "the shipment copy", func() bool {
+		return w.db.count(`SELECT count(*) FROM inbound_shipments WHERE status = 'SHIPPED'`) == 1
+	})
+	waitFor(t, 60*time.Second, "the packaging copy", func() bool {
+		return w.db.count(`SELECT count(*) FROM catalog_packaging`) == 1
 	})
 
 	var page struct {
@@ -868,8 +873,8 @@ func phaseRestart(t *testing.T, w *world, s *service) *service {
 	// Give the restarted consumers time to (wrongly) re-apply and the relay to
 	// (wrongly) re-publish; neither may happen.
 	time.Sleep(3 * time.Second)
-	if n := w.db.count(`SELECT count(*) FROM processed_events`); n != 7 {
-		t.Fatalf("processed_events after the restart = %d, want still 7", n)
+	if n := w.db.count(`SELECT count(*) FROM processed_events`); n != 11 {
+		t.Fatalf("processed_events after the restart = %d, want still 11", n)
 	}
 	noMoreMessages(t, w.brokers, topicEvents, len(w.expected))
 	noMoreMessages(t, w.brokers, topicAnalytics, len(w.analyze))
@@ -908,7 +913,7 @@ func phaseDependenciesGoAway(t *testing.T, s *service, w *world) {
 func TestKafkaGoneTurnsReadyzUnavailable(t *testing.T) {
 	_, dbURL := startPostgres(t)
 	kc, brokers := startKafka(t)
-	for _, topic := range []string{topicNodes, topicOffers, topicSourcing, topicInbound} {
+	for _, topic := range []string{topicNodes, topicOffers, topicSourcing} {
 		createTopic(t, brokers, topic)
 	}
 	stub := newNeighbourStub(t)
@@ -934,7 +939,10 @@ func TestRunOnRealPostgresAndKafka(t *testing.T) {
 	pg, dbURL := startPostgres(t)
 	kc, brokers := startKafka(t)
 	// The input topics are the producers': create them the way the cluster has them.
-	for _, topic := range []string{topicNodes, topicOffers, topicSourcing} {
+	// The consumed topics exist before the first start, as in the cluster: a group
+	// that joins before its topic exists is handed no partition and kafka-go does
+	// not retry the assignment.
+	for _, topic := range []string{topicNodes, topicOffers, topicSourcing, topicInbound} {
 		createTopic(t, brokers, topic)
 	}
 	stub := newNeighbourStub(t)

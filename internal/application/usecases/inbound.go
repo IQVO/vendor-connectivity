@@ -309,18 +309,19 @@ func (s *Service) updatePackaging(ctx context.Context, eventID, eventType, itemI
 // CatalogPackagingView: listing -> catalogue item -> its active levels.
 func (s *Service) withPackaging(ctx context.Context, orders []views.PurchaseOrder) error {
 	cache := map[string][]views.Packaging{}
-	for i := range orders {
-		for j := range orders[i].Lines {
-			id := orders[i].Lines[j].ListingID
-			pk, ok := cache[id]
+	for _, o := range orders {
+		lines := o.Lines
+		for k := range lines {
+			line := &lines[k]
+			pk, ok := cache[line.ListingID]
 			if !ok {
 				var err error
-				if pk, err = s.listingPackaging(ctx, id); err != nil {
+				if pk, err = s.listingPackaging(ctx, line.ListingID); err != nil {
 					return err
 				}
-				cache[id] = pk
+				cache[line.ListingID] = pk
 			}
-			orders[i].Lines[j].Packaging = pk
+			line.Packaging = pk
 		}
 	}
 	return nil
