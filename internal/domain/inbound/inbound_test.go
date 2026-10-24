@@ -74,6 +74,10 @@ func TestShipmentFollowsTheEventsForwardOnly(t *testing.T) {
 	if err != nil || done.Status != StatusClosedWithDiscrepancy || done.Pollable() || done.ReceivedAt.IsZero() {
 		t.Fatalf("received = %+v %v", done, err)
 	}
+	// The first close wins: a second Received with the other closed status does not change it.
+	if again2, _ := done.OnReceived(Received{ShipmentID: "SHP-1", NodeID: "n-1", Status: StatusClosed}); again2.Status != StatusClosedWithDiscrepancy {
+		t.Errorf("a repeated Received changed the status to %s", again2.Status)
+	}
 	// Nothing after the close reopens it.
 	late, _ := done.OnShipped(Shipped{ShipmentID: "SHP-1", NodeID: "n-1", ShippedAt: t0})
 	relabel, _ := done.OnLabelled(labelled(carton(ssccA, Item{GTIN: gtinE, QtyEaches: 1})))

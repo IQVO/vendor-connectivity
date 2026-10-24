@@ -9,7 +9,9 @@
 package inbound
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
@@ -139,11 +141,14 @@ func (s Shipment) merge(shipmentID, planID, sellerID, nodeID string) Shipment {
 	return out
 }
 
+// furthest returns the later of two statuses; on a tie (the same rank) it keeps a.
+func furthest(a, b Status) Status {
+	return slices.MaxFunc([]Status{a, b}, func(x, y Status) int { return cmp.Compare(rank(x), rank(y)) })
+}
+
 func (s Shipment) advance(to Status) Shipment {
 	out := s
-	if rank(to) > rank(s.Status) {
-		out.Status = to
-	}
+	out.Status = furthest(s.Status, to)
 	return out
 }
 
@@ -187,9 +192,7 @@ func (s Shipment) OnReceived(e Received) (Shipment, error) {
 		return Shipment{}, shared.Invalid("status must be CLOSED or CLOSED_WITH_DISCREPANCY")
 	}
 	out := s.merge(e.ShipmentID, "", e.SellerID, e.NodeID)
-	if rank(s.Status) < rank(e.Status) {
-		out.Status = e.Status
-	}
+	out.Status = furthest(s.Status, e.Status)
 	out.ReceivedAt = shared.UTC(e.ReceivedAt)
 	return out, nil
 }

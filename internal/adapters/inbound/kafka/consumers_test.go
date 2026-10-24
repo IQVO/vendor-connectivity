@@ -30,7 +30,7 @@ func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	s := memory.NewStore()
 	svc := usecases.New(usecases.Deps{
-		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(),
+		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(), Shipments: s.Shipments(), Packaging: s.Packaging(),
 		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: memory.NewClock(t0), IDs: &memory.SequentialIDs{}, Random: memory.NewScriptedRandom(),
 		NodeTopology: &memory.NodeTopology{}, Offers: &memory.OfferAvailability{}, Shipping: &memory.ShippingTracking{}, Performance: &memory.NodePerformance{},
 	}, usecases.Config{Logger: testLogger()})

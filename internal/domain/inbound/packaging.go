@@ -1,7 +1,9 @@
 package inbound
 
 import (
-	"sort"
+	"cmp"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
@@ -141,11 +143,8 @@ func ActiveLevels(rows []PackLevel) []PackLevel {
 			out = append(out, r)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Level != out[j].Level {
-			return out[i].Level.order() < out[j].Level.order()
-		}
-		return out[i].GTIN < out[j].GTIN
+	slices.SortFunc(out, func(a, b PackLevel) int {
+		return cmp.Or(cmp.Compare(a.Level.order(), b.Level.order()), strings.Compare(a.GTIN, b.GTIN))
 	})
 	return out
 }
