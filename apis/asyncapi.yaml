@@ -846,7 +846,7 @@ components:
       name: CatalogItemPackagingDeclared
       title: CatalogItemPackagingDeclared
       summary: A packaging level was declared for a catalogue item; fills CatalogPackagingView.
-      description: Consumed from offer-availability. `type` = `com.retailnetwork.partner.offer-availability.catalogitem.CatalogItemPackagingDeclared`; subject = `catalogItemId`.
+      description: Consumed from offer-availability. `type` = `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackagingDeclared`; subject = `catalogItemId`.
         Only the listed `data` fields are relied on; unknown fields are ignored. The `commerce` spelling of the tier segment is accepted too.
       contentType: application/cloudevents+json
       tags:
@@ -860,7 +860,7 @@ components:
           specversion: '1.0'
           id: 2b7d4e81-9f3a-4c56-a0e8-5d1c6f2b9a37
           source: /retailnetwork/offer-availability
-          type: com.retailnetwork.partner.offer-availability.catalogitem.CatalogItemPackagingDeclared
+          type: com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackagingDeclared
           subject: item-12
           time: '2026-10-24T13:00:00Z'
           datacontenttype: application/json
@@ -876,7 +876,7 @@ components:
       name: CatalogItemPackLevelRetired
       title: CatalogItemPackLevelRetired
       summary: A packaging level GTIN was retired; it stops being offered in packaging[].
-      description: Consumed from offer-availability. `type` = `com.retailnetwork.partner.offer-availability.catalogitem.CatalogItemPackLevelRetired`; subject = `catalogItemId`.
+      description: Consumed from offer-availability. `type` = `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackLevelRetired`; subject = `catalogItemId`.
         Only the listed `data` fields are relied on; unknown fields are ignored. The `commerce` spelling of the tier segment is accepted too.
       contentType: application/cloudevents+json
       tags:
@@ -890,7 +890,7 @@ components:
           specversion: '1.0'
           id: 8c3e1a75-4d9b-4f20-b6a7-0e5f2d8c1b64
           source: /retailnetwork/offer-availability
-          type: com.retailnetwork.partner.offer-availability.catalogitem.CatalogItemPackLevelRetired
+          type: com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackLevelRetired
           subject: item-12
           time: '2026-10-24T13:00:00Z'
           datacontenttype: application/json
