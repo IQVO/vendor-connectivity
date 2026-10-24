@@ -11,11 +11,13 @@ release=vendor-connectivity
 main_go="$repo_dir/cmd/api/main.go"
 
 # Dummy values, no password: the chart refuses to render without a database
-# source, Kafka brokers, the three consumer groups and the four neighbour URLs.
+# source, Kafka brokers, the five consumer groups and the four neighbour URLs.
 # None is ever dialled.
 groups=(nodeConsumerGroup:vendor-connectivity-node
   listingConsumerGroup:vendor-connectivity-listing
-  sourcingConsumerGroup:vendor-connectivity-sourcing)
+  sourcingConsumerGroup:vendor-connectivity-sourcing
+  inboundConsumerGroup:vendor-connectivity-inbound
+  packagingConsumerGroup:vendor-connectivity-packaging)
 urls=(nodeTopologyUrl:http://node-topology.example.invalid
   offerAvailabilityUrl:http://offer-availability.example.invalid
   shippingAndTrackingUrl:http://shipping-and-tracking.example.invalid
@@ -70,7 +72,7 @@ slice_env() { # slice_env <go slice variable>
 # shellcheck disable=SC2207
 api_vars=($( { literal_env; slice_env consumerGroups; slice_env neighbourURLs; } | sort -u))
 (( ${#api_vars[@]} >= 20 )) || fail "found only ${#api_vars[@]} env names in cmd/api/main.go; the scan is looking in the wrong place"
-(( $(slice_env consumerGroups | wc -l) == 3 )) || fail "expected 3 consumer groups in cmd/api/main.go, found $(slice_env consumerGroups | wc -l)"
+(( $(slice_env consumerGroups | wc -l) == 5 )) || fail "expected 5 consumer groups in cmd/api/main.go, found $(slice_env consumerGroups | wc -l)"
 (( $(slice_env neighbourURLs | wc -l) == 4 )) || fail "expected 4 neighbour URLs in cmd/api/main.go, found $(slice_env neighbourURLs | wc -l)"
 full_deployment="$(helm template "$release" "$chart_dir" "${base[@]}" "${everything[@]}" --show-only templates/deployment.yaml)"
 full_configmap="$(helm template "$release" "$chart_dir" "${base[@]}" "${everything[@]}" --show-only templates/configmap.yaml)"
@@ -97,7 +99,8 @@ env_value() { # env_value <rendered> <NAME>
 }
 for kv in 'KAFKA_BROKERS=kafka.example.invalid:9092' 'EVENT_PUBLISHER=kafka' \
   'NODE_CONSUMER_GROUP=vendor-connectivity-node' 'LISTING_CONSUMER_GROUP=vendor-connectivity-listing' \
-  'SOURCING_CONSUMER_GROUP=vendor-connectivity-sourcing' \
+  'SOURCING_CONSUMER_GROUP=vendor-connectivity-sourcing' 'INBOUND_CONSUMER_GROUP=vendor-connectivity-inbound' \
+  'PACKAGING_CONSUMER_GROUP=vendor-connectivity-packaging' \
   'NODE_TOPOLOGY_URL=http://node-topology.example.invalid' 'OFFER_AVAILABILITY_URL=http://offer-availability.example.invalid' \
   'SHIPPING_AND_TRACKING_URL=http://shipping-and-tracking.example.invalid' 'NODE_PERFORMANCE_URL=http://node-performance.example.invalid'; do
   [[ "$(env_value "$api_deployment" "${kv%%=*}")" == "${kv#*=}" ]] || fail "the api Deployment does not render $kv"
