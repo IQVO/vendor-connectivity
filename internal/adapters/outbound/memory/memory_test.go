@@ -19,7 +19,7 @@ func TestMemoryDoublesSatisfyTheRepositoryContract(t *testing.T) {
 		s := memory.NewStore()
 		return repocontract.Env{
 			UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(),
-			Listings: s.Listings(), Inbox: s.Inbox(), Outbox: s.Outbox(),
+			Listings: s.Listings(), Shipments: s.Shipments(), Packaging: s.Packaging(), Inbox: s.Inbox(), Outbox: s.Outbox(),
 			OutboxCount: func(context.Context) (int, error) { return len(s.Outbox().Events()), nil },
 		}
 	})

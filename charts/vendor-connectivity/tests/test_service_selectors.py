@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assert this chart's Service selector isolates the api component.
+"""Assert this chart's Services select exactly one Deployment each.
 
 Why this exists (fleet-wide): `app.kubernetes.io/name` + `instance` are identical
 on every pod a release creates. A Service that selects on those two alone selects
@@ -8,8 +8,9 @@ pod). The Deployment carries `app.kubernetes.io/component` in selector.matchLabe
 and its pod labels, and the Service selects on it, so each Service selects
 EXACTLY ONE Deployment. This test fails if that ever stops being true.
 
-This chart has one component, api; the optional HPA, Ingress and HTTPRoute are
-turned on together and must all point at the api workload. Run:
+This chart has three components: api (on by default), mcp and frontend (off by
+default, enabled together here). The optional HPA, Ingress and HTTPRoutes are
+turned on too and must all point at this chart's Services. Run:
 python3 charts/vendor-connectivity/tests/test_service_selectors.py
 Needs: helm, PyYAML (a missing PyYAML prints SKIP, which CI treats as a failure).
 """
@@ -27,6 +28,8 @@ GROUPS = {
     "nodeConsumerGroup": "vendor-connectivity-node",
     "listingConsumerGroup": "vendor-connectivity-listing",
     "sourcingConsumerGroup": "vendor-connectivity-sourcing",
+    "inboundConsumerGroup": "vendor-connectivity-inbound",
+    "packagingConsumerGroup": "vendor-connectivity-packaging",
 }
 URLS = {
     "nodeTopologyUrl": "http://node-topology.example.invalid",
@@ -55,6 +58,9 @@ ENABLE_EVERYTHING = BASE + [
     "--set", "gatewayApi.enabled=true",
     "--set", "ingress.enabled=true",
     "--set", "config.txProcessingDelay=500ms",
+    "--set", "mcp.enabled=true",
+    "--set", "mcp.route.enabled=true",
+    "--set", "frontend.enabled=true",
 ]
 
 
@@ -92,13 +98,18 @@ def matches(selector: dict, labels: dict) -> bool:
 def check_components(docs: list[dict], failures: list[str]) -> None:
     services = {d["metadata"]["name"]: d for d in docs if d.get("kind") == "Service"}
     deployments = {d["metadata"]["name"]: d for d in docs if d.get("kind") == "Deployment"}
+    api, mcp, frontend = RELEASE, f"{RELEASE}-mcp", f"{RELEASE}-frontend"
 
-    if set(deployments) != {RELEASE}:
-        failures.append(f"expected exactly the api Deployment {RELEASE!r}, got {sorted(deployments)}")
-    if set(services) != {RELEASE}:
-        failures.append(f"expected exactly the api Service {RELEASE!r}, got {sorted(services)}")
-    if RELEASE in services and selector_of(services[RELEASE]).get("app.kubernetes.io/component") != "api":
+    if set(deployments) != {api, mcp, frontend}:
+        failures.append(f"expected exactly the api/mcp/frontend Deployments, got {sorted(deployments)}")
+    if set(services) != {api, mcp, frontend}:
+        failures.append(f"expected exactly the api/mcp/frontend Services, got {sorted(services)}")
+    if api in services and selector_of(services[api]).get("app.kubernetes.io/component") != "api":
         failures.append("the api Service selector must pin component=api")
+    if mcp in services and selector_of(services[mcp]).get("app.kubernetes.io/component") != "mcp":
+        failures.append("the mcp Service selector must pin component=mcp")
+    if frontend in services and selector_of(services[frontend]).get("app.kubernetes.io/component") != "frontend":
+        failures.append("the frontend Service selector must pin component=frontend")
 
     # Every Deployment's own selector must pin a component too, and be satisfied by its pod labels.
     for name, dep in deployments.items():
@@ -122,7 +133,8 @@ def check_components(docs: list[dict], failures: list[str]) -> None:
     elif "replicas" in deployments.get(RELEASE, {}).get("spec", {}):
         failures.append("the api Deployment must omit replicas when its HPA owns them")
 
-    # The Ingress and the HTTPRoute route to the api Service.
+    # The Ingress and the HTTPRoutes route to this chart's Services, never to a
+    # pod directly; the mcp route backs the mcp Service.
     ingress = next((d for d in docs if d.get("kind") == "Ingress"), None)
     if ingress is None:
         failures.append("the Ingress was not rendered with ingress.enabled=true")
@@ -131,14 +143,16 @@ def check_components(docs: list[dict], failures: list[str]) -> None:
             for path in rule["http"]["paths"]:
                 if path["backend"]["service"]["name"] not in services:
                     failures.append("the Ingress backend is not a Service of this chart")
-    route = next((d for d in docs if d.get("kind") == "HTTPRoute"), None)
-    if route is None:
-        failures.append("the HTTPRoute was not rendered with gatewayApi.enabled=true")
-    else:
+    for route in (d for d in docs if d.get("kind") == "HTTPRoute"):
         for rule in route["spec"]["rules"]:
             for ref in rule["backendRefs"]:
                 if ref["name"] not in services:
-                    failures.append("the HTTPRoute backend is not a Service of this chart")
+                    failures.append(f"the HTTPRoute {route['metadata']['name']} backend {ref['name']} is not a Service of this chart")
+    mcp_route = next((d for d in docs if d.get("kind") == "HTTPRoute" and d["metadata"]["name"] == mcp), None)
+    if mcp_route is None:
+        failures.append("the mcp HTTPRoute was not rendered with mcp.route.enabled=true")
+    elif mcp_route["spec"]["rules"][0]["backendRefs"][0]["name"] != mcp:
+        failures.append("the mcp HTTPRoute must back the mcp Service")
 
 
 def check_refusals(failures: list[str]) -> None:
@@ -166,11 +180,16 @@ def main() -> int:
 
     check_components(render(ENABLE_EVERYTHING), failures)
 
-    # Default values must not deploy an HPA, a route or an Ingress.
+    # Default values must not deploy an HPA, a route, an Ingress or the
+    # optional mcp/frontend workloads.
     defaults = render(BASE)
-    stray = [d["kind"] for d in defaults if d.get("kind") in {"HorizontalPodAutoscaler", "Ingress", "HTTPRoute"}]
-    if stray:
-        failures.append(f"optional resources rendered with default values: {stray}")
+    stray = [d["kind"] for d in defaults if d.get("kind") in
+             {"HorizontalPodAutoscaler", "Ingress", "HTTPRoute", "Deployment"}]
+    if len(stray) != 1:
+        failures.append(f"default values must render exactly the api Deployment, got {stray}")
+    stray_components = {pod_labels_of(d).get("app.kubernetes.io/component") for d in defaults if d.get("kind") == "Deployment"}
+    if stray_components != {"api"}:
+        failures.append(f"default values must render only component=api, got {stray_components}")
 
     check_refusals(failures)
 
@@ -179,10 +198,11 @@ def main() -> int:
             print(f"FAIL: {f}")
         return 1
 
-    print("PASS: the api Service selects exactly one Deployment (component=api); the HPA, Ingress and HTTPRoute are "
-          "off by default and target the api; the chart refuses to render without a database source, brokers, any "
-          "consumer group or neighbour URL, with a log/unknown publisher or a *_MODE in extraEnv, or with a grace "
-          "period under 40s")
+    print("PASS: every Service (api, mcp, frontend) selects exactly one Deployment via its component label; "
+          "the HPA, Ingress and HTTPRoutes are off by default and target this chart's Services; the mcp route "
+          "backs the mcp Service; the chart refuses to render without a database source, brokers, any consumer "
+          "group or neighbour URL, with a log/unknown publisher or a *_MODE in extraEnv, or with a grace period "
+          "under 40s")
     return 0
 
 

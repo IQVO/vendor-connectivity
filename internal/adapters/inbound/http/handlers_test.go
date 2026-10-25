@@ -39,7 +39,7 @@ func newAPI(t *testing.T) *api {
 	s := memory.NewStore()
 	a := &api{t: t, store: s, clock: memory.NewClock(t0), nt: &memory.NodeTopology{}, ship: &memory.ShippingTracking{}, perf: &memory.NodePerformance{}}
 	a.svc = usecases.New(usecases.Deps{
-		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(),
+		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(), Shipments: s.Shipments(), Packaging: s.Packaging(),
 		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: a.clock, IDs: &memory.SequentialIDs{}, Random: memory.NewScriptedRandom(),
 		NodeTopology: a.nt, Offers: &memory.OfferAvailability{}, Shipping: a.ship, Performance: a.perf,
 	}, usecases.Config{})

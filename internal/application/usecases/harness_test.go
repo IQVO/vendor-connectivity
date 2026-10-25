@@ -37,7 +37,7 @@ func newHarness(t *testing.T, cfg usecases.Config) *harness {
 	h := &harness{t: t, ctx: context.Background(), store: s, clock: memory.NewClock(t0), nt: &memory.NodeTopology{}, offers: &memory.OfferAvailability{},
 		ship: &memory.ShippingTracking{}, perf: &memory.NodePerformance{}, rand: memory.NewScriptedRandom()}
 	h.svc = usecases.New(usecases.Deps{
-		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(),
+		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(), Shipments: s.Shipments(), Packaging: s.Packaging(),
 		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: h.clock, IDs: &memory.SequentialIDs{}, Random: h.rand,
 		NodeTopology: h.nt, Offers: h.offers, Shipping: h.ship, Performance: h.perf,
 	}, cfg)

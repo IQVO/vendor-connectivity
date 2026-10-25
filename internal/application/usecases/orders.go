@@ -29,7 +29,7 @@ func orderView(p *purchaseorder.PurchaseOrder) views.PurchaseOrder {
 		Lines: make([]views.PoLine, 0, len(p.Lines())), Labels: labelViews(p.Labels()), TrackingNumbers: []string{},
 	}
 	for _, l := range p.Lines() {
-		v.Lines = append(v.Lines, views.PoLine{LineNo: l.LineNo, ListingID: l.ListingID, Quantity: l.Quantity})
+		v.Lines = append(v.Lines, views.PoLine{LineNo: l.LineNo, ListingID: l.ListingID, Quantity: l.Quantity, Packaging: []views.Packaging{}})
 	}
 	// The decision is visible only once its transaction succeeded (A25).
 	if a, ok := p.Ack(); ok && (p.State() == purchaseorder.Accepted || p.State() == purchaseorder.Rejected ||

@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/claudioed/vendor-connectivity/internal/adapters/kafka/cloudevents"
+	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
 	"github.com/claudioed/vendor-connectivity/internal/domain/submission"
@@ -41,6 +42,9 @@ func published() []shared.Event {
 		purchaseorder.VendorShipmentConfirmed{Header: hdr(), PONumber: "PO-asg-1-1", AssignmentID: "asg-1", NodeID: "n-1",
 			TrackingNumbers: []string{"TRK-1"}, ShippedAt: t0, RequiredShipBy: later},
 		submission.SubmissionProcessed{Header: hdr(), TransactionID: "tx-1", VendorID: "V-1", Kind: submission.KindAcknowledgement, Status: submission.Success, ErrorCount: 0},
+		inbound.ReceiptSubmitted{Header: hdr(), TransactionID: "tx-1", VendorID: "V-1", NodeID: "n-1", ShipmentID: "SHP-1", ReceivedAt: t0.Add(-time.Hour),
+			Cartons: []inbound.ReceiptCarton{{SSCC: "006141410000000012", Status: inbound.CartonReceived, Items: []inbound.ReceiptItem{{GTIN: "00614141000036", QtyEaches: 12}}},
+				{SSCC: "006141410000000029", Status: inbound.CartonMissing, ComplianceCodes: []string{"LABEL_UNREADABLE"}}}},
 	}
 }
 

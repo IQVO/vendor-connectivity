@@ -94,6 +94,8 @@ KAFKA_BROKERS: {{ .Values.kafka.brokers | quote }}
 NODE_CONSUMER_GROUP: {{ .Values.config.nodeConsumerGroup | quote }}
 LISTING_CONSUMER_GROUP: {{ .Values.config.listingConsumerGroup | quote }}
 SOURCING_CONSUMER_GROUP: {{ .Values.config.sourcingConsumerGroup | quote }}
+INBOUND_CONSUMER_GROUP: {{ .Values.config.inboundConsumerGroup | quote }}
+PACKAGING_CONSUMER_GROUP: {{ .Values.config.packagingConsumerGroup | quote }}
 NODE_TOPOLOGY_URL: {{ .Values.config.nodeTopologyUrl | quote }}
 OFFER_AVAILABILITY_URL: {{ .Values.config.offerAvailabilityUrl | quote }}
 SHIPPING_AND_TRACKING_URL: {{ .Values.config.shippingAndTrackingUrl | quote }}
@@ -147,13 +149,13 @@ EVENT_PUBLISHER=log. There is no default broker and no log sink.
 {{- end -}}
 
 {{/*
-The three consumers always run, each under a STABLE consumer group id that
+The five consumers always run, each under a STABLE consumer group id that
 comes from values (cmd/api exits at boot without NODE_CONSUMER_GROUP,
-LISTING_CONSUMER_GROUP and SOURCING_CONSUMER_GROUP). A stable id is what lets a
+LISTING_CONSUMER_GROUP, SOURCING_CONSUMER_GROUP, INBOUND_CONSUMER_GROUP and PACKAGING_CONSUMER_GROUP). A stable id is what lets a
 rescheduled pod resume from its committed offsets; never derive it from the pod name.
 */}}
 {{- define "vendor-connectivity.requireConsumerGroups" -}}
-{{- range $c := list (dict "key" "nodeConsumerGroup" "env" "NODE_CONSUMER_GROUP") (dict "key" "listingConsumerGroup" "env" "LISTING_CONSUMER_GROUP") (dict "key" "sourcingConsumerGroup" "env" "SOURCING_CONSUMER_GROUP") -}}
+{{- range $c := list (dict "key" "nodeConsumerGroup" "env" "NODE_CONSUMER_GROUP") (dict "key" "listingConsumerGroup" "env" "LISTING_CONSUMER_GROUP") (dict "key" "sourcingConsumerGroup" "env" "SOURCING_CONSUMER_GROUP") (dict "key" "inboundConsumerGroup" "env" "INBOUND_CONSUMER_GROUP") (dict "key" "packagingConsumerGroup" "env" "PACKAGING_CONSUMER_GROUP") -}}
 {{- if not (index $.Values.config $c.key) -}}
 {{- fail (printf "config.%s is required (%s): the consumer always runs on real Kafka and cmd/api exits at boot without a group. Use a STABLE, service-prefixed id, never the pod name." $c.key $c.env) -}}
 {{- end -}}

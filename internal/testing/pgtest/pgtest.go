@@ -118,12 +118,30 @@ func URL(t *testing.T) string {
 // when the test ends.
 func NewPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	pool, err := postgres.NewPool(context.Background(), URL(t))
+	return Open(t, URL(t))
+}
+
+// Open returns a pool on the database at databaseURL (one of URL's answers),
+// closed when the test ends. The re-export cmd/*'s integration tests use so
+// they never import pgx directly.
+func Open(t *testing.T, databaseURL string) *pgxpool.Pool {
+	t.Helper()
+	pool, err := postgres.NewPool(context.Background(), databaseURL)
 	if err != nil {
 		t.Fatalf("pool: %v", err)
 	}
 	t.Cleanup(pool.Close)
 	return pool
+}
+
+// Count returns the number of rows of table.
+func Count(t *testing.T, pool *pgxpool.Pool, table string) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM "+table).Scan(&n); err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	return n
 }
 
 // WaitAllPublished fails the test unless every outbox row has been published

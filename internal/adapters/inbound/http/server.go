@@ -61,6 +61,9 @@ func NewRouter(s *Server) http.Handler {
 		r.Method(http.MethodPost, "/vendor/shipping-labels", write(s.handleLabel))
 		r.Method(http.MethodPost, "/vendor/shipment-confirmations", write(s.handleShipment))
 		r.Get("/vendor/transactions/{transactionId}", s.handleGetTransaction)
+		r.Get("/vendor/inbound-shipments", s.handlePollInbound)
+		r.Get("/vendor/inbound-shipments/{shipmentId}", s.handleGetInboundShipment)
+		r.Method(http.MethodPost, "/vendor/inbound-receipts", write(s.handleInboundReceipt))
 	})
 
 	r.Method(http.MethodPost, "/vendors", write(s.handleOnboard))
