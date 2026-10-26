@@ -189,6 +189,43 @@ helm template "$release" "$chart_dir" "${base[@]}" --set terminationGracePeriodS
 helm template "$release" "$chart_dir" "${base[@]}" --set config.shutdownDrainDelay=30s --set terminationGracePeriodSeconds=61 >/dev/null \
   || fail "a 30s drain delay with a 61s grace period must render"
 
+# --- observability (ADR 0008, fleet standard item 7) ---------------------------------
+# The api renders the fleet pipeline's env: the Collector endpoint, the service
+# name, the version (image tag, appVersion when empty) and the environment.
+otel_endpoint="otel-collector.observability.svc.cluster.local:4317"
+# Chart vs binary: every env var cmd/api/telemetry.go reads is rendered.
+# shellcheck disable=SC2207
+tel_vars=($(grep -ohE '(Getenv|getenv|env)\("[A-Z][A-Z0-9_]*"' "$repo_dir/cmd/api/telemetry.go" | sed -E 's/.*\("//; s/"$//' | sort -u))
+(( ${#tel_vars[@]} >= 3 )) || fail "found only ${#tel_vars[@]} env names in cmd/api/telemetry.go; the scan is looking in the wrong place"
+for var in "${tel_vars[@]}"; do
+  grep -q "name: $var\$" <<<"$api_deployment" || fail "the api Deployment does not render $var, which cmd/api/telemetry.go reads"
+done
+[[ "$(env_value "$api_deployment" OTEL_EXPORTER_OTLP_ENDPOINT)" == "$otel_endpoint" ]] \
+  || fail "the api Deployment does not render OTEL_EXPORTER_OTLP_ENDPOINT from otel.endpoint"
+[[ "$(env_value "$api_deployment" OTEL_SERVICE_NAME)" == "vendor-connectivity" ]] \
+  || fail "the api Deployment does not render OTEL_SERVICE_NAME=vendor-connectivity from otel.serviceName"
+[[ "$(env_value "$api_deployment" SERVICE_VERSION)" == "0.1.0" ]] \
+  || fail "SERVICE_VERSION must default to the chart appVersion"
+[[ "$(env_value "$api_deployment" ENVIRONMENT)" == "production" ]] || fail "ENVIRONMENT must come from environment"
+tagged="$(helm template "$release" "$chart_dir" "${base[@]}" --set image.tag=v9.9.9 --set otel.serviceName=vendors --set otel.endpoint=http://collector:4317 \
+  --set environment=staging --show-only templates/deployment.yaml)"
+[[ "$(env_value "$tagged" SERVICE_VERSION)" == "v9.9.9" ]] || fail "SERVICE_VERSION must follow image.tag"
+[[ "$(env_value "$tagged" OTEL_SERVICE_NAME)" == "vendors" ]] || fail "OTEL_SERVICE_NAME must follow otel.serviceName"
+[[ "$(env_value "$tagged" OTEL_EXPORTER_OTLP_ENDPOINT)" == "http://collector:4317" ]] || fail "OTEL_EXPORTER_OTLP_ENDPOINT must follow otel.endpoint"
+[[ "$(env_value "$tagged" ENVIRONMENT)" == "staging" ]] || fail "ENVIRONMENT must follow environment"
+# otel.enabled=false renders no OTEL_* env (SERVICE_VERSION stays: it also labels the logs' build).
+otel_off="$(helm template "$release" "$chart_dir" "${base[@]}" --set otel.enabled=false --set mcp.enabled=true)"
+if grep -q 'name: OTEL_' <<<"$otel_off"; then fail "otel.enabled=false must render no OTEL_* env in any component"; fi
+grep -q 'name: SERVICE_VERSION$' <<<"$otel_off" || fail "SERVICE_VERSION must still render with otel.enabled=false"
+# The values are chart-owned: neither extraEnv may set them a second time.
+for owned in OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT SERVICE_VERSION ENVIRONMENT; do
+  for key in extraEnv mcp.extraEnv; do
+    err="$(helm template "$release" "$chart_dir" "${base[@]}" --set "$key[0].name=$owned" --set "$key[0].value=x" 2>&1)" \
+      && fail "$key must not be able to set $owned"
+    grep -qF "extraEnv sets $owned" <<<"$err" || fail "the refusal for $key $owned does not name it: $err"
+  done
+done
+
 # --- cmd/mcp: the mcp component -------------------------------------------------------
 mcp_go="$repo_dir/cmd/mcp/main.go"
 mcp_on=(--set mcp.enabled=true)
@@ -204,7 +241,7 @@ grep -q 'terminationGracePeriodSeconds: 40' <<<"$mcp_deployment" || fail "the mc
 # Deployment; and nothing the binary never reads (Kafka, publisher, consumer
 # groups, api tuning) may appear on the mcp pod.
 # shellcheck disable=SC2207
-mcp_vars=($(grep -ohE '(Getenv|getenv)\("[A-Z][A-Z0-9_]*"' "$mcp_go" | sed -E 's/.*\("//; s/"$//' | sort -u))
+mcp_vars=($(grep -ohE '(Getenv|getenv|env)\("[A-Z][A-Z0-9_]*"' "$mcp_go" "$repo_dir/cmd/mcp/telemetry.go" | sed -E 's/.*\("//; s/"$//' | sort -u))
 # The neighbour URL names live in cmd/mcp/main.go's own neighbourURLs slice.
 # shellcheck disable=SC2207
 mcp_slice=($(grep -E '^var neighbourURLs = ' "$mcp_go" | grep -oE '"[A-Z][A-Z0-9_]*"' | tr -d '"' | sort -u))
@@ -222,6 +259,15 @@ grep -A6 'name: MIGRATIONS_DATABASE_URL$' <<<"$mcp_deployment" | grep -q 'option
 [[ "$(env_value "$mcp_deployment" MCP_ADDR)" == ":8090" ]] || fail "the mcp Deployment must default MCP_ADDR to :8090"
 [[ "$(env_value "$mcp_deployment" NODE_PERFORMANCE_URL)" == "http://node-performance.example.invalid" ]] \
   || fail "the mcp Deployment must render the neighbour URLs from config.*Url"
+
+# The mcp component exports as <otel.serviceName>-mcp to the same Collector, with the api's version.
+[[ "$(env_value "$mcp_deployment" OTEL_SERVICE_NAME)" == "vendor-connectivity-mcp" ]] || fail "the mcp component must export as <otel.serviceName>-mcp"
+[[ "$(env_value "$mcp_deployment" OTEL_EXPORTER_OTLP_ENDPOINT)" == "$otel_endpoint" ]] || fail "the mcp component must export to otel.endpoint"
+[[ "$(env_value "$mcp_deployment" SERVICE_VERSION)" == "0.1.0" ]] || fail "the mcp SERVICE_VERSION must default to the image tag / appVersion, like the api"
+[[ "$(env_value "$mcp_deployment" ENVIRONMENT)" == "production" ]] || fail "ENVIRONMENT must come from mcp.environment"
+mcp_named="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --set otel.serviceName=vendors --set mcp.serviceVersion=dev --show-only templates/mcp-deployment.yaml)"
+[[ "$(env_value "$mcp_named" OTEL_SERVICE_NAME)" == "vendors-mcp" ]] || fail "the mcp service name must follow otel.serviceName"
+[[ "$(env_value "$mcp_named" SERVICE_VERSION)" == "dev" ]] || fail "SERVICE_VERSION must come from mcp.serviceVersion when set"
 
 # The mcp route is off by default and rewrites /api/mcp/vendor-connectivity to /mcp.
 mcp_all_on=(--set mcp.enabled=true --set mcp.route.enabled=true --set 'mcp.route.parentRefs[0].name=warehouse-gateway' --set 'mcp.route.parentRefs[0].namespace=kong')
