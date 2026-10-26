@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,7 +30,7 @@ func (c *countingDep) dependency(name string) Dependency {
 
 func getPath(g *Readiness, path string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	NewRouter(&Server{Readiness: g}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, http.NoBody))
+	NewRouter(&Server{Readiness: g}, slog.New(slog.DiscardHandler), "").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, http.NoBody))
 	return rec
 }
 
