@@ -101,6 +101,10 @@ helm template vc charts/vendor-connectivity -f charts/vendor-connectivity/ci/def
 bash charts/vendor-connectivity/tests/render_test.sh && python3 charts/vendor-connectivity/tests/test_service_selectors.py
 ```
 
+## Observability
+
+One pipeline for logs, metrics and traces (ADR 0008): stdout JSON logs with `trace_id`/`span_id` and a per-request line (`request_id`, route pattern, status, `duration_ms`); OTLP/gRPC metrics (request duration, Go runtime, and the business counter `vendor.submissions.processed` by `outcome` and, on failure, `reason`) and traces to the Collector at `OTEL_EXPORTER_OTLP_ENDPOINT`; `traceparent` in the outbox headers so a consumer continues the request's trace. Env: `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `SERVICE_VERSION`, `ENVIRONMENT`, `LOG_LEVEL`; chart values `otel.*` and `environment`. No Collector is needed to run: export never blocks.
+
 ## Develop
 
 `make check` (format, vet, build, lint, tests incl. the godog scenarios in `features/`), `make coverage` (90% over `internal/domain` and `internal/application`), `make mutation` (gremlins per domain package), `make arch-test`, `make integration` (testcontainers Postgres and Kafka; needs Docker), `make vuln`. Agent guides: `.claude/rules/` and `.claude/skills/`.

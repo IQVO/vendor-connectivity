@@ -24,6 +24,9 @@ alternative runtime and no log sink.
 | `OUTBOX_MAX_ATTEMPTS` | `20` | Failures before the relay excludes a row; `0` = unlimited. |
 | `SHUTDOWN_DRAIN_DELAY` | `5s` | Wait between flipping `/readyz` to 503 and closing the listener; `0` disables. |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`. |
+| `OTEL_SERVICE_NAME` | `vendor-connectivity` (`-mcp` for cmd/mcp) | `service.name` of spans and metrics (ADR 0008). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | Collector OTLP/gRPC endpoint; export never blocks, a missing Collector only drops telemetry. |
+| `SERVICE_VERSION`, `ENVIRONMENT` | `dev`, `local` | `service.version` and `deployment.environment.name` of the telemetry. |
 
 Configuration errors are raised before anything is opened or bound.
 
