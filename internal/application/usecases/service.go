@@ -67,6 +67,9 @@ type Deps struct {
 	Offers       ports.OfferAvailability
 	Shipping     ports.ShippingTracking
 	Performance  ports.NodePerformance
+	// Metrics records the business outcome of each processed submission; nil
+	// records nothing, so unit tests need no wiring.
+	Metrics ports.SubmissionMetrics
 }
 
 // Service is the application service of vendor-connectivity.

@@ -179,3 +179,20 @@ type ShippingTracking interface {
 type NodePerformance interface {
 	GetScorecard(ctx context.Context, nodeID string) (views.Scorecard, error)
 }
+
+// SubmissionMetrics records the business outcome of every submission the
+// service processes (Tier 2 of the fleet metrics convention): the transaction a
+// vendor reconciles ended in SUCCESS or FAILURE. The use case calls it once per
+// submission that reached an outcome, after the unit of work committed; a pass
+// that leaves the submission PROCESSING (a neighbour outage, retried later)
+// records nothing. SubmissionFailed carries the Err code the vendor reads in
+// the transaction ("ErrUpstreamUnavailable", "ErrSimulatedFailure", the
+// neighbour's refusal code, ...). The implementation lives in
+// internal/adapters/outbound/telemetry; a nil Deps.Metrics records nothing.
+type SubmissionMetrics interface {
+	// SubmissionSucceeded counts a submission whose transaction ended in SUCCESS.
+	SubmissionSucceeded(ctx context.Context)
+	// SubmissionFailed counts a submission whose transaction ended in FAILURE;
+	// reason is the Err code, a stable low-cardinality identifier.
+	SubmissionFailed(ctx context.Context, reason string)
+}

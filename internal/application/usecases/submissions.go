@@ -232,6 +232,7 @@ func (s *Service) process(ctx context.Context, id submission.ID) (bool, error) {
 	if err := s.d.UoW.Do(ctx, func(ctx context.Context) error { return s.finish(ctx, sub, res) }); err != nil {
 		return false, err
 	}
+	s.recordSubmissionOutcome(ctx, res.outcome)
 	return true, nil
 }
 

@@ -28,6 +28,10 @@
 //	                          them (ALL REQUIRED: the Service is shared, and
 //	                          get_node_scorecard relays from node-performance)
 //	LOG_LEVEL                debug | info | warn | error (default info)
+//	OTEL_SERVICE_NAME        service.name of spans and metrics (default vendor-connectivity-mcp)
+//	OTEL_EXPORTER_OTLP_ENDPOINT  Collector OTLP/gRPC endpoint (default telemetry.DefaultEndpoint); export never blocks
+//	SERVICE_VERSION          service.version (default dev)
+//	ENVIRONMENT              deployment.environment.name (default local)
 package main
 
 import (
@@ -48,6 +52,7 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/adapters/outbound/ids"
 	outboundkafka "github.com/claudioed/vendor-connectivity/internal/adapters/outbound/kafka"
 	"github.com/claudioed/vendor-connectivity/internal/adapters/outbound/postgres"
+	"github.com/claudioed/vendor-connectivity/internal/adapters/outbound/telemetry"
 	"github.com/claudioed/vendor-connectivity/internal/application/usecases"
 	"github.com/claudioed/vendor-connectivity/internal/bootretry"
 )
@@ -78,6 +83,16 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	// Telemetry comes up before the router is built (otelchimetric binds the
+	// global MeterProvider at construction) and is flushed last.
+	tel := loadTelemetryEnv(os.Getenv)
+	flushTelemetry, err := startTelemetry(logger, tel)
+	if err != nil {
+		return err
+	}
+	defer flushTelemetry()
+
 	databaseURL := os.Getenv("DATABASE_URL")
 	deps, closeAdapters, err := buildDeps(context.Background(), logger, databaseURL, getenv("MIGRATIONS_DATABASE_URL", databaseURL), urls)
 	if err != nil {
@@ -87,7 +102,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              getenv("MCP_ADDR", ":8090"),
-		Handler:           newRouter(inboundmcp.Handler(inboundmcp.NewServer(deps))),
+		Handler:           newRouter(inboundmcp.Handler(inboundmcp.NewServer(deps)), logger, tel.serviceName),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	return serveMCP(logger, srv)
@@ -185,7 +200,8 @@ func serveMCP(logger *slog.Logger, srv *http.Server) error {
 
 // newLogger builds the process-wide JSON logger. LOG_LEVEL maps
 // debug|info|warn|warning|error (case-insensitive; "warning" is accepted
-// like "warn" fleet-wide), defaulting to Info.
+// like "warn" fleet-wide), defaulting to Info. The handler is wrapped so a
+// record written with a span-carrying context also carries trace_id/span_id.
 func newLogger(level string) *slog.Logger {
 	var lvl slog.Level
 	switch strings.ToLower(level) {
@@ -198,7 +214,7 @@ func newLogger(level string) *slog.Logger {
 	default:
 		lvl = slog.LevelInfo
 	}
-	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+	return slog.New(telemetry.WithTraceContext(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl})))
 }
 
 func getenv(key, fallback string) string {
