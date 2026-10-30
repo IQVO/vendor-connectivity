@@ -40,3 +40,5 @@ Aggregates, invariants and assumptions A1-A27 are in docs/adr/0002; consumed con
 ## Workflow
 GitFlow: feature/* -> PR into develop, CI green before merge, never push develop or main. lefthook: pre-commit fmt/vet/lint, pre-push `make check`. Commit and push after each step.
 Deploy: `charts/vendor-connectivity` (api only; refuses to render without database, `kafka.brokers`, the three `config.*ConsumerGroup` ids, the four `config.*Url` values, or a grace period under 40 s); tests `bash charts/vendor-connectivity/tests/render_test.sh` and `python3 charts/vendor-connectivity/tests/test_service_selectors.py`. Open follow-up: repository secrets (docs/before-first-release.md row 11).
+
+A2A: `cmd/a2a` (port 8093) is this context's read-only Agent2Agent agent, skills `get_purchase_order` (read), `get_node_scorecard` (read), decided in `docs/adr/0009-a2a-inbound-adapter.md`; delegation only (facts stay CloudEvents on Kafka), unauthenticated like REST and MCP; rules in `.claude/rules/fleet/a2a.md`.
