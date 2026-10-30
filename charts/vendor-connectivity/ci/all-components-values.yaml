@@ -1,5 +1,5 @@
 # Used by `helm lint` / `ct lint`: every optional component enabled at once
-# (api + mcp + frontend). The mandatory values mirror ci/default-values.yaml;
+# (api + mcp + a2a + frontend). The mandatory values mirror ci/default-values.yaml;
 # none is ever dialled.
 database:
   url: "postgres://u@example.invalid:5432/db"
@@ -22,6 +22,14 @@ autoscaling:
   api:
     enabled: true
 mcp:
+  enabled: true
+  route:
+    enabled: true
+    parentRefs:
+      - name: warehouse-gateway
+        namespace: kong
+        sectionName: http
+a2a:
   enabled: true
   route:
     enabled: true

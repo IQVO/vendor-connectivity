@@ -177,11 +177,11 @@ The four neighbour base URLs have no default: cmd/api exits at boot without them
 extraEnv may not bring back a log publisher or a mode switch: no EVENT_PUBLISHER
 other than kafka and no *_MODE variable at all (this service has no modes), and
 no variable the chart renders itself for observability (the same variable is
-never set twice), in the api's extraEnv or the mcp component's.
+never set twice), in the api's extraEnv or the mcp or a2a component's.
 */}}
 {{- define "vendor-connectivity.requireNoInMemoryEnv" -}}
 {{- $owned := list "ENVIRONMENT" "SERVICE_VERSION" "OTEL_SERVICE_NAME" "OTEL_EXPORTER_OTLP_ENDPOINT" -}}
-{{- range (concat .Values.extraEnv .Values.mcp.extraEnv) -}}
+{{- range (concat .Values.extraEnv .Values.mcp.extraEnv .Values.a2a.extraEnv) -}}
 {{- $name := toString .name -}}
 {{- if has $name $owned -}}
 {{- fail (printf "extraEnv sets %s: the chart renders it itself (otel.*, environment, image.tag); set the value, not the variable." $name) -}}
