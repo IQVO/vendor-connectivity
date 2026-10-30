@@ -1,5 +1,7 @@
 # Vendor Connectivity
 
+[![CI](https://github.com/IQVO/vendor-connectivity/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/IQVO/vendor-connectivity/actions/workflows/ci.yml?query=branch%3Adevelop) [![coverage gate](https://img.shields.io/badge/coverage%20gate-90%25-brightgreen)](https://github.com/IQVO/vendor-connectivity/blob/develop/Makefile) [![Go](https://img.shields.io/badge/go-1.27.3-00ADD8?logo=go&logoColor=white)](https://github.com/IQVO/vendor-connectivity/blob/develop/go.mod) [![release](https://img.shields.io/github/v/release/IQVO/vendor-connectivity?sort=semver)](https://github.com/IQVO/vendor-connectivity/releases) [![docs](https://img.shields.io/badge/docs-iqvo.github.io-blue)](https://iqvo.github.io/vendor-connectivity/) [![license](https://img.shields.io/badge/license-MIT-blue)](https://github.com/IQVO/vendor-connectivity/blob/develop/LICENSE)
+
 Retail network, bounded context **Vendor Connectivity** (Supporting Subdomain,
 partner tier): the network's **Open Host Service** for vendors that operate
 fulfillment nodes. Publishes the Vendor API and its Published Language:
