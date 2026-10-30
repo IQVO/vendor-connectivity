@@ -152,6 +152,22 @@ database:
 kafka:
   brokers: ""
 
+# Observability (ADR 0008): the fleet pipeline is pod --OTLP/gRPC--> Collector
+# --> Jaeger (traces) and Prometheus (metrics); logs are stdout JSON for Alloy
+# and Loki. Export never blocks, so a Collector that is down costs telemetry and
+# nothing else, but otel.enabled=false renders no OTEL_* env at all (the binaries
+# then fall back to localhost:4317). serviceName is OTEL_SERVICE_NAME of the api;
+# the mcp component gets "<serviceName>-mcp". SERVICE_VERSION is the image tag
+# (appVersion when empty), ENVIRONMENT is `environment`.
+otel:
+  enabled: true
+  endpoint: "otel-collector.observability.svc.cluster.local:4317"
+  serviceName: "vendor-connectivity"
+
+# ENVIRONMENT of the api: deployment.environment.name on every span, metric and
+# log of the api. (mcp.environment sets the same for the mcp component.)
+environment: "production"
+
 # Extra env vars appended to the api container as a raw list. The chart refuses
 # EVENT_PUBLISHER other than "kafka" and any *_MODE variable here: the service
 # has no mode switches.
@@ -218,6 +234,54 @@ mcp:
       - name: ""
         namespace: ""
         sectionName: "http"
+  # SERVICE_VERSION of the mcp component; empty = the image tag (appVersion
+  # when empty), like the api. ENVIRONMENT likewise labels its telemetry.
+  serviceVersion: ""
+  environment: "production"
+  extraEnv: []
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# cmd/a2a (ADR 0009): the read-only A2A agent (Agent2Agent JSON-RPC on / and
+# /a2a, the Agent Card at /.well-known/agent-card.json, an open /healthz). A2A
+# carries DELEGATION of a goal; the two skills (get_purchase_order,
+# get_node_scorecard) read through the SAME queries the REST adapter and the
+# mcp tools serve and write nothing: no outbox relay, no consumer, no Kafka,
+# no loops. No auth, by fleet decision: the in-cluster ClusterIP boundary is
+# the access control. Reuses database.* and the four config.*Url values like
+# mcp. DEFAULT OFF: enable per environment.
+a2a:
+  enabled: false
+  replicaCount: 1
+  httpAddr: ":8093"                  # A2A_ADDR
+  # A2A_AGENT_URL: the absolute URL the Agent Card advertises for the JSON-RPC
+  # endpoint. Empty = this release's in-cluster Service
+  # (http://<fullname>-a2a.<namespace>.svc.cluster.local:8093/); set it to the
+  # externally reachable URL when clients dial through the gateway.
+  agentUrl: ""
+  service:
+    type: ClusterIP
+    port: 8093
+    targetPort: 8093
+  # Kong exposure: /api/a2a/vendor-connectivity -> Service :8093, prefix
+  # rewritten to / (the Agent Card stays at <prefix>/.well-known/agent-card.json).
+  # Needs the Gateway parentRefs from warehouse-infra.
+  route:
+    enabled: false
+    path: "/api/a2a/vendor-connectivity"
+    parentRefs:
+      - name: ""
+        namespace: ""
+        sectionName: "http"
+  # SERVICE_VERSION of the a2a component; empty = the image tag (appVersion
+  # when empty), like the api. ENVIRONMENT likewise labels its telemetry.
+  serviceVersion: ""
+  environment: "production"
   extraEnv: []
   resources:
     limits:

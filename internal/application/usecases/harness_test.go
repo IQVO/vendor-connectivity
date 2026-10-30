@@ -8,6 +8,7 @@ import (
 
 	"github.com/claudioed/vendor-connectivity/internal/adapters/outbound/memory"
 	"github.com/claudioed/vendor-connectivity/internal/application/gateway"
+	"github.com/claudioed/vendor-connectivity/internal/application/ports"
 	"github.com/claudioed/vendor-connectivity/internal/application/requests"
 	"github.com/claudioed/vendor-connectivity/internal/application/usecases"
 	"github.com/claudioed/vendor-connectivity/internal/application/views"
@@ -31,7 +32,10 @@ type harness struct {
 	events int
 }
 
-func newHarness(t *testing.T, cfg usecases.Config) *harness {
+func newHarness(t *testing.T, cfg usecases.Config) *harness { return newHarnessMetrics(t, cfg, nil) }
+
+// newHarnessMetrics is newHarness with a SubmissionMetrics recorder wired in.
+func newHarnessMetrics(t *testing.T, cfg usecases.Config, m ports.SubmissionMetrics) *harness {
 	t.Helper()
 	s := memory.NewStore()
 	h := &harness{t: t, ctx: context.Background(), store: s, clock: memory.NewClock(t0), nt: &memory.NodeTopology{}, offers: &memory.OfferAvailability{},
@@ -39,7 +43,7 @@ func newHarness(t *testing.T, cfg usecases.Config) *harness {
 	h.svc = usecases.New(usecases.Deps{
 		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(), Shipments: s.Shipments(), Packaging: s.Packaging(),
 		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: h.clock, IDs: &memory.SequentialIDs{}, Random: h.rand,
-		NodeTopology: h.nt, Offers: h.offers, Shipping: h.ship, Performance: h.perf,
+		NodeTopology: h.nt, Offers: h.offers, Shipping: h.ship, Performance: h.perf, Metrics: m,
 	}, cfg)
 	return h
 }

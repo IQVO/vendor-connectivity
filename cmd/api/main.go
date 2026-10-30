@@ -26,6 +26,10 @@
 //	OUTBOX_MAX_ATTEMPTS          failures before the relay excludes a row (default 20, 0 = unlimited)
 //	SHUTDOWN_DRAIN_DELAY         wait after flipping /readyz before closing (default 5s)
 //	LOG_LEVEL                    debug|info|warn|error (default info)
+//	OTEL_SERVICE_NAME            service.name of spans and metrics (default vendor-connectivity)
+//	OTEL_EXPORTER_OTLP_ENDPOINT  Collector OTLP/gRPC endpoint (default telemetry.DefaultEndpoint); export never blocks
+//	SERVICE_VERSION              service.version (default dev)
+//	ENVIRONMENT                  deployment.environment.name (default local)
 //
 // GET /readyz is 200 only while Postgres answers a ping AND a Kafka broker
 // answers a metadata request (verdict cached 3s, bounded 2s); /healthz is
@@ -57,6 +61,7 @@ import (
 	outboxrelay "github.com/claudioed/vendor-connectivity/internal/adapters/outbound/outbox"
 	"github.com/claudioed/vendor-connectivity/internal/adapters/outbound/postgres"
 	"github.com/claudioed/vendor-connectivity/internal/adapters/outbound/postgres/pgtx"
+	"github.com/claudioed/vendor-connectivity/internal/adapters/outbound/telemetry"
 	"github.com/claudioed/vendor-connectivity/internal/application/usecases"
 	"github.com/claudioed/vendor-connectivity/internal/bootretry"
 )
@@ -99,6 +104,16 @@ func run(ctx context.Context) error {
 		return err
 	}
 
+	// Telemetry comes up before the router is built (otelchimetric binds the
+	// global MeterProvider at construction) and is flushed LAST: deferred before
+	// everything below, so the final spans of the drain still leave the process.
+	tel := loadTelemetryEnv(os.Getenv)
+	flushTelemetry, err := startTelemetry(logger, tel)
+	if err != nil {
+		return err
+	}
+	defer flushTelemetry()
+
 	// closeAdapters (pool.Close) is deferred FIRST so it runs LAST, after the
 	// HTTP drain, the consumers, the loops and the relay have all stopped.
 	ad, closeAdapters, err := buildAdapters(ctx, os.Getenv("DATABASE_URL"), logger)
@@ -107,13 +122,20 @@ func run(ctx context.Context) error {
 	}
 	defer closeAdapters()
 
+	// The business counter binds to the MeterProvider telemetry.Setup installed.
+	submissionMetrics, err := telemetry.NewSubmissionMetrics()
+	if err != nil {
+		return err
+	}
+	ad.deps.Metrics = submissionMetrics
+
 	svc := buildService(ad, rt, logger)
 	readiness := newReadiness(ad.pool.Ping, rt.brokers)
 	httpServer := &http.Server{
 		Addr: getenv("HTTP_ADDR", ":8080"),
 		Handler: inboundhttp.NewRouter(&inboundhttp.Server{
 			Service: svc, Idempotency: ad.idempotency, Limiter: inboundhttp.NewLimiter(rt.rateLimitRPS), Readiness: readiness,
-		}),
+		}, logger, tel.serviceName),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -585,7 +607,9 @@ func shutdownDrainDelay(logger *slog.Logger) time.Duration {
 }
 
 // newLogger builds the JSON logger; LOG_LEVEL debug|info|warn|warning|error
-// (case-insensitive; "warning" is accepted like "warn" fleet-wide).
+// (case-insensitive; "warning" is accepted like "warn" fleet-wide). The handler
+// is wrapped so a record written with a span-carrying context (the *Context
+// slog variants) also carries trace_id and span_id.
 func newLogger(level string) *slog.Logger {
 	var lvl slog.Level
 	switch strings.ToLower(level) {
@@ -598,7 +622,7 @@ func newLogger(level string) *slog.Logger {
 	default:
 		lvl = slog.LevelInfo
 	}
-	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+	return slog.New(telemetry.WithTraceContext(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl})))
 }
 
 func getenv(key, fallback string) string {

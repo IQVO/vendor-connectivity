@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -43,7 +44,7 @@ func newAPI(t *testing.T) *api {
 		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: a.clock, IDs: &memory.SequentialIDs{}, Random: memory.NewScriptedRandom(),
 		NodeTopology: a.nt, Offers: &memory.OfferAvailability{}, Shipping: a.ship, Performance: a.perf,
 	}, usecases.Config{})
-	a.h = vchttp.NewRouter(&vchttp.Server{Service: a.svc})
+	a.h = vchttp.NewRouter(&vchttp.Server{Service: a.svc}, slog.New(slog.DiscardHandler), "")
 	ctx := context.Background()
 	if _, _, err := a.svc.OnboardVendor(ctx, requests.OnboardVendor{VendorID: "V-1", Name: "Carrier A", AckWindowMinutes: 240}); err != nil {
 		t.Fatal(err)
@@ -302,7 +303,7 @@ func TestIdempotencyAndRateLimitMiddlewareWiring(t *testing.T) {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; next.ServeHTTP(w, r) })
 	}
 	lim := vchttp.NewLimiter(1)
-	h := vchttp.NewRouter(&vchttp.Server{Service: a.svc, Idempotency: idem, Limiter: lim})
+	h := vchttp.NewRouter(&vchttp.Server{Service: a.svc, Idempotency: idem, Limiter: lim}, slog.New(slog.DiscardHandler), "")
 	do := func(method, target, body string) int {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(method, target, strings.NewReader(body)))
