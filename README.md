@@ -83,6 +83,21 @@ export DATABASE_URL=... NODE_TOPOLOGY_URL=... OFFER_AVAILABILITY_URL=... SHIPPIN
 go run ./cmd/mcp                          # listens on :8090 (MCP_ADDR)
 ```
 
+## A2A agent (read-only)
+
+`cmd/a2a` is a third binary: an Agent2Agent (A2A) agent over the official `a2aproject/a2a-go/v2` SDK, JSON-RPC at `/` and `/a2a`, the Agent Card at `/.well-known/agent-card.json`, an open `/healthz` ([ADR 0009](docs/adr/0009-a2a-inbound-adapter.md)). A2A carries *delegation* of a goal, never data sync: facts still leave as CloudEvents on Kafka. The agent is message-only and read-only, like the MCP charter it is derived from (it holds `Reads` with exactly two methods, and a fitness test pins it); it never dials Kafka, runs the relay, the consumers or the loops, and contains no outbound A2A client. No auth (fleet-wide decision). Domain rejections are answered in-band as RFC 7807-shaped problems with the REST slugs and statuses, never as JSON-RPC errors; arguments are decoded strictly.
+
+| Skill | Read |
+| --- | --- |
+| `get_purchase_order` | where one order stands: state, windows, lines, acknowledgement, labels, tracking |
+| `get_node_scorecard` | how one of the vendor's nodes performs (relayed from node-performance) |
+
+```sh
+export DATABASE_URL=... NODE_TOPOLOGY_URL=... OFFER_AVAILABILITY_URL=... SHIPPING_AND_TRACKING_URL=... NODE_PERFORMANCE_URL=...
+export A2A_AGENT_URL=http://localhost:8093/   # mandatory: the URL the Agent Card advertises
+go run ./cmd/a2a                              # listens on :8093 (A2A_ADDR)
+```
+
 ## Web console remote
 
 `web/` is the `vendor_connectivity_mfe` Module Federation remote ([ADR 0007](docs/adr/0007-console-remote.md)): four read-only screens over the REST GETs (the purchase-order list with `nextToken` paging, one order's lifecycle and acknowledgement transaction, the inbound shipments with their pallet-and-carton trees, and the vendor's nodes with their scorecards). The shell mounts it under `/vendor-connectivity/*` and serves it at `/mfes/vendor-connectivity/`; the API base comes from the console's runtime `apiOrigin`.
@@ -94,7 +109,7 @@ docker build --build-context uikit=../../warehouse-ui-kit -t warehouse/vendor-co
 
 ## Deploy (Helm)
 
-`charts/vendor-connectivity/` deploys the `api` component by default (Deployment, Service, ConfigMap, Secret or existing secret, ServiceAccount; HPA, Ingress and HTTPRoute are off by default), plus two optional components, both OFF by default: `mcp` (the read-only MCP server of [ADR 0006](docs/adr/0006-mcp-server-adoption.md), with its own Service and an off-by-default `/api/mcp/vendor-connectivity` HTTPRoute) and `frontend` (the web remote's nginx pod, ClusterIP only). The chart refuses to render without `database.url` or `database.existingSecret`, `kafka.brokers`, the three `config.*ConsumerGroup` ids (stable, service-prefixed) and the four `config.*Url` neighbour base URLs, and with `terminationGracePeriodSeconds` under 40; `ci/all-components-values.yaml` turns every component on for lint.
+`charts/vendor-connectivity/` deploys the `api` component by default (Deployment, Service, ConfigMap, Secret or existing secret, ServiceAccount; HPA, Ingress and HTTPRoute are off by default), plus three optional components, all OFF by default: `mcp` (the read-only MCP server of [ADR 0006](docs/adr/0006-mcp-server-adoption.md), with its own Service and an off-by-default `/api/mcp/vendor-connectivity` HTTPRoute), `a2a` (the read-only A2A agent of [ADR 0009](docs/adr/0009-a2a-inbound-adapter.md) on `:8093`, `A2A_AGENT_URL` defaulting to its in-cluster Service and overridable by `a2a.agentUrl`, with an off-by-default `/api/a2a/vendor-connectivity` HTTPRoute rewritten to `/`) and `frontend` (the web remote's nginx pod, ClusterIP only). The chart refuses to render without `database.url` or `database.existingSecret`, `kafka.brokers`, the three `config.*ConsumerGroup` ids (stable, service-prefixed) and the four `config.*Url` neighbour base URLs, and with `terminationGracePeriodSeconds` under 40; `ci/all-components-values.yaml` turns every component on for lint.
 
 ```sh
 helm template vc charts/vendor-connectivity -f charts/vendor-connectivity/ci/default-values.yaml   # dummy values, nothing is dialled

@@ -247,6 +247,50 @@ mcp:
       cpu: 100m
       memory: 128Mi
 
+# cmd/a2a (ADR 0009): the read-only A2A agent (Agent2Agent JSON-RPC on / and
+# /a2a, the Agent Card at /.well-known/agent-card.json, an open /healthz). A2A
+# carries DELEGATION of a goal; the two skills (get_purchase_order,
+# get_node_scorecard) read through the SAME queries the REST adapter and the
+# mcp tools serve and write nothing: no outbox relay, no consumer, no Kafka,
+# no loops. No auth, by fleet decision: the in-cluster ClusterIP boundary is
+# the access control. Reuses database.* and the four config.*Url values like
+# mcp. DEFAULT OFF: enable per environment.
+a2a:
+  enabled: false
+  replicaCount: 1
+  httpAddr: ":8093"                  # A2A_ADDR
+  # A2A_AGENT_URL: the absolute URL the Agent Card advertises for the JSON-RPC
+  # endpoint. Empty = this release's in-cluster Service
+  # (http://<fullname>-a2a.<namespace>.svc.cluster.local:8093/); set it to the
+  # externally reachable URL when clients dial through the gateway.
+  agentUrl: ""
+  service:
+    type: ClusterIP
+    port: 8093
+    targetPort: 8093
+  # Kong exposure: /api/a2a/vendor-connectivity -> Service :8093, prefix
+  # rewritten to / (the Agent Card stays at <prefix>/.well-known/agent-card.json).
+  # Needs the Gateway parentRefs from warehouse-infra.
+  route:
+    enabled: false
+    path: "/api/a2a/vendor-connectivity"
+    parentRefs:
+      - name: ""
+        namespace: ""
+        sectionName: "http"
+  # SERVICE_VERSION of the a2a component; empty = the image tag (appVersion
+  # when empty), like the api. ENVIRONMENT likewise labels its telemetry.
+  serviceVersion: ""
+  environment: "production"
+  extraEnv: []
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
 # web/ (vendor_connectivity_mfe, ADR 0007): the Module Federation remote
 # served by its own nginx pod, reached through warehouse-infra's Nginx web
 # gateway at /mfes/vendor-connectivity/. Never routed by Kong; ClusterIP
