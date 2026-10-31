@@ -1,0 +1,70 @@
+---
+id: reinstate-vendor
+title: "Reinstate a vendor (ReinstateVendor)"
+description: "Used by network partner managers. Moves the account `SUSPENDED` to `ACTIVE` and publishes `VendorReinstated` (G30). A vendor already `ACTIVE` gets the account back unchanged with `200` and no event (assumption A8)."
+sidebar_label: "Reinstate a vendor (ReinstateVendor)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/vendor-connectivity-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Reinstate a vendor (ReinstateVendor)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/vendors/{vendorId}:reinstate"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Used by network partner managers. Moves the account `SUSPENDED` to `ACTIVE` and publishes `VendorReinstated` (G30). A vendor already `ACTIVE` gets the account back unchanged with `200` and no event (assumption A8). 
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./reinstate-vendor.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./reinstate-vendor.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./reinstate-vendor.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
