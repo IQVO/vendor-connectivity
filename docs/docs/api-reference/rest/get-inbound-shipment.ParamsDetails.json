@@ -1,0 +1,1 @@
+{"parameters":[{"name":"vendorId","in":"query","required":true,"description":"The calling vendor (G32). Ownership of the addressed resource is checked against it.","schema":{"type":"string","example":"V-WS"}},{"name":"shipmentId","in":"path","required":true,"description":"The seller-inbound shipment id.","schema":{"type":"string"}}]}

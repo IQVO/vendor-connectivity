@@ -1,0 +1,70 @@
+---
+id: suspend-vendor
+title: "Suspend a vendor (SuspendVendor)"
+description: "Used by network partner managers. Moves the account `ACTIVE` to `SUSPENDED` and publishes `VendorSuspended` (G30). A vendor already `SUSPENDED` gets the account back unchanged with `200` and no event (assumption A8). While suspended, every write of the vendor is refused with `vendor-suspended`; reads and the polling of purchase orders continue."
+sidebar_label: "Suspend a vendor (SuspendVendor)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/vendor-connectivity-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Suspend a vendor (SuspendVendor)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/vendors/{vendorId}:suspend"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Used by network partner managers. Moves the account `ACTIVE` to `SUSPENDED` and publishes `VendorSuspended` (G30). A vendor already `SUSPENDED` gets the account back unchanged with `200` and no event (assumption A8). While suspended, every write of the vendor is refused with `vendor-suspended`; reads and the polling of purchase orders continue.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./suspend-vendor.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./suspend-vendor.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./suspend-vendor.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

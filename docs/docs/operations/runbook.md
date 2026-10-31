@@ -55,8 +55,7 @@ the orchestrator restarts it (`watchWorkers`); it never sits "alive" with a dead
   while draining or with every dependency down.
 - `GET /readyz` — `200 {"status":"ready"}` only while the drain gate is open, Postgres
   answers `PING` and a Kafka broker answers a topic-less metadata request (probing
-  never creates topics). Verdict cached 3s, one round bounded 2s. Draining: `503
-  {"status":"not_ready"}`. Dependency down: `503 application/problem+json`
+  never creates topics). Verdict cached 3s, one round bounded 2s. Draining: `503 {"status":"not_ready"}`. Dependency down: `503 application/problem+json`
   `dependency-unavailable` naming `postgres` and/or `kafka`.
 
 Writes with a dependency down, per code:
