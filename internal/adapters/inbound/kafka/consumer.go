@@ -65,7 +65,7 @@ func newConsumer(name string, brokers []string, topic, groupID string, handlers 
 func (c *Consumer) Run(ctx context.Context) error {
 	loop := consumeLoop{
 		reader: c.Reader,
-		handle: func(ctx context.Context, msg kafkago.Message) error { return c.HandleMessage(ctx, msg.Value) },
+		handle: c.handleTraced,
 		logger: defaultLogger(c.Logger),
 		name:   c.Name,
 		retry:  c.Retry,

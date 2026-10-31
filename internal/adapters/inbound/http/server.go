@@ -6,10 +6,15 @@
 package http
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/riandyrn/otelchi"
+	otelchimetric "github.com/riandyrn/otelchi/metric"
 
+	"github.com/claudioed/vendor-connectivity/internal/adapters/inbound/requestlog"
 	"github.com/claudioed/vendor-connectivity/internal/application/usecases"
 )
 
@@ -29,9 +34,31 @@ type Server struct {
 	Readiness *Readiness
 }
 
-// NewRouter builds the chi router for every operation of apis/openapi.yaml.
-func NewRouter(s *Server) http.Handler {
+// DefaultServiceName names the server spans and the HTTP metrics when the
+// composition root passes no service name.
+const DefaultServiceName = "vendor-connectivity"
+
+// NewRouter builds the chi router for every operation of apis/openapi.yaml. A
+// nil logger defaults to slog.Default(); an empty serviceName to
+// DefaultServiceName.
+//
+// Middleware order is the fleet observability standard: RequestID, then otelchi
+// (the server span, named after the chi route pattern, so one span name per
+// route and not per purchase order number), then the request-duration
+// histogram, then RequestLogger (it runs inside the span, so its record carries
+// trace_id and span_id), then Recoverer. telemetry.Setup must have run before
+// this call: otelchimetric binds the global MeterProvider when it is
+// constructed.
+func NewRouter(s *Server, logger *slog.Logger, serviceName string) http.Handler {
+	if serviceName == "" {
+		serviceName = DefaultServiceName
+	}
 	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(otelchi.Middleware(serviceName, otelchi.WithChiRoutes(r)))
+	r.Use(otelchimetric.NewServerRequestDuration(otelchimetric.NewBaseConfig(serviceName)))
+	r.Use(requestlog.RequestLogger(logger))
+	r.Use(middleware.Recoverer)
 	// A NUL (U+0000) in the path, the query or a body is a uniform client
 	// error here, never a Postgres 22021 -> 500; it runs before the
 	// idempotency middleware so a rejected request never records its key.

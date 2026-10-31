@@ -189,6 +189,43 @@ helm template "$release" "$chart_dir" "${base[@]}" --set terminationGracePeriodS
 helm template "$release" "$chart_dir" "${base[@]}" --set config.shutdownDrainDelay=30s --set terminationGracePeriodSeconds=61 >/dev/null \
   || fail "a 30s drain delay with a 61s grace period must render"
 
+# --- observability (ADR 0008, fleet standard item 7) ---------------------------------
+# The api renders the fleet pipeline's env: the Collector endpoint, the service
+# name, the version (image tag, appVersion when empty) and the environment.
+otel_endpoint="otel-collector.observability.svc.cluster.local:4317"
+# Chart vs binary: every env var cmd/api/telemetry.go reads is rendered.
+# shellcheck disable=SC2207
+tel_vars=($(grep -ohE '(Getenv|getenv|env)\("[A-Z][A-Z0-9_]*"' "$repo_dir/cmd/api/telemetry.go" | sed -E 's/.*\("//; s/"$//' | sort -u))
+(( ${#tel_vars[@]} >= 3 )) || fail "found only ${#tel_vars[@]} env names in cmd/api/telemetry.go; the scan is looking in the wrong place"
+for var in "${tel_vars[@]}"; do
+  grep -q "name: $var\$" <<<"$api_deployment" || fail "the api Deployment does not render $var, which cmd/api/telemetry.go reads"
+done
+[[ "$(env_value "$api_deployment" OTEL_EXPORTER_OTLP_ENDPOINT)" == "$otel_endpoint" ]] \
+  || fail "the api Deployment does not render OTEL_EXPORTER_OTLP_ENDPOINT from otel.endpoint"
+[[ "$(env_value "$api_deployment" OTEL_SERVICE_NAME)" == "vendor-connectivity" ]] \
+  || fail "the api Deployment does not render OTEL_SERVICE_NAME=vendor-connectivity from otel.serviceName"
+[[ "$(env_value "$api_deployment" SERVICE_VERSION)" == "0.1.0" ]] \
+  || fail "SERVICE_VERSION must default to the chart appVersion"
+[[ "$(env_value "$api_deployment" ENVIRONMENT)" == "production" ]] || fail "ENVIRONMENT must come from environment"
+tagged="$(helm template "$release" "$chart_dir" "${base[@]}" --set image.tag=v9.9.9 --set otel.serviceName=vendors --set otel.endpoint=http://collector:4317 \
+  --set environment=staging --show-only templates/deployment.yaml)"
+[[ "$(env_value "$tagged" SERVICE_VERSION)" == "v9.9.9" ]] || fail "SERVICE_VERSION must follow image.tag"
+[[ "$(env_value "$tagged" OTEL_SERVICE_NAME)" == "vendors" ]] || fail "OTEL_SERVICE_NAME must follow otel.serviceName"
+[[ "$(env_value "$tagged" OTEL_EXPORTER_OTLP_ENDPOINT)" == "http://collector:4317" ]] || fail "OTEL_EXPORTER_OTLP_ENDPOINT must follow otel.endpoint"
+[[ "$(env_value "$tagged" ENVIRONMENT)" == "staging" ]] || fail "ENVIRONMENT must follow environment"
+# otel.enabled=false renders no OTEL_* env (SERVICE_VERSION stays: it also labels the logs' build).
+otel_off="$(helm template "$release" "$chart_dir" "${base[@]}" --set otel.enabled=false --set mcp.enabled=true --set a2a.enabled=true)"
+if grep -q 'name: OTEL_' <<<"$otel_off"; then fail "otel.enabled=false must render no OTEL_* env in any component"; fi
+grep -q 'name: SERVICE_VERSION$' <<<"$otel_off" || fail "SERVICE_VERSION must still render with otel.enabled=false"
+# The values are chart-owned: neither extraEnv may set them a second time.
+for owned in OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT SERVICE_VERSION ENVIRONMENT; do
+  for key in extraEnv mcp.extraEnv a2a.extraEnv; do
+    err="$(helm template "$release" "$chart_dir" "${base[@]}" --set "$key[0].name=$owned" --set "$key[0].value=x" 2>&1)" \
+      && fail "$key must not be able to set $owned"
+    grep -qF "extraEnv sets $owned" <<<"$err" || fail "the refusal for $key $owned does not name it: $err"
+  done
+done
+
 # --- cmd/mcp: the mcp component -------------------------------------------------------
 mcp_go="$repo_dir/cmd/mcp/main.go"
 mcp_on=(--set mcp.enabled=true)
@@ -204,7 +241,7 @@ grep -q 'terminationGracePeriodSeconds: 40' <<<"$mcp_deployment" || fail "the mc
 # Deployment; and nothing the binary never reads (Kafka, publisher, consumer
 # groups, api tuning) may appear on the mcp pod.
 # shellcheck disable=SC2207
-mcp_vars=($(grep -ohE '(Getenv|getenv)\("[A-Z][A-Z0-9_]*"' "$mcp_go" | sed -E 's/.*\("//; s/"$//' | sort -u))
+mcp_vars=($(grep -ohE '(Getenv|getenv|env)\("[A-Z][A-Z0-9_]*"' "$mcp_go" "$repo_dir/cmd/mcp/telemetry.go" | sed -E 's/.*\("//; s/"$//' | sort -u))
 # The neighbour URL names live in cmd/mcp/main.go's own neighbourURLs slice.
 # shellcheck disable=SC2207
 mcp_slice=($(grep -E '^var neighbourURLs = ' "$mcp_go" | grep -oE '"[A-Z][A-Z0-9_]*"' | tr -d '"' | sort -u))
@@ -223,6 +260,15 @@ grep -A6 'name: MIGRATIONS_DATABASE_URL$' <<<"$mcp_deployment" | grep -q 'option
 [[ "$(env_value "$mcp_deployment" NODE_PERFORMANCE_URL)" == "http://node-performance.example.invalid" ]] \
   || fail "the mcp Deployment must render the neighbour URLs from config.*Url"
 
+# The mcp component exports as <otel.serviceName>-mcp to the same Collector, with the api's version.
+[[ "$(env_value "$mcp_deployment" OTEL_SERVICE_NAME)" == "vendor-connectivity-mcp" ]] || fail "the mcp component must export as <otel.serviceName>-mcp"
+[[ "$(env_value "$mcp_deployment" OTEL_EXPORTER_OTLP_ENDPOINT)" == "$otel_endpoint" ]] || fail "the mcp component must export to otel.endpoint"
+[[ "$(env_value "$mcp_deployment" SERVICE_VERSION)" == "0.1.0" ]] || fail "the mcp SERVICE_VERSION must default to the image tag / appVersion, like the api"
+[[ "$(env_value "$mcp_deployment" ENVIRONMENT)" == "production" ]] || fail "ENVIRONMENT must come from mcp.environment"
+mcp_named="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true --set otel.serviceName=vendors --set mcp.serviceVersion=dev --show-only templates/mcp-deployment.yaml)"
+[[ "$(env_value "$mcp_named" OTEL_SERVICE_NAME)" == "vendors-mcp" ]] || fail "the mcp service name must follow otel.serviceName"
+[[ "$(env_value "$mcp_named" SERVICE_VERSION)" == "dev" ]] || fail "SERVICE_VERSION must come from mcp.serviceVersion when set"
+
 # The mcp route is off by default and rewrites /api/mcp/vendor-connectivity to /mcp.
 mcp_all_on=(--set mcp.enabled=true --set mcp.route.enabled=true --set 'mcp.route.parentRefs[0].name=warehouse-gateway' --set 'mcp.route.parentRefs[0].namespace=kong')
 mcp_route="$(helm template "$release" "$chart_dir" "${base[@]}" "${mcp_all_on[@]}" --show-only templates/mcp-route.yaml)"
@@ -232,6 +278,83 @@ grep -q 'replacePrefixMatch: /mcp' <<<"$mcp_route" || fail "the mcp route must r
 grep -q "name: $release-mcp" <<<"$mcp_route" || fail "the mcp route must back the mcp Service"
 mcp_no_route="$(helm template "$release" "$chart_dir" "${base[@]}" --set mcp.enabled=true 2>/dev/null | grep -c 'kind: HTTPRoute' || true)"
 [[ "$mcp_no_route" == "0" ]] || fail "the mcp HTTPRoute must be off unless mcp.route.enabled"
+
+# --- cmd/a2a: the a2a component -------------------------------------------------------
+a2a_go="$repo_dir/cmd/a2a/main.go"
+a2a_on=(--set a2a.enabled=true)
+a2a_deployment="$(helm template "$release" "$chart_dir" "${base[@]}" "${a2a_on[@]}" --show-only templates/a2a-deployment.yaml)"
+a2a_service="$(helm template "$release" "$chart_dir" "${base[@]}" "${a2a_on[@]}" --show-only templates/a2a-service.yaml)"
+[[ "$(awk '/^  name:/ {print $2; exit}' <<<"$a2a_service")" == "$release-a2a" ]] || fail "the a2a Service is not named $release-a2a"
+grep -q 'app.kubernetes.io/component: a2a' <<<"$a2a_deployment" || fail "the a2a Deployment lacks component=a2a"
+grep -q 'command: \["/app/a2a"\]' <<<"$a2a_deployment" || fail "the a2a Deployment must run /app/a2a"
+grep -A2 'livenessProbe:' <<<"$a2a_deployment" | grep -q 'path: /healthz' || fail "a2a liveness must probe /healthz"
+grep -q 'terminationGracePeriodSeconds: 40' <<<"$a2a_deployment" || fail "the a2a Deployment must carry the grace period"
+
+# Chart vs binary: every env var cmd/a2a reads must be rendered into the a2a
+# Deployment; and nothing the binary never reads (Kafka, publisher, consumer
+# groups, api tuning) may appear on the a2a pod.
+# shellcheck disable=SC2207
+a2a_vars=($(grep -ohE '(Getenv|getenv|env)\("[A-Z][A-Z0-9_]*"' "$a2a_go" "$repo_dir/cmd/a2a/telemetry.go" | sed -E 's/.*\("//; s/"$//' | sort -u))
+# The neighbour URL names live in cmd/a2a/main.go's own neighbourURLs slice.
+# shellcheck disable=SC2207
+a2a_slice=($(grep -E '^var neighbourURLs = ' "$a2a_go" | grep -oE '"[A-Z][A-Z0-9_]*"' | tr -d '"' | sort -u))
+# Every "<VAR> is required" boot error names a mandatory variable (the regex
+# allows digits: A2A_AGENT_URL must not be read as A_AGENT_URL).
+# shellcheck disable=SC2207
+a2a_required=($(grep -ohE '[A-Z][A-Z0-9_]+ is required' $(ls "$repo_dir"/cmd/a2a/*.go | grep -v '_test\.go$') | sed -E 's/ is required//' | sort -u || true))
+(( ${#a2a_required[@]} >= 2 )) || fail "found only ${#a2a_required[@]} 'is required' boot errors in cmd/a2a; the scan is looking in the wrong place"
+printf '%s\n' "${a2a_required[@]}" | grep -qx 'A2A_AGENT_URL' || fail "the 'is required' scan did not find A2A_AGENT_URL in cmd/a2a (regex must allow digits)"
+a2a_vars=($(printf '%s\n' "${a2a_vars[@]}" "${a2a_slice[@]}" "${a2a_required[@]}" | sort -u))
+(( ${#a2a_vars[@]} >= 7 )) || fail "found only ${#a2a_vars[@]} env names in cmd/a2a/main.go; the scan is looking in the wrong place"
+for var in "${a2a_vars[@]}"; do
+  grep -q "name: $var\$" <<<"$a2a_deployment" || fail "the a2a Deployment does not render $var, which cmd/a2a reads"
+done
+for forbidden in KAFKA_BROKERS EVENT_PUBLISHER NODE_CONSUMER_GROUP LISTING_CONSUMER_GROUP SOURCING_CONSUMER_GROUP \
+  OUTBOX_RELAY_INTERVAL SUBMISSION_POLL_INTERVAL EXPIRY_SWEEP_INTERVAL RATE_LIMIT_RPS HTTP_ADDR MCP_ADDR; do
+  if grep -q "name: $forbidden\$" <<<"$a2a_deployment"; then fail "the a2a Deployment renders $forbidden, which cmd/a2a never reads"; fi
+done
+grep -A4 'name: DATABASE_URL$' <<<"$a2a_deployment" | grep -q 'secretKeyRef:' || fail "a2a DATABASE_URL must come from a Secret"
+grep -A6 'name: MIGRATIONS_DATABASE_URL$' <<<"$a2a_deployment" | grep -q 'optional: true' || fail "a2a MIGRATIONS_DATABASE_URL must be an optional secretKeyRef"
+[[ "$(env_value "$a2a_deployment" A2A_ADDR || true)" == ":8093" ]] || fail "the a2a Deployment must default A2A_ADDR to :8093"
+[[ "$(env_value "$a2a_deployment" NODE_PERFORMANCE_URL || true)" == "http://node-performance.example.invalid" ]] \
+  || fail "the a2a Deployment must render the neighbour URLs from config.*Url"
+
+# The Agent Card URL defaults to this release's in-cluster Service (the namespace
+# comes from the release, so the pattern is matched, not compared) and a2a.agentUrl overrides it.
+a2a_url="$(env_value "$a2a_deployment" A2A_AGENT_URL || true)"
+[[ "$a2a_url" =~ ^http://$release-a2a\.[a-z0-9-]+\.svc\.cluster\.local:8093/$ ]] \
+  || fail "A2A_AGENT_URL must default to http://$release-a2a.<ns>.svc.cluster.local:8093/, got '$a2a_url'"
+a2a_url_set="$(helm template "$release" "$chart_dir" "${base[@]}" "${a2a_on[@]}" --set a2a.agentUrl=https://agents.example.invalid/api/a2a/vendor-connectivity/ --show-only templates/a2a-deployment.yaml)"
+[[ "$(env_value "$a2a_url_set" A2A_AGENT_URL || true)" == "https://agents.example.invalid/api/a2a/vendor-connectivity/" ]] \
+  || fail "a2a.agentUrl must override A2A_AGENT_URL"
+
+# The a2a component exports as <otel.serviceName>-a2a to the same Collector, with the api's version.
+[[ "$(env_value "$a2a_deployment" OTEL_SERVICE_NAME || true)" == "vendor-connectivity-a2a" ]] || fail "the a2a component must export as <otel.serviceName>-a2a"
+[[ "$(env_value "$a2a_deployment" OTEL_EXPORTER_OTLP_ENDPOINT || true)" == "$otel_endpoint" ]] || fail "the a2a component must export to otel.endpoint"
+[[ "$(env_value "$a2a_deployment" SERVICE_VERSION || true)" == "0.1.0" ]] || fail "the a2a SERVICE_VERSION must default to the image tag / appVersion, like the api"
+[[ "$(env_value "$a2a_deployment" ENVIRONMENT || true)" == "production" ]] || fail "ENVIRONMENT must come from a2a.environment"
+a2a_named="$(helm template "$release" "$chart_dir" "${base[@]}" --set a2a.enabled=true --set otel.serviceName=vendors --set a2a.serviceVersion=dev --show-only templates/a2a-deployment.yaml)"
+[[ "$(env_value "$a2a_named" OTEL_SERVICE_NAME || true)" == "vendors-a2a" ]] || fail "the a2a service name must follow otel.serviceName"
+[[ "$(env_value "$a2a_named" SERVICE_VERSION || true)" == "dev" ]] || fail "SERVICE_VERSION must come from a2a.serviceVersion when set"
+
+# a2a.extraEnv may not bring back a log publisher or a mode switch.
+err="$(helm template "$release" "$chart_dir" "${base[@]}" "${a2a_on[@]}" --set 'a2a.extraEnv[0].name=EVENT_PUBLISHER' --set 'a2a.extraEnv[0].value=log' 2>&1)" \
+  && fail "a2a.extraEnv must not be able to set EVENT_PUBLISHER=log"
+grep -qF 'extraEnv sets EVENT_PUBLISHER=log' <<<"$err" || fail "the refusal for a2a.extraEnv EVENT_PUBLISHER does not name it: $(head -n 3 <<<"$err")"
+err="$(helm template "$release" "$chart_dir" "${base[@]}" "${a2a_on[@]}" --set 'a2a.extraEnv[0].name=NODE_MODE' --set 'a2a.extraEnv[0].value=permissive' 2>&1)" \
+  && fail "a2a.extraEnv must not be able to set a *_MODE"
+grep -qF 'extraEnv sets NODE_MODE' <<<"$err" || fail "the refusal for a2a.extraEnv NODE_MODE does not name it: $(head -n 3 <<<"$err")"
+
+# The a2a route is off by default and rewrites /api/a2a/vendor-connectivity to /
+# (so the Agent Card stays at <prefix>/.well-known/agent-card.json).
+a2a_all_on=(--set a2a.enabled=true --set a2a.route.enabled=true --set 'a2a.route.parentRefs[0].name=warehouse-gateway' --set 'a2a.route.parentRefs[0].namespace=kong')
+a2a_route="$(helm template "$release" "$chart_dir" "${base[@]}" "${a2a_all_on[@]}" --show-only templates/a2a-route.yaml)"
+grep -q "name: $release-a2a" <<<"$a2a_route" || fail "the a2a HTTPRoute is not named $release-a2a"
+grep -q 'value: /api/a2a/vendor-connectivity' <<<"$a2a_route" || fail "the a2a route path is not /api/a2a/vendor-connectivity"
+grep -q 'replacePrefixMatch: /$' <<<"$a2a_route" || fail "the a2a route must rewrite the prefix to /"
+grep -q 'port: 8093' <<<"$a2a_route" || fail "the a2a route must back the a2a Service port 8093"
+a2a_no_route="$(helm template "$release" "$chart_dir" "${base[@]}" --set a2a.enabled=true 2>/dev/null | grep -c 'kind: HTTPRoute' || true)"
+[[ "$a2a_no_route" == "0" ]] || fail "the a2a HTTPRoute must be off unless a2a.route.enabled"
 
 # --- web/: the frontend component ----------------------------------------------------
 front_on=(--set frontend.enabled=true)
@@ -244,16 +367,16 @@ grep -A2 'readinessProbe:' <<<"$front_deployment" | grep -q 'path: /healthz' || 
 grep -q 'readOnlyRootFilesystem: true' <<<"$front_deployment" || fail "the frontend container must run read-only"
 if grep -qE '^\s+env:' <<<"$front_deployment"; then fail "the frontend container must render no env (static bytes only)"; fi
 
-# With every component on, exactly api, mcp and frontend render, and each
+# With every component on, exactly api, mcp, a2a and frontend render, and each
 # Service selects exactly its own component (see test_service_selectors.py
 # for the selector proof).
-all_components="$(helm template "$release" "$chart_dir" "${base[@]}" "${mcp_all_on[@]}" "${front_on[@]}")"
+all_components="$(helm template "$release" "$chart_dir" "${base[@]}" "${mcp_all_on[@]}" "${a2a_all_on[@]}" "${front_on[@]}")"
 components="$(grep -E 'app.kubernetes.io/component: ' <<<"$all_components" | sed -E 's/^[[:space:]]+//; s/.*component: //' | sort -u | tr '\n' ' ')"
-[[ "$components" == "api frontend mcp " ]] || fail "components with everything on = '$components', want 'api frontend mcp'"
+[[ "$components" == "a2a api frontend mcp " ]] || fail "components with everything on = '$components', want 'a2a api frontend mcp'"
 
-# Off by default: neither the mcp nor the frontend workload renders.
-if grep -qE 'component: (mcp|frontend)$' <<<"$render_all"; then
-  fail "the mcp/frontend components must be off by default"
+# Off by default: neither the mcp, the a2a nor the frontend workload renders.
+if grep -qE 'component: (mcp|a2a|frontend)$' <<<"$render_all"; then
+  fail "the mcp/a2a/frontend components must be off by default"
 fi
 
 echo "PASS: vendor-connectivity chart render assertions"

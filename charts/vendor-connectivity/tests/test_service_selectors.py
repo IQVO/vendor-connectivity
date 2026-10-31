@@ -8,7 +8,7 @@ pod). The Deployment carries `app.kubernetes.io/component` in selector.matchLabe
 and its pod labels, and the Service selects on it, so each Service selects
 EXACTLY ONE Deployment. This test fails if that ever stops being true.
 
-This chart has three components: api (on by default), mcp and frontend (off by
+This chart has four components: api (on by default), mcp, a2a and frontend (off by
 default, enabled together here). The optional HPA, Ingress and HTTPRoutes are
 turned on too and must all point at this chart's Services. Run:
 python3 charts/vendor-connectivity/tests/test_service_selectors.py
@@ -60,6 +60,8 @@ ENABLE_EVERYTHING = BASE + [
     "--set", "config.txProcessingDelay=500ms",
     "--set", "mcp.enabled=true",
     "--set", "mcp.route.enabled=true",
+    "--set", "a2a.enabled=true",
+    "--set", "a2a.route.enabled=true",
     "--set", "frontend.enabled=true",
 ]
 
@@ -98,16 +100,18 @@ def matches(selector: dict, labels: dict) -> bool:
 def check_components(docs: list[dict], failures: list[str]) -> None:
     services = {d["metadata"]["name"]: d for d in docs if d.get("kind") == "Service"}
     deployments = {d["metadata"]["name"]: d for d in docs if d.get("kind") == "Deployment"}
-    api, mcp, frontend = RELEASE, f"{RELEASE}-mcp", f"{RELEASE}-frontend"
+    api, mcp, a2a, frontend = RELEASE, f"{RELEASE}-mcp", f"{RELEASE}-a2a", f"{RELEASE}-frontend"
 
-    if set(deployments) != {api, mcp, frontend}:
-        failures.append(f"expected exactly the api/mcp/frontend Deployments, got {sorted(deployments)}")
-    if set(services) != {api, mcp, frontend}:
-        failures.append(f"expected exactly the api/mcp/frontend Services, got {sorted(services)}")
+    if set(deployments) != {api, mcp, a2a, frontend}:
+        failures.append(f"expected exactly the api/mcp/a2a/frontend Deployments, got {sorted(deployments)}")
+    if set(services) != {api, mcp, a2a, frontend}:
+        failures.append(f"expected exactly the api/mcp/a2a/frontend Services, got {sorted(services)}")
     if api in services and selector_of(services[api]).get("app.kubernetes.io/component") != "api":
         failures.append("the api Service selector must pin component=api")
     if mcp in services and selector_of(services[mcp]).get("app.kubernetes.io/component") != "mcp":
         failures.append("the mcp Service selector must pin component=mcp")
+    if a2a in services and selector_of(services[a2a]).get("app.kubernetes.io/component") != "a2a":
+        failures.append("the a2a Service selector must pin component=a2a")
     if frontend in services and selector_of(services[frontend]).get("app.kubernetes.io/component") != "frontend":
         failures.append("the frontend Service selector must pin component=frontend")
 
@@ -153,6 +157,11 @@ def check_components(docs: list[dict], failures: list[str]) -> None:
         failures.append("the mcp HTTPRoute was not rendered with mcp.route.enabled=true")
     elif mcp_route["spec"]["rules"][0]["backendRefs"][0]["name"] != mcp:
         failures.append("the mcp HTTPRoute must back the mcp Service")
+    a2a_route = next((d for d in docs if d.get("kind") == "HTTPRoute" and d["metadata"]["name"] == a2a), None)
+    if a2a_route is None:
+        failures.append("the a2a HTTPRoute was not rendered with a2a.route.enabled=true")
+    elif a2a_route["spec"]["rules"][0]["backendRefs"][0]["name"] != a2a:
+        failures.append("the a2a HTTPRoute must back the a2a Service")
 
 
 def check_refusals(failures: list[str]) -> None:
@@ -181,7 +190,7 @@ def main() -> int:
     check_components(render(ENABLE_EVERYTHING), failures)
 
     # Default values must not deploy an HPA, a route, an Ingress or the
-    # optional mcp/frontend workloads.
+    # optional mcp/a2a/frontend workloads.
     defaults = render(BASE)
     stray = [d["kind"] for d in defaults if d.get("kind") in
              {"HorizontalPodAutoscaler", "Ingress", "HTTPRoute", "Deployment"}]
@@ -198,9 +207,9 @@ def main() -> int:
             print(f"FAIL: {f}")
         return 1
 
-    print("PASS: every Service (api, mcp, frontend) selects exactly one Deployment via its component label; "
-          "the HPA, Ingress and HTTPRoutes are off by default and target this chart's Services; the mcp route "
-          "backs the mcp Service; the chart refuses to render without a database source, brokers, any consumer "
+    print("PASS: every Service (api, mcp, a2a, frontend) selects exactly one Deployment via its component label; "
+          "the HPA, Ingress and HTTPRoutes are off by default and target this chart's Services; the mcp and a2a routes "
+          "back their own Services; the chart refuses to render without a database source, brokers, any consumer "
           "group or neighbour URL, with a log/unknown publisher or a *_MODE in extraEnv, or with a grace period "
           "under 40s")
     return 0

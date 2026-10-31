@@ -100,16 +100,16 @@ func (d Deps) pollPurchaseOrders(ctx context.Context, in pollPurchaseOrdersInput
 	if in.CreatedAfter != "" {
 		t, err := time.Parse(time.RFC3339, in.CreatedAfter)
 		if err != nil {
-			return views.PurchaseOrderPage{}, mapError(shared.Invalid("createdAfter must be an RFC 3339 date-time"))
+			return views.PurchaseOrderPage{}, mapError(ctx, shared.Invalid("createdAfter must be an RFC 3339 date-time"))
 		}
 		q.CreatedAfter = &t
 	}
 	if in.Limit < 0 {
-		return views.PurchaseOrderPage{}, mapError(shared.Invalid("limit must be a positive integer"))
+		return views.PurchaseOrderPage{}, mapError(ctx, shared.Invalid("limit must be a positive integer"))
 	}
 	page, err := d.Reads.PollPurchaseOrders(ctx, q)
 	if err != nil {
-		return views.PurchaseOrderPage{}, mapError(err)
+		return views.PurchaseOrderPage{}, mapError(ctx, err)
 	}
 	return page, nil
 }
@@ -117,7 +117,7 @@ func (d Deps) pollPurchaseOrders(ctx context.Context, in pollPurchaseOrdersInput
 func (d Deps) getPurchaseOrder(ctx context.Context, in vendorPOInput) (views.PurchaseOrder, error) {
 	po, err := d.Reads.GetPurchaseOrder(ctx, in.VendorID, in.PONumber)
 	if err != nil {
-		return views.PurchaseOrder{}, mapError(err)
+		return views.PurchaseOrder{}, mapError(ctx, err)
 	}
 	return po, nil
 }
@@ -131,16 +131,16 @@ func (d Deps) pollInboundShipments(ctx context.Context, in pollInboundShipmentsI
 	if in.CreatedAfter != "" {
 		t, err := time.Parse(time.RFC3339, in.CreatedAfter)
 		if err != nil {
-			return views.InboundShipmentPage{}, mapError(shared.Invalid("createdAfter must be an RFC 3339 date-time"))
+			return views.InboundShipmentPage{}, mapError(ctx, shared.Invalid("createdAfter must be an RFC 3339 date-time"))
 		}
 		q.CreatedAfter = &t
 	}
 	if in.Limit < 0 {
-		return views.InboundShipmentPage{}, mapError(shared.Invalid("limit must be a positive integer"))
+		return views.InboundShipmentPage{}, mapError(ctx, shared.Invalid("limit must be a positive integer"))
 	}
 	page, err := d.Reads.PollInboundShipments(ctx, q)
 	if err != nil {
-		return views.InboundShipmentPage{}, mapError(err)
+		return views.InboundShipmentPage{}, mapError(ctx, err)
 	}
 	return page, nil
 }
@@ -148,7 +148,7 @@ func (d Deps) pollInboundShipments(ctx context.Context, in pollInboundShipmentsI
 func (d Deps) getInboundShipment(ctx context.Context, in vendorShipmentInput) (views.InboundShipment, error) {
 	sh, err := d.Reads.GetInboundShipment(ctx, in.VendorID, in.ShipmentID)
 	if err != nil {
-		return views.InboundShipment{}, mapError(err)
+		return views.InboundShipment{}, mapError(ctx, err)
 	}
 	return sh, nil
 }
@@ -156,7 +156,7 @@ func (d Deps) getInboundShipment(ctx context.Context, in vendorShipmentInput) (v
 func (d Deps) listVendorNodes(ctx context.Context, in vendorInput) (views.VendorNodeList, error) {
 	list, err := d.Reads.ListVendorNodes(ctx, in.VendorID)
 	if err != nil {
-		return views.VendorNodeList{}, mapError(err)
+		return views.VendorNodeList{}, mapError(ctx, err)
 	}
 	return list, nil
 }
@@ -164,7 +164,7 @@ func (d Deps) listVendorNodes(ctx context.Context, in vendorInput) (views.Vendor
 func (d Deps) getVendorNode(ctx context.Context, in vendorNodeInput) (views.VendorNode, error) {
 	n, err := d.Reads.GetNode(ctx, in.VendorID, in.NodeID)
 	if err != nil {
-		return views.VendorNode{}, mapError(err)
+		return views.VendorNode{}, mapError(ctx, err)
 	}
 	return n, nil
 }
@@ -172,7 +172,7 @@ func (d Deps) getVendorNode(ctx context.Context, in vendorNodeInput) (views.Vend
 func (d Deps) getNodeScorecard(ctx context.Context, in vendorNodeInput) (views.Scorecard, error) {
 	sc, err := d.Reads.GetScorecard(ctx, in.VendorID, in.NodeID)
 	if err != nil {
-		return views.Scorecard{}, mapError(err)
+		return views.Scorecard{}, mapError(ctx, err)
 	}
 	return sc, nil
 }
@@ -180,7 +180,7 @@ func (d Deps) getNodeScorecard(ctx context.Context, in vendorNodeInput) (views.S
 func (d Deps) getTransaction(ctx context.Context, in vendorTransactionInput) (views.Transaction, error) {
 	tx, err := d.Reads.GetTransaction(ctx, in.VendorID, in.TransactionID)
 	if err != nil {
-		return views.Transaction{}, mapError(err)
+		return views.Transaction{}, mapError(ctx, err)
 	}
 	return tx, nil
 }
@@ -188,7 +188,7 @@ func (d Deps) getTransaction(ctx context.Context, in vendorTransactionInput) (vi
 func (d Deps) getVendor(ctx context.Context, in vendorInput) (views.VendorAccount, error) {
 	v, err := d.Reads.GetVendor(ctx, in.VendorID)
 	if err != nil {
-		return views.VendorAccount{}, mapError(err)
+		return views.VendorAccount{}, mapError(ctx, err)
 	}
 	return v, nil
 }

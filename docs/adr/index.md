@@ -13,3 +13,5 @@ The *Status* column is copied from each ADR's own `## Status` section.
 | [0005](./0005-inbound-shipments-receipts-and-catalog-packaging.md) | inbound shipments, inbound receipts and catalogue packaging | Accepted (2026-10-24) |
 | [0006](./0006-mcp-server-adoption.md) | a read-only MCP server | Accepted (2026-10-24) |
 | [0007](./0007-console-remote.md) | a warehouse-console remote (web MFE) | Accepted (2026-10-24) |
+| [0008](./0008-fleet-observability-standard.md) | Adopt the fleet observability standard (logs, metrics, traces) | Accepted (2026-10-26) |
+| [0009](./0009-a2a-inbound-adapter.md) | A2A inbound adapter (a read-only third driving adapter) | Accepted (2026-10-30) |

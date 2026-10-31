@@ -101,7 +101,7 @@ func (w *world) build() {
 	w.nodes = &inboundkafka.Consumer{Name: "node", Topic: "nodes", Handlers: inboundkafka.NodeHandlers(w.svc), Logger: w.cfg.Logger}
 	w.listing = &inboundkafka.Consumer{Name: "listing", Topic: "listings", Handlers: inboundkafka.ListingHandlers(w.svc), Logger: w.cfg.Logger}
 	w.sourced = &inboundkafka.Consumer{Name: "sourcing", Topic: "sourcing", Handlers: inboundkafka.SourcingHandlers(w.svc, w.cfg.Logger), Logger: w.cfg.Logger}
-	w.server = httptest.NewServer(inboundhttp.NewRouter(&inboundhttp.Server{Service: w.svc}))
+	w.server = httptest.NewServer(inboundhttp.NewRouter(&inboundhttp.Server{Service: w.svc}, slog.New(slog.DiscardHandler), ""))
 }
 
 func InitializeScenario(sc *godog.ScenarioContext) {
