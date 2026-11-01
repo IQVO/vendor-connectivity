@@ -18,18 +18,18 @@ Guides: `python3 scripts/harness/repo_lint.py`, `python3 scripts/harness/guide_l
 
 ## Runtime rule
 Real PostgreSQL and Kafka only. `DATABASE_URL`, `KAFKA_BROKERS`, `NODE_CONSUMER_GROUP`, `LISTING_CONSUMER_GROUP`, `SOURCING_CONSUMER_GROUP`, `NODE_TOPOLOGY_URL`, `OFFER_AVAILABILITY_URL`, `SHIPPING_AND_TRACKING_URL` and `NODE_PERFORMANCE_URL` are mandatory (boot error naming the variable, raised before the listener binds; `MIGRATIONS_DATABASE_URL` is an optional direct DSN).
-The outbox relay, the three consumers and three loops (submission processor, expiry sweeper, retention) are always on; the process exits non-zero when one ends on its own. Simulation knobs: `TX_PROCESSING_DELAY`, `TX_FAILURE_RATE`, `PO_REDELIVERY_RATE`, `RATE_LIMIT_RPS`.
+The outbox relay, the five consumers and three loops (submission processor, expiry sweeper, retention) are always on; the process exits non-zero when one ends on its own. Simulation knobs: `TX_PROCESSING_DELAY`, `TX_FAILURE_RATE`, `PO_REDELIVERY_RATE`, `RATE_LIMIT_RPS`.
 `/healthz` = liveness; `/readyz` = drain gate + Postgres ping + Kafka metadata request with an EMPTY non-nil topic list (fresh connection per check).
-Shutdown: /readyz 503, `SHUTDOWN_DRAIN_DELAY` (5s), drain HTTP, stop consumers and loops, stop relay, close pool. cmd/** never imports internal/adapters/outbound/memory or repocontract. No authentication on REST. See docs/runtime.md.
+Shutdown: /readyz 503, `SHUTDOWN_DRAIN_DELAY` (5s), drain HTTP, stop consumers and loops, stop relay, close pool. cmd/** never imports internal/adapters/outbound/memory or repocontract. No authentication on REST. See docs/docs/overview/runtime.md.
 
 ## REST
-chi router implementing every operation of apis/openapi.yaml (12 `/vendor/*` routes plus the `/vendors` account routes) plus /healthz, /readyz. Every write takes `Idempotency-Key` (table `idempotency_keys`, key = (route, key), 24h, replays the first response, same key + other request = 422 `idempotency-key-reused`).
+chi router implementing every operation of apis/openapi.yaml (15 `/vendor/*` operations plus the 4 `/vendors` account operations) plus /healthz, /readyz. Every write takes `Idempotency-Key` (table `idempotency_keys`, key = (route, key), 24h, replays the first response, same key + other request = 422 `idempotency-key-reused`).
 Every write returns 202 + `transactionId` except a label (200, documented exception). `vendorId` is in every write body and a required query parameter on reads (consistency check, not security). A suspended vendor's writes are 409 `vendor-suspended`.
 NUL: 404 in the path, 400 `malformed-request` elsewhere. Errors are RFC 9457 problem+json, `type` = slug: not-found, illegal-transition, concurrent-update, validation-failed + one kebab-case slug per model Err (internal/adapters/inbound/http/errors.go).
 
 ## Events: CloudEvents 1.0 is MANDATORY
-type `com.retailnetwork.partner.vendor-connectivity.<entity>.<Event>` (entity: vendoraccount, purchaseorder, submission); source `/retailnetwork/vendor-connectivity`; dataschema `urn:retailnetwork:vendor-connectivity:<events|analytics>:<Event>:v1`;
-ten events on `retailnetwork.vendor-connectivity.events` except `PurchaseOrderCancelled` (ONLY `.analytics`); subject and Kafka key = aggregate id; header `content-type: application/cloudevents+json; charset=UTF-8`.
+type `com.retailnetwork.partner.vendor-connectivity.<entity>.<Event>` (entity: vendoraccount, purchaseorder, submission, inboundreceipt); source `/retailnetwork/vendor-connectivity`; dataschema `urn:retailnetwork:vendor-connectivity:<events|analytics>:<Event>:v1`;
+eleven event types: ten on `retailnetwork.vendor-connectivity.events`, `PurchaseOrderCancelled` ONLY on `.analytics`; subject and Kafka key = aggregate id; header `content-type: application/cloudevents+json; charset=UTF-8`.
 Consumes (inbox `processed_events`, full-type dispatch, DLQ `<topic>.dlq`): node-topology NodeRegistered/NodeOperationalProfileDeclared/NodeActivated/NodeSuspended/NodeRetired, offer-availability ListingCreated, order-sourcing FulfillmentReleasedToNode/FulfillmentCancelled.
 Use internal/adapters/kafka/cloudevents only. Transactional outbox: aggregates + outbox rows in ONE Postgres transaction, id minted once at append, at-least-once delivery. No `warehouse.*` topic, ever.
 A new event: domain struct + apis/asyncapi.yaml + ADR 0004 `type:` line in the SAME commit + encoder payload + golden test (.claude/skills/how-to-add-an-integration-event).
@@ -39,6 +39,6 @@ Aggregates, invariants and assumptions A1-A27 are in docs/adr/0002; consumed con
 
 ## Workflow
 GitFlow: feature/* -> PR into develop, CI green before merge, never push develop or main. lefthook: pre-commit fmt/vet/lint, pre-push `make check`. Commit and push after each step.
-Deploy: `charts/vendor-connectivity` (api only; refuses to render without database, `kafka.brokers`, the three `config.*ConsumerGroup` ids, the four `config.*Url` values, or a grace period under 40 s); tests `bash charts/vendor-connectivity/tests/render_test.sh` and `python3 charts/vendor-connectivity/tests/test_service_selectors.py`. Open follow-up: repository secrets (docs/before-first-release.md row 11).
+Deploy: `charts/vendor-connectivity` (api only; refuses to render without database, `kafka.brokers`, the five `config.*ConsumerGroup` ids, the four `config.*Url` values, or a grace period under 40 s); tests `bash charts/vendor-connectivity/tests/render_test.sh` and `python3 charts/vendor-connectivity/tests/test_service_selectors.py`. Open follow-up: repository secrets (docs/docs/operations/before-first-release.md row 11).
 
 A2A: `cmd/a2a` (port 8093) is this context's read-only Agent2Agent agent, skills `get_purchase_order` (read), `get_node_scorecard` (read), decided in `docs/adr/0009-a2a-inbound-adapter.md`; delegation only (facts stay CloudEvents on Kafka), unauthenticated like REST and MCP; rules in `.claude/rules/fleet/a2a.md`.

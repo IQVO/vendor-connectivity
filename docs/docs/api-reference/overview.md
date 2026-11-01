@@ -96,13 +96,3 @@ but not in `apis/openapi.yaml`. The `:suspend` and `:reinstate` actions share on
 - **Auth**: none. The fleet reverted REST, MCP and A2A auth on 2026-09-11, and
   `TestNoAuthMiddlewareReintroduced` fails CI if auth middleware returns under
   `internal/adapters/inbound`.
-
-## Discrepancies between the contract and the code
-
-- `CLAUDE.md` says "12 `/vendor/*` routes"; the router registers 15 under `/vendor/*`
-  (`internal/adapters/inbound/http/server.go`) since the inbound-shipment and inbound-receipt
-  routes (ADR 0005) were added; with the four `/vendors` routes that is the 19 operations of the
-  spec.
-- `CLAUDE.md` lists three consumers and ten events; the code runs five consumers and publishes
-  eleven types (ten on `.events`, `PurchaseOrderCancelled` only on `.analytics`;
-  `InboundReceiptSubmitted` came with ADR 0005).
