@@ -31,7 +31,7 @@ The chart `charts/vendor-connectivity` renders up to four components:
 
 `mcp` and `a2a` run no relay, consumer, loop or Kafka client, so they need only the
 database and the four neighbour URLs. The rest of this page is about the `api` Deployment,
-which runs `cmd/api`. Inside that process (`cmd/api/main.go`):
+which runs `cmd/api`. Inside that process (`cmd/api/main.go`, `background.go`, `wire_adapters.go`):
 
 - REST Vendor API on `:8080` (`internal/adapters/inbound/http/server.go`): reads and
   writes under `/vendor/*`, `RATE_LIMIT_RPS` limiter, every write behind an
@@ -45,7 +45,7 @@ which runs `cmd/api`. Inside that process (`cmd/api/main.go`):
   (`retailnetwork.offer-availability.events`, second group) —
   `internal/adapters/inbound/kafka/inbound_consumers.go`.
 - Three loops: submission processor (due async writes), expiry sweeper (orders past
-  `ackBy`), 24h retention sweeper (`startBackground` in `cmd/api/main.go`).
+  `ackBy`), 24h retention sweeper (`startBackground` in `cmd/api/background.go`).
 
 If the relay, a consumer or a loop returns on its own, the process exits non-zero so
 the orchestrator restarts it (`watchWorkers`); it never sits "alive" with a dead worker.
@@ -71,7 +71,7 @@ the orchestrator restarts it (`watchWorkers`); it never sits "alive" with a dead
 
 ## Health
 
-`internal/adapters/inbound/http/readiness.go`, wired in `cmd/api/main.go`:
+`internal/adapters/inbound/http/readiness.go`, wired in `cmd/api/wire_adapters.go`:
 
 - `GET /healthz` — liveness only: `200 {"status":"ok"}` while the process serves, even
   while draining or with every dependency down.
@@ -180,8 +180,9 @@ they are not operational tuning — keep them unset in normal operation.
 - **A sibling REST URL unreachable.** The adapter maps an outage/timeout/5xx to
   `ports.ErrUpstreamUnavailable` (`httpclient/client.go`). Asynchronous vendor writes
   that need that sibling (node registration, profiles -> node-topology; inventory ->
-  offer-availability) DEGRADE, not fail: the submission stays `PROCESSING` and is
-  retried on later passes (`classify` in `usecases/submissions.go`). The synchronous
+  offer-availability) DEGRADE, not fail at once: the submission stays `PROCESSING` and is
+  retried on later passes, up to 5 passes (`DefaultSubmissionMaxAttempts`), after which it
+  fails with `ErrUpstreamUnavailable` (`process` and `classify` in `usecases/submissions.go`). The synchronous
   endpoints answer `503 upstream-unavailable` (`errors.go`): `POST
   /vendor/shipping-labels` (shipping-and-tracking) and `GET
   /vendor/nodes/{id}/scorecard` (node-performance). Consumers and the REST API itself
