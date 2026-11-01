@@ -6,7 +6,7 @@ import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
 const config: Config = {
   title: 'Vendor Connectivity',
   tagline:
-    'Vendor Connectivity: a Supporting bounded context of the retail-network domain (warehouse-systems).',
+    'The retail network\'s front door for vendors: purchase orders, acknowledgements and transactions over one Vendor API.',
   favicon: 'img/favicon.svg',
 
   future: {

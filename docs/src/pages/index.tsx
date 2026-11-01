@@ -35,7 +35,14 @@ function HomepageHeader() {
           {siteConfig.title}
         </Heading>
         <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
-        <p className={styles.heroLead}>TODO-LEAD</p>
+        <p className={styles.heroLead}>
+          The Open Host Service of the retail network for its vendors. It turns every
+          order-sourcing release into a purchase order, publishes the Vendor
+          API where vendors poll, acknowledge in full before the deadline,
+          request labels and confirm shipment, and answers every write with a
+          transaction they reconcile. Postgres, a transactional outbox and
+          CloudEvents on Kafka; REST, MCP and A2A are unauthenticated.
+        </p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/docs/overview/introduction">
             Read the docs
