@@ -1,0 +1,1 @@
+{"parameters":[{"name":"vendorId","in":"path","required":true,"description":"The vendor account id.","schema":{"type":"string"}}]}

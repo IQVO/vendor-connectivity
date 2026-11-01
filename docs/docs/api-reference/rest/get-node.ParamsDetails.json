@@ -1,0 +1,1 @@
+{"parameters":[{"name":"vendorId","in":"query","required":true,"description":"The calling vendor (G32). Ownership of the addressed resource is checked against it.","schema":{"type":"string","example":"V-WS"}},{"name":"nodeId","in":"path","required":true,"description":"The network's id of the vendor node.","schema":{"type":"string"}}]}

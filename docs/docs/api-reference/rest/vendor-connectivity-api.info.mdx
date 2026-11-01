@@ -1,0 +1,89 @@
+---
+id: vendor-connectivity-api
+title: "Vendor Connectivity API"
+description: "This is the **Vendor API**: the Open Host Service of the `vendor-connectivity`"
+sidebar_label: Introduction
+sidebar_position: 0
+hide_title: true
+custom_edit_url: null
+---
+
+import ApiLogo from "@theme/ApiLogo";
+import Heading from "@theme/Heading";
+import SchemaTabs from "@theme/SchemaTabs";
+import TabItem from "@theme/TabItem";
+import Export from "@theme/ApiExplorer/Export";
+
+<span
+  className={"theme-doc-version-badge badge badge--secondary"}
+  children={"Version: 1.0.0"}
+>
+</span>
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Vendor Connectivity API"}
+>
+</Heading>
+
+
+
+This is the **Vendor API**: the Open Host Service of the `vendor-connectivity`
+bounded context. Its JSON schemas are the **Published Language** that every
+vendor conforms to. The warehouse-systems fleet (vendor `V-WS`) reaches the
+retail network only through this contract, from its `network-fulfillment`
+context (Conformist + Anti-Corruption Layer). It is the only channel between
+the two organizations.
+
+Protocol rules (from the model's `business_decisions` and the Gap Register):
+
+- Poll purchase orders with `GET /vendor/purchase-orders`, paging with `nextToken`.
+  A purchase order may be delivered more than once (simulation knob
+  `PO_REDELIVERY_RATE`); be idempotent on `poNumber`.
+- Acknowledge once, in full, before `ackBy`. Fill-or-kill: one decision covers
+  every line. `ackBy = min(issuedAt + vendor ackWindow, requiredShipBy - node handlingTime)`.
+- Every asynchronous vendor write returns `202` with a `transactionId`. The write
+  takes effect only when `GET /vendor/transactions/{transactionId}` reports
+  `SUCCESS`. Processing waits at least `TX_PROCESSING_DELAY`; a share of
+  transactions fails on purpose (`TX_FAILURE_RATE`). The processed
+  `NODE_REGISTRATION` transaction carries the new `nodeId` (G30).
+- A label is issued only for an `ACCEPTED` purchase order. A shipment is
+  confirmed only with a label for every package. The label request is the one
+  synchronous write: `200` with the labels, never `202` (G31).
+- Vendor identity under no authentication (G32): `vendorId` is in every write
+  body and a required query parameter on every read. Ownership is checked
+  against it (`ErrNodeNotOwnedByVendor`); this is a consistency check, not security.
+  A suspended vendor's writes are refused (`ErrVendorSuspended`, `vendor-suspended`).
+- Rate limits are part of the contract: `429` with `Retry-After` (`RATE_LIMIT_RPS`).
+- Every state-changing `POST`/`PUT` takes `Idempotency-Key`; a repeat replays the first response.
+- Errors are RFC 9457 `application/problem+json`; the shared problem types are
+  `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
+  `validation-failed` 422, plus one slug per model `Err...` name.
+- No ship-to PII anywhere. A label is `labelRef + trackingNumber + carrier`, never
+  an address.
+- No authentication (consistent with the fleet).
+
+
+<div
+  style={{"display":"flex","flexDirection":"column","marginBottom":"var(--ifm-paragraph-margin-bottom)"}}
+>
+  <h3
+    style={{"marginBottom":"0.25rem"}}
+  >
+    Contact
+  </h3><span>
+    vendor-connectivity maintainers: 
+  </span><span>
+    URL: [https://github.com/IQVO/vendor-connectivity](https://github.com/IQVO/vendor-connectivity)
+  </span>
+</div><div
+  style={{"marginBottom":"var(--ifm-paragraph-margin-bottom)"}}
+>
+  <h3
+    style={{"marginBottom":"0.25rem"}}
+  >
+    License
+  </h3>
+</div>
+      
