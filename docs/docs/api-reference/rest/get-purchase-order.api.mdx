@@ -1,0 +1,70 @@
+---
+id: get-purchase-order
+title: "Get one purchase order (GetPurchaseOrder)"
+description: "One purchase order of the calling vendor, with its acknowledgement (once its transaction succeeded), labels and shipment. A purchase order of another vendor is `node-not-owned-by-vendor`."
+sidebar_label: "Get one purchase order (GetPurchaseOrder)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/vendor-connectivity-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get one purchase order (GetPurchaseOrder)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/vendor/purchase-orders/{poNumber}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+One purchase order of the calling vendor, with its acknowledgement (once its transaction succeeded), labels and shipment. A purchase order of another vendor is `node-not-owned-by-vendor`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-purchase-order.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-purchase-order.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-purchase-order.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
