@@ -8,7 +8,10 @@ set -euo pipefail
 chart_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_dir="$(cd "$chart_dir/../.." && pwd)"
 release=vendor-connectivity
-main_go="$repo_dir/cmd/api/main.go"
+# Every non-test Go file of the cmd/api package: the composition root is split across files
+# (main.go, config.go, wire_adapters.go, background.go), so scanning main.go alone misses env reads.
+# telemetry.go is excluded here: its OTEL_* variables have their own section below (Deployment env only).
+api_go=($(ls "$repo_dir"/cmd/api/*.go | grep -v -E '_test\.go$|/telemetry\.go$'))
 
 # Dummy values, no password: the chart refuses to render without a database
 # source, Kafka brokers, the five consumer groups and the four neighbour URLs.
@@ -63,17 +66,17 @@ grep -q 'OUTBOX_MAX_ATTEMPTS: "0"' <<<"$unlimited" || fail "config.outboxMaxAtte
 # consumerGroups and neighbourURLs slices, so a new variable in cmd/api/main.go
 # fails this test until the chart renders it.
 literal_env() {
-  grep -ohE '(Getenv|getenv|env)\("[A-Z][A-Z0-9_]*"' "$main_go" | sed -E 's/.*\("//; s/"$//' | sort -u
+  grep -ohE '(Getenv|getenv|env)\("[A-Z][A-Z0-9_]*"' "${api_go[@]}" | sed -E 's/.*\("//; s/"$//' | sort -u
 }
 slice_env() { # slice_env <go slice variable>
-  grep -E "^var $1 = " "$main_go" | grep -oE '"[A-Z][A-Z0-9_]*"' | tr -d '"' | sort -u
+  grep -hE "^var $1 = " "${api_go[@]}" | grep -oE '"[A-Z][A-Z0-9_]*"' | tr -d '"' | sort -u
 }
 # Word splitting is safe: the names are [A-Z0-9_] only (bash 3.2 has no mapfile).
 # shellcheck disable=SC2207
 api_vars=($( { literal_env; slice_env consumerGroups; slice_env neighbourURLs; } | sort -u))
-(( ${#api_vars[@]} >= 20 )) || fail "found only ${#api_vars[@]} env names in cmd/api/main.go; the scan is looking in the wrong place"
-(( $(slice_env consumerGroups | wc -l) == 5 )) || fail "expected 5 consumer groups in cmd/api/main.go, found $(slice_env consumerGroups | wc -l)"
-(( $(slice_env neighbourURLs | wc -l) == 4 )) || fail "expected 4 neighbour URLs in cmd/api/main.go, found $(slice_env neighbourURLs | wc -l)"
+(( ${#api_vars[@]} >= 20 )) || fail "found only ${#api_vars[@]} env names in cmd/api; the scan is looking in the wrong place"
+(( $(slice_env consumerGroups | wc -l) == 5 )) || fail "expected 5 consumer groups in cmd/api, found $(slice_env consumerGroups | wc -l)"
+(( $(slice_env neighbourURLs | wc -l) == 4 )) || fail "expected 4 neighbour URLs in cmd/api, found $(slice_env neighbourURLs | wc -l)"
 full_deployment="$(helm template "$release" "$chart_dir" "${base[@]}" "${everything[@]}" --show-only templates/deployment.yaml)"
 full_configmap="$(helm template "$release" "$chart_dir" "${base[@]}" "${everything[@]}" --show-only templates/configmap.yaml)"
 secret_vars=" DATABASE_URL MIGRATIONS_DATABASE_URL "
@@ -89,7 +92,7 @@ while read -r key; do
   [[ "$api_known" == *" $key "* ]] || fail "ConfigMap key $key is read by no code in cmd/api (dead key)"
 done < <(awk '/^data:/ {d=1; next} d && /^  [A-Z]/ {sub(/:.*/, ""); sub(/^  /, ""); print}' <<<"$full_configmap")
 # Every mandatory variable cmd/api names in a boot error is rendered.
-for var in $(grep -ho 'errors.New("[A-Z_]* is required' "$main_go" | sed -E 's/errors.New\("//; s/ is required//' | sort -u); do
+for var in $(grep -ho 'errors.New("[A-Z_]* is required' "${api_go[@]}" | sed -E 's/errors.New\("//; s/ is required//' | sort -u); do
   grep -q "name: $var\$" <<<"$api_deployment" || fail "the api Deployment does not render $var, which cmd/api requires"
 done
 
