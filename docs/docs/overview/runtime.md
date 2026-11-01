@@ -1,3 +1,10 @@
+---
+id: runtime
+title: Runtime
+sidebar_label: Runtime
+sidebar_position: 3
+---
+
 # Runtime: configuration, probes, shutdown and the outbox
 
 `cmd/api` is the main binary (`cmd/mcp` and `cmd/a2a` are read-only siblings, ADR 0006 and 0009, with no Kafka, relay or loops). It runs on real PostgreSQL and real Kafka; there is no

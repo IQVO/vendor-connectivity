@@ -1,3 +1,10 @@
+---
+id: runbook
+title: Runbook
+sidebar_label: Runbook
+sidebar_position: 2
+---
+
 # Vendor Connectivity runbook
 
 **vendor-connectivity** is the retail network's Open Host Service for vendors that
@@ -5,23 +12,38 @@ operate fulfillment nodes: vendors register nodes, declare operational profiles,
 inventory feeds, poll purchase orders, acknowledge them in full inside the
 acknowledgement window, request labels and confirm shipments. Every vendor write is an
 asynchronous transaction the vendor reconciles via `GET /vendor/transactions/{id}`.
-Sources: `README.md`, `docs/adr/0002` (aggregates), `0003` (consumed contracts),
-`0004` (event catalogue), `docs/runtime.md` (probes, shutdown, outbox).
+Sources: [ADR 0002](/docs/adr/0002-aggregates-and-invariants) (aggregates),
+[0003](/docs/adr/0003-consumed-contracts-and-local-read-models) (consumed contracts),
+[0004](/docs/adr/0004-cloudevents-envelope-and-type-catalogue) (event catalogue),
+[Runtime](/docs/overview/runtime) (probes, shutdown, outbox) and
+[Configuration](/docs/operations/configuration) (every variable).
 
 ## Runtime shape
 
-One component, one process: the `api` Deployment runs `cmd/api` (chart
-`charts/vendor-connectivity`, `replicaCount: 1`, HPA off by default; no MCP, frontend,
-projector or reports component). Inside that process (`cmd/api/main.go`):
+The chart `charts/vendor-connectivity` renders up to four components:
+
+| Component | Binary | Default | Role |
+| --- | --- | --- | --- |
+| `api` | `cmd/api` | always on (`replicaCount: 1`, HPA off) | Vendor REST API, relay, consumers, loops |
+| `mcp` | `cmd/mcp` | `mcp.enabled: false` | read-only MCP, port 8090, Kong route `/api/mcp/vendor-connectivity` when `mcp.route.enabled` |
+| `a2a` | `cmd/a2a` | `a2a.enabled: false` | read-only A2A agent, port 8093, route `/api/a2a/vendor-connectivity` when `a2a.route.enabled` |
+| `frontend` | `web/` nginx | `frontend.enabled: false` | warehouse-console remote ([ADR 0007](/docs/adr/0007-console-remote)) |
+
+`mcp` and `a2a` run no relay, consumer, loop or Kafka client, so they need only the
+database and the four neighbour URLs. The rest of this page is about the `api` Deployment,
+which runs `cmd/api`. Inside that process (`cmd/api/main.go`):
 
 - REST Vendor API on `:8080` (`internal/adapters/inbound/http/server.go`): reads and
   writes under `/vendor/*`, `RATE_LIMIT_RPS` limiter, every write behind an
   `Idempotency-Key` header (24h replay).
 - Transactional outbox relay draining `outbox_events` to Kafka
   (`internal/adapters/outbound/outbox/relay.go`).
-- Three Kafka consumers: node (`retailnetwork.node-topology.events`), listing
+- Five Kafka consumers: node (`retailnetwork.node-topology.events`), listing
   (`retailnetwork.offer-availability.events`), sourcing
-  (`retailnetwork.order-sourcing.events`) — `internal/adapters/inbound/kafka/consumers.go`.
+  (`retailnetwork.order-sourcing.events`) — `internal/adapters/inbound/kafka/consumers.go` —
+  plus inbound shipments (`retailnetwork.seller-inbound.events`) and catalogue packaging
+  (`retailnetwork.offer-availability.events`, second group) —
+  `internal/adapters/inbound/kafka/inbound_consumers.go`.
 - Three loops: submission processor (due async writes), expiry sweeper (orders past
   `ackBy`), 24h retention sweeper (`startBackground` in `cmd/api/main.go`).
 
@@ -88,7 +110,7 @@ change rolls the pods); secret keys come from the `vendor-connectivity-db` Secre
 | `NODE_PERFORMANCE_URL` | `config.nodePerformanceUrl` | required |
 | `EVENT_PUBLISHER` | `config.eventPublisher` | `kafka` only; anything else is a boot error |
 | `HTTP_ADDR` | `config.httpAddr` | `:8080` |
-| `LOG_LEVEL` | `config.logLevel` | `info` (`debug|info|warn|error`) |
+| `LOG_LEVEL` | `config.logLevel` | `info` (`debug`, `info`, `warn`, `error`) |
 | `OUTBOX_RELAY_INTERVAL` | `config.outboxRelayInterval` | `1s` |
 | `OUTBOX_MAX_ATTEMPTS` | `config.outboxMaxAttempts` | `20`; `0` = unlimited |
 | `SUBMISSION_POLL_INTERVAL` | `config.submissionPollInterval` | `1s` |
@@ -116,10 +138,11 @@ they are not operational tuning — keep them unset in normal operation.
 - Logs are JSON on stdout; Alloy maps the pod label `app.kubernetes.io/name` to the
   Loki label `app`, so query Loki with `{namespace="warehouse-systems",
   app="vendor-connectivity"}`.
-- No business metrics are instrumented: `go.mod` has no Prometheus client and the code
-  exports no metrics. Any business/event panels on the dashboard stay empty until the
-  service instruments itself; alerting today can only see pod restarts, not lag,
-  outbox depth or transaction outcomes.
+- One business metric is instrumented, the counter `vendor.submissions.processed` (see
+  [Observability](/docs/operations/observability)). There is no outbox-depth, consumer-lag
+  or per-route instrument of this service's own, and the repository ships no alert rule
+  on any of them: alerting today sees pod restarts only. Check the dashboard in
+  warehouse-infra before relying on any other panel.
 
 ## Failure modes
 
