@@ -1,0 +1,1 @@
+{"parameters":[{"name":"Idempotency-Key","in":"header","required":true,"description":"Client-chosen key. A retry with the same key returns the first response (for an asynchronous write, the same `transactionId`).","schema":{"type":"string","maxLength":128}}]}

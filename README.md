@@ -22,25 +22,27 @@ This project is a domain-driven design study. It is not associated with, endorse
 
 ## Documentation
 
-The context is documented on the fleet-wide warehouse-docs site, in the
-retail-network section: **<https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity>**
-(the model under `network/model/model.yaml` in IQVO/warehouse-docs is the
-single source of truth). Fleet-wide network pages:
-[strategic design](https://iqvo.github.io/warehouse-docs/network/strategic-design/subdomain-classification),
-[the CloudEvents event standard](https://iqvo.github.io/warehouse-docs/network/strategic-design/event-standard-cloudevents),
-the [Vendor API](https://iqvo.github.io/warehouse-docs/network/integration/vendor-api)
-and the [WMS/WES integration seam](https://iqvo.github.io/warehouse-docs/network/integration/wms-wes-integration).
-This repository's own references: [`docs/runtime.md`](docs/runtime.md) (all
-settings, the probes, the shutdown order and the outbox runbook) and the
-packaging checklist [`docs/before-first-release.md`](docs/before-first-release.md).
-
-Page map (on the warehouse-docs site, under `network/contexts/vendor-connectivity/`):
+The full documentation site is **<https://iqvo.github.io/vendor-connectivity/>**. It is built from
+`docs/` in this repository (Docusaurus; `cd docs && npm ci && npm run build`) and written from the
+code, the two API contracts and the migrations. The aggregator's pack for this context, with the
+fleet-wide network pages, is on
+[warehouse-docs](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity); where
+the two differ, this site and the code win.
 
 | Area | Pages |
 |---|---|
-| Business context | [Business context](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/business-context), [Use cases](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/use-cases) |
-| Language & model | [Ubiquitous language](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/ubiquitous-language), [Domain events](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/domain-events), [Domain message flow](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/domain-message-flow), [Class diagram](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/class-diagram), [Sequence diagrams](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/sequence-diagrams), [Entity-relationship](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/entity-relationship) |
-| DDD canvases | [Core domain chart](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/core-domain-chart), [Bounded context canvas](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/bounded-context-canvas), [Aggregate design canvas](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/aggregate-design-canvas), [EventStorming](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/eventstorming), [Context map](https://iqvo.github.io/warehouse-docs/network/contexts/vendor-connectivity/context-map) |
+| Overview | [Introduction](https://iqvo.github.io/vendor-connectivity/docs/overview/introduction), [Architecture](https://iqvo.github.io/vendor-connectivity/docs/overview/architecture), [Runtime](https://iqvo.github.io/vendor-connectivity/docs/overview/runtime), [Quickstart](https://iqvo.github.io/vendor-connectivity/docs/overview/quickstart) |
+| Operations | [Configuration](https://iqvo.github.io/vendor-connectivity/docs/operations/configuration), [Runbook](https://iqvo.github.io/vendor-connectivity/docs/operations/runbook), [Observability](https://iqvo.github.io/vendor-connectivity/docs/operations/observability), [Troubleshooting](https://iqvo.github.io/vendor-connectivity/docs/operations/troubleshooting), [Before the first release](https://iqvo.github.io/vendor-connectivity/docs/operations/before-first-release) |
+| Development | [Testing](https://iqvo.github.io/vendor-connectivity/docs/development/testing) |
+| Domain-driven design | [Ubiquitous language](https://iqvo.github.io/vendor-connectivity/docs/ddd/ubiquitous-language), [Use cases](https://iqvo.github.io/vendor-connectivity/docs/ddd/use-cases), [Subdomain classification](https://iqvo.github.io/vendor-connectivity/docs/ddd/subdomain-classification), [DDD artifacts index](https://iqvo.github.io/vendor-connectivity/docs/ddd/ddd-artifacts) |
+| DDD artifacts | [Core domain chart](https://iqvo.github.io/vendor-connectivity/docs/ddd/core-domain-chart), [Bounded context canvas](https://iqvo.github.io/vendor-connectivity/docs/ddd/bounded-context-canvas), [Context map](https://iqvo.github.io/vendor-connectivity/docs/ddd/context-map), [Aggregate design canvas](https://iqvo.github.io/vendor-connectivity/docs/ddd/aggregate-design-canvas), [Domain message flow](https://iqvo.github.io/vendor-connectivity/docs/ddd/domain-message-flow), [EventStorming](https://iqvo.github.io/vendor-connectivity/docs/ddd/eventstorming), [Class diagram](https://iqvo.github.io/vendor-connectivity/docs/ddd/class-diagram), [Entity relationship](https://iqvo.github.io/vendor-connectivity/docs/ddd/entity-relationship), [Sequence diagrams](https://iqvo.github.io/vendor-connectivity/docs/ddd/sequence-diagrams), [Domain events](https://iqvo.github.io/vendor-connectivity/docs/ddd/domain-events) |
+| API reference | [Overview](https://iqvo.github.io/vendor-connectivity/docs/api-reference) (REST, events, MCP, A2A), the generated REST reference, [Event catalogue](https://iqvo.github.io/vendor-connectivity/docs/api-reference/events) |
+| Ecosystem | [Integration](https://iqvo.github.io/vendor-connectivity/docs/ecosystem/integration), [MCP tools](https://iqvo.github.io/vendor-connectivity/docs/mcp/tools) |
+| Decisions | [ADR index](https://iqvo.github.io/vendor-connectivity/docs/adr), in this repository [`docs/adr/`](docs/adr/index.md) |
+
+Repository-local sources of truth: [`apis/openapi.yaml`](apis/openapi.yaml),
+[`apis/asyncapi.yaml`](apis/asyncapi.yaml), [`docs/adr/`](docs/adr/index.md) and the checklist
+[`docs/docs/operations/before-first-release.md`](docs/docs/operations/before-first-release.md).
 
 ## What it does
 

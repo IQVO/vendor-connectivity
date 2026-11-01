@@ -1,0 +1,70 @@
+---
+id: get-transaction
+title: "Get the outcome of an asynchronous write (GetTransaction)"
+description: "The outcome of any asynchronous write of the calling vendor. A transaction of another vendor is `not-found`. A processed `NODE_REGISTRATION` transaction carries the new `nodeId`."
+sidebar_label: "Get the outcome of an asynchronous write (GetTransaction)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/vendor-connectivity-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get the outcome of an asynchronous write (GetTransaction)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/vendor/transactions/{transactionId}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The outcome of any asynchronous write of the calling vendor. A transaction of another vendor is `not-found`. A processed `NODE_REGISTRATION` transaction carries the new `nodeId`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-transaction.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-transaction.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-transaction.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
