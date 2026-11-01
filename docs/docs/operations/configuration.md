@@ -144,5 +144,5 @@ consumer retry logs. Source: `internal/adapters/inbound/http/readiness.go`, `cmd
 - **No Kafka variables on `cmd/mcp` and `cmd/a2a`**: they never publish or consume.
 - **No CORS or feature-flag variables.**
 - **Chart values.** `charts/vendor-connectivity` maps the `cmd/api` variables onto the
-  pod (see [Runbook](/docs/operations/runbook#configuration-and-chart-values)); the
+  pod (see [Runbook](/docs/operations/runbook#configuration)); the
   chart deploys `cmd/api` only.
