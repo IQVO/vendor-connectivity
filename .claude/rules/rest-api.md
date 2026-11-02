@@ -13,7 +13,7 @@ Route -> use case, kept in sync with `apis/openapi.yaml`; routes are registered 
 parameter and every vendor write carries `vendorId` in the body (G32, a consistency check, not
 security):
 
-- `GET /vendor/purchase-orders?vendorId=&createdAfter=&nodeId=&nextToken=&limit=` -> `PollPurchaseOrders`
+- `GET /vendor/purchase-orders?vendorId=&createdAfter=&nodeId=&cursor=&limit=` -> `PollPurchaseOrders`
 - `GET /vendor/purchase-orders/{poNumber}` -> `GetPurchaseOrder`
 - `POST /vendor/acknowledgements` -> `SubmitAcknowledgement` (202 + `transactionId`)
 - `POST /vendor/inventory` -> `SubmitInventory` (202)
@@ -24,7 +24,7 @@ security):
 - `POST /vendor/shipment-confirmations` -> `SubmitShipmentConfirmation` (202)
 - `GET /vendor/transactions/{transactionId}` -> `GetTransaction`
 - `POST /vendors` -> `OnboardVendor`; `GET /vendors/{vendorId}` -> `GetVendor`;
-  `POST /vendors/{vendorId}:suspend` -> `SuspendVendor`; `POST /vendors/{vendorId}:reinstate` -> `ReinstateVendor`
+  `POST /vendors/{vendorId}/suspensions` -> `SuspendVendor`; `POST /vendors/{vendorId}/reinstatements` -> `ReinstateVendor`
   (chi cannot route a `:verb` suffix, so both share `/vendors/{vendorAction}` and `handleVendorAction` splits it)
 - `GET /healthz` (liveness), `GET /readyz` (drain gate, Postgres ping, Kafka metadata): not business operations.
 
@@ -37,8 +37,8 @@ security):
   `status`, `detail`, `instance`. An unmapped error is an opaque 500 `internal-error`. A new `Err`
   needs a catalogue row.
 - **Idempotency-Key** is required on every write (`idempotency.go`): same key + same request
-  replays the first response, same key + other request is 422 `idempotency-key-reused`, a missing
-  key is 422 `idempotency-key-required`; keys live 24 h in `idempotency_keys`. A new write
+  replays the first response, same key + other request is 409 `idempotency-key-reused`, a missing
+  key is 400 `idempotency-key-required`, a malformed one (not 1-128 printable ASCII) 400 `idempotency-key-invalid`; keys live 24 h in `idempotency_keys`. A new write
   registers through the `write(...)` wrapper in `NewRouter`, never bare `r.Post`.
 - **NUL** (U+0000) is rejected before anything else (`nul.go`): 404 in the path, 400
   `malformed-request` in the query or body.
