@@ -134,7 +134,7 @@ States `PROCESSING`, `SUCCESS`, `FAILURE`; `ProcessSubmission` `PROCESSING -> SU
   ones, so a release for a parcel node is recognised and ignored instead of retried (A4).
 - **A14** `VendorSuspended` and `VendorReinstated` are integration events on
   `retailnetwork.vendor-connectivity.events`; no context consumes them yet. Suspension takes an
-  optional `reason`. The routes are `POST /vendors/{vendorId}:suspend` and `:reinstate`, plus
+  optional `reason`. The routes are `POST /vendors/{vendorId}/suspensions` and `POST /vendors/{vendorId}/reinstatements`, plus
   `GET /vendors/{vendorId}`, for partner managers (the model names no route for either command).
 - **A15** `ErrCancelAfterAcknowledgement` is logged at INFO and the inbox row is written; the
   event is not retried and nothing is published. order-sourcing decides the cancel (E11, Gap G12)
@@ -143,8 +143,8 @@ States `PROCESSING`, `SUCCESS`, `FAILURE`; `ProcessSubmission` `PROCESSING -> SU
   `assignmentId` (the open release; order-sourcing allows one pending release). No order for the
   assignment is a no-op with an inbox row.
 - **A17** Polling pages are keyset pages ordered oldest first by `(issuedAt, poNumber)`; `createdAfter`
-  is strict on `issuedAt`; `nextToken` is an opaque base64url cursor carrying the last
-  `(issuedAt, poNumber)` and the vendor and node filters; the page size is 50 by default (`limit` 1..200).
+  is strict on `issuedAt`; the opaque base64url `cursor` (returned as `nextCursor`, ADR 0010) carries the last
+  `(issuedAt, poNumber)`; the page size is 100 by default (`limit` 1..500).
   The poll returns orders in every state so the vendor can reconcile.
 - **A18** `PO_REDELIVERY_RATE` (0..1): each non-empty page repeats its first order with that
   probability. `TX_PROCESSING_DELAY` (duration), `TX_FAILURE_RATE` (0..1) and `RATE_LIMIT_RPS`

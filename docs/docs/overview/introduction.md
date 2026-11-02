@@ -73,7 +73,7 @@ never gets more time to answer than it has left to pick and pack.
 
 ## Main capabilities
 
-1. Onboard, suspend and reinstate a vendor account (`POST /vendors`, `:suspend`, `:reinstate`).
+1. Onboard, suspend and reinstate a vendor account (`POST /vendors`, `POST /vendors/{vendorId}/suspensions`, `POST /vendors/{vendorId}/reinstatements`).
 2. Turn `FulfillmentReleasedToNode` into a purchase order with a computed `ackBy`; cancel it
    on `FulfillmentCancelled` while it is still `ISSUED`; expire it when `ackBy` passes.
 3. Accept the vendor's whole-order acknowledgement, label request and shipment confirmation,
@@ -102,3 +102,7 @@ never gets more time to answer than it has left to pick and pack.
 | Read the design in ddd-crew artifacts | [DDD artifacts](/docs/ddd/ddd-artifacts), [Ubiquitous language](/docs/ddd/ubiquitous-language) |
 | Read the contracts | [API overview](/docs/api-reference), [Event catalogue](/docs/api-reference/events), [MCP tools](/docs/mcp/tools) |
 | Know why it is built this way | [ADR index](/docs/adr) |
+
+:::note[Disclaimer]
+This project is a domain-driven design study. It is not associated with, endorsed by or affiliated with any company, and it uses no company's code, data, logos or trademarks. All names, figures and examples are illustrative or synthetic.
+:::

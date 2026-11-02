@@ -137,7 +137,7 @@ func TestDrainSendsInOrderAndStopsAtTheFirstFailure(t *testing.T) {
 		sent = append(sent, m.EventType)
 		return nil
 	})
-	var failure *outbox.SendFailure
+	var failure *outbox.SendFailureError
 	if n != 1 || !errors.As(err, &failure) || failure.Attempts != 1 || len(sent) != 1 {
 		t.Fatalf("n=%d err=%v sent=%v", n, err, sent)
 	}

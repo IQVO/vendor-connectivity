@@ -33,15 +33,16 @@ info:
     **Consumed.** Thirteen types from four producers (ADR 0003, ADR 0005): seller-inbound `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`; offer-availability `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`; node-topology `NodeRegistered`, `NodeOperationalProfileDeclared`,
     `NodeActivated`, `NodeSuspended`, `NodeRetired`; offer-availability `ListingCreated`; order-sourcing `FulfillmentReleasedToNode`,
     `FulfillmentCancelled`. Each is deduplicated on the CloudEvents `id` in the `processed_events` inbox table, dispatched on the full
-    `type`, decoded tolerantly (unknown fields are ignored) and dead-lettered to `<topic>.dlq` when it cannot be processed.
+    `type`, decoded tolerantly (unknown fields are ignored) and dead-lettered to `<topic>.dlq` (with `x-dlq-source-topic`, `x-dlq-source-partition`, `x-dlq-source-offset`, `x-dlq-error` and `x-dlq-failed-at` headers) after a bounded number of failed attempts, or at once when the `data` cannot be decoded. A message that is not a valid CloudEvents 1.0 event, or whose `type` is not handled, is skipped (logged, offset committed).
     The consumed `data` below lists only the fields this context relies on.
 
     **Envelope (mandatory).** CloudEvents 1.0, structured content mode, Kafka header `content-type: application/cloudevents+json; charset=UTF-8`.
-    `specversion`, `id`, `source` (`/retailnetwork/vendor-connectivity`), `type`, `subject` (the aggregate root id: `vendorId`, `poNumber` or
-    `transactionId`), `time`, `datacontenttype` (`application/json`) and `dataschema`
+    `specversion`, `id`, `source` (`/retailnetwork/vendor-connectivity`), `type`, `subject` (the aggregate root id: `vendorId`, `poNumber`,
+    `transactionId` or `shipmentId`), `time`, `datacontenttype` (`application/json`) and `dataschema`
     (`urn:retailnetwork:vendor-connectivity:<stream>:<EventName>:v1`, stream `events` or `analytics`) are all required. Kafka key = the subject,
     so one purchase order's events stay ordered on one partition. Type = `com.retailnetwork.partner.vendor-connectivity.<entity>.<EventName>`
-    with entity `vendoraccount`, `purchaseorder` or `submission`.
+    with entity `vendoraccount`, `purchaseorder`, `submission` or `inboundreceipt`. The subject of `InboundReceiptSubmitted` is the `shipmentId`, and
+    the subject of `SubmissionProcessed` is the `transactionId`.
 
     **Conventions.** `data` is camelCase; timestamps are RFC 3339 UTC; optional fields are omitted when absent (never null); arrays are always
     present. No event carries a ship-to address, name or phone.
@@ -91,7 +92,7 @@ channels:
   nodeTopologyEvents:
     address: retailnetwork.node-topology.events
     title: node-topology integration topic
-    description: The node-topology integration topic, consumed under the mandatory consumer group `VENDOR_CONNECTIVITY_CONSUMER_GROUP`.
+    description: The node-topology integration topic, consumed by the node consumer under the mandatory consumer group `NODE_CONSUMER_GROUP`.
     messages:
       NodeRegistered:
         $ref: '#/components/messages/NodeRegistered'
@@ -106,7 +107,7 @@ channels:
   offerAvailabilityEvents:
     address: retailnetwork.offer-availability.events
     title: offer-availability integration topic
-    description: The offer-availability integration topic, consumed under the mandatory consumer group `VENDOR_CONNECTIVITY_CONSUMER_GROUP`.
+    description: 'The offer-availability integration topic, read by two consumers with their own mandatory consumer groups, the listing consumer (`ListingCreated`, `LISTING_CONSUMER_GROUP`) and the packaging consumer (`CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`, `PACKAGING_CONSUMER_GROUP`).'
     messages:
       ListingCreated:
         $ref: '#/components/messages/ListingCreated'
@@ -128,7 +129,7 @@ channels:
   orderSourcingEvents:
     address: retailnetwork.order-sourcing.events
     title: order-sourcing integration topic
-    description: The order-sourcing integration topic, consumed under the mandatory consumer group `VENDOR_CONNECTIVITY_CONSUMER_GROUP`.
+    description: The order-sourcing integration topic, consumed by the sourcing consumer under the mandatory consumer group `SOURCING_CONSUMER_GROUP`.
     messages:
       FulfillmentReleasedToNode:
         $ref: '#/components/messages/FulfillmentReleasedToNode'
@@ -847,7 +848,7 @@ components:
       title: CatalogItemPackagingDeclared
       summary: A packaging level was declared for a catalogue item; fills CatalogPackagingView.
       description: Consumed from offer-availability. `type` = `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackagingDeclared`; subject = `catalogItemId`.
-        Only the listed `data` fields are relied on; unknown fields are ignored. The `commerce` spelling of the tier segment is accepted too.
+        Only the listed `data` fields are relied on; unknown fields are ignored. Both the `commerce` spelling shown and the `partner` spelling of the tier segment (`com.retailnetwork.partner.offer-availability.catalogitem.<Event>`) are dispatched.
       contentType: application/cloudevents+json
       tags:
       - name: vendor-connectivity
@@ -877,7 +878,7 @@ components:
       title: CatalogItemPackLevelRetired
       summary: A packaging level GTIN was retired; it stops being offered in packaging[].
       description: Consumed from offer-availability. `type` = `com.retailnetwork.commerce.offer-availability.catalogitem.CatalogItemPackLevelRetired`; subject = `catalogItemId`.
-        Only the listed `data` fields are relied on; unknown fields are ignored. The `commerce` spelling of the tier segment is accepted too.
+        Only the listed `data` fields are relied on; unknown fields are ignored. Both the `commerce` spelling shown and the `partner` spelling of the tier segment (`com.retailnetwork.partner.offer-availability.catalogitem.<Event>`) are dispatched.
       contentType: application/cloudevents+json
       tags:
       - name: vendor-connectivity
@@ -1348,9 +1349,6 @@ components:
             properties:
               nodeId:
                 type: string
-              activatedAt:
-                type: string
-                format: date-time
     NodeSuspendedEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'
@@ -1363,11 +1361,6 @@ components:
             properties:
               nodeId:
                 type: string
-              reason:
-                type: string
-              suspendedAt:
-                type: string
-                format: date-time
     NodeRetiredEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'
@@ -1380,9 +1373,6 @@ components:
             properties:
               nodeId:
                 type: string
-              retiredAt:
-                type: string
-                format: date-time
     ListingCreatedEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'
@@ -1684,7 +1674,6 @@ components:
                   - listingId
                   - quantity
                   properties:
-                    catalogItemId: *id001
                     listingId: *id001
                     quantity:
                       type: integer
@@ -1701,9 +1690,5 @@ components:
             properties:
               assignmentId:
                 type: string
-              orderId:
-                type: string
-              groupNo:
-                type: integer
               reason:
                 type: string

@@ -838,7 +838,7 @@
           "type": "string"
         },
         "limit": {
-          "description": "page size, 1..200; omitted or 0 means the service default of 50",
+          "description": "page size, 1..500; omitted or 0 means the service default of 50",
           "type": "integer"
         },
         "nextToken": {
@@ -1108,7 +1108,7 @@
           "type": "string"
         },
         "limit": {
-          "description": "page size, 1..200; omitted or 0 means the service default of 50",
+          "description": "page size, 1..500; omitted or 0 means the service default of 50",
           "type": "integer"
         },
         "nextToken": {

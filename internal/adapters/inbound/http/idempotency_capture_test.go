@@ -126,7 +126,7 @@ func TestCopyStoredHeaders(t *testing.T) {
 
 func TestErrorStringMessage(t *testing.T) {
 	t.Parallel()
-	if got := errorString("idempotency row committed with no recorded outcome").Error(); got != "idempotency row committed with no recorded outcome" {
+	if got := idempotencyError("idempotency row committed with no recorded outcome").Error(); got != "idempotency row committed with no recorded outcome" {
 		t.Fatalf("Error() = %q", got)
 	}
 }

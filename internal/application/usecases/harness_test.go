@@ -146,7 +146,7 @@ func registration() requests.NodeRegistration {
 }
 
 func refusal(code string) error {
-	return &gateway.Refusal{Status: 409, Code: code, Message: "refused by the neighbour", Path: "$.x"}
+	return &gateway.RefusalError{Status: 409, Code: code, Message: "refused by the neighbour", Path: "$.x"}
 }
 
 func mustReceive(t *testing.T, id, kind, payload string) *submission.Submission {

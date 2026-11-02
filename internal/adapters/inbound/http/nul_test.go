@@ -76,10 +76,10 @@ func TestRejectNULLetsCleanRequestsThrough(t *testing.T) {
 func TestRejectNULRefusesBeforeTheHandler(t *testing.T) {
 	for _, tt := range []nulCase{
 		{"NUL escape in a JSON body is a 422", http.MethodPost, "/vendor/acknowledgements", `{"vendorId":"a\u0000b"}`, http.StatusUnprocessableEntity, "validation-failed"},
-		{"raw NUL in a JSON body is a 422", http.MethodPost, "/vendors/V-1:suspend", "{\"reason\":\"\x00\"}", http.StatusUnprocessableEntity, "validation-failed"},
+		{"raw NUL in a JSON body is a 422", http.MethodPost, "/vendors/V-1/suspensions", "{\"reason\":\"\x00\"}", http.StatusUnprocessableEntity, "validation-failed"},
 		{"NUL in the path is a 404", http.MethodGet, "/vendor/purchase-orders/a%00b", "", http.StatusNotFound, "not-found"},
 		{"encoded NUL in the query is a 422", http.MethodGet, "/vendor/nodes?vendorId=a%00b", "", http.StatusUnprocessableEntity, "validation-failed"},
-		{"encoded NUL in a cursor is a 422", http.MethodGet, "/vendor/purchase-orders?nextToken=%00", "", http.StatusUnprocessableEntity, "validation-failed"},
+		{"encoded NUL in a cursor is a 422", http.MethodGet, "/vendor/purchase-orders?cursor=%00", "", http.StatusUnprocessableEntity, "validation-failed"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			rec, _, reached := serveNUL(tt)

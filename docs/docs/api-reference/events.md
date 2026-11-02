@@ -80,15 +80,3 @@ and dead-lettered to `<topic>.dlq` when they cannot be applied. Source:
 
 Failure handling per message is described on [Integration](/docs/ecosystem/integration) and
 [Troubleshooting](/docs/operations/troubleshooting).
-
-## Discrepancies
-
-- `apis/asyncapi.yaml` describes the node-topology channel as "consumed under the mandatory
-  consumer group `VENDOR_CONNECTIVITY_CONSUMER_GROUP`". The code reads five variables instead,
-  `NODE_CONSUMER_GROUP`, `LISTING_CONSUMER_GROUP`, `SOURCING_CONSUMER_GROUP`,
-  `INBOUND_CONSUMER_GROUP` and `PACKAGING_CONSUMER_GROUP` (`cmd/api/config.go`); there is no
-  `VENDOR_CONNECTIVITY_CONSUMER_GROUP` in this repository (that name is order-sourcing's variable
-  for consuming this context's events).
-- The AsyncAPI introduction lists `transactionId` among the possible subjects; the subject of
-  `InboundReceiptSubmitted` is the `shipmentId` (`internal/domain/inbound/receipt.go`,
-  `SubjectID`), as the message's own description says.

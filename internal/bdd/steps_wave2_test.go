@@ -4,7 +4,7 @@ package bdd_test
 // poll pagination, and assertions on the published outbox events' payload
 // fields. Everything reuses the world and the doubles the suite already
 // wires; the node-performance fake answers 404 (the gateway client's
-// Refusal) exactly as the real adapter does for a node without observations.
+// RefusalError) exactly as the real adapter does for a node without observations.
 
 import (
 	"encoding/json"
@@ -29,7 +29,7 @@ func registerWave2(sc *godog.ScenarioContext, w *world) {
 		return nil
 	})
 	sc.Step(`^node-performance has no observations yet$`, func() error {
-		w.perf.Err = &gateway.Refusal{Status: 404, Code: "ErrNoScorecard", Message: "the node has no observations yet"}
+		w.perf.Err = &gateway.RefusalError{Status: 404, Code: "ErrNoScorecard", Message: "the node has no observations yet"}
 		return nil
 	})
 	sc.Step(`^node-performance cannot be reached$`, func() error {
@@ -44,15 +44,15 @@ func registerWave2(sc *godog.ScenarioContext, w *world) {
 		return nil
 	})
 	sc.Step(`^I remember the tracking numbers of the issued labels$`, w.rememberTrackingNumbers)
-	sc.Step(`^I poll again with the returned nextToken for vendor "([^"]*)"$`, func(vendor string) error {
-		tok, ok, err := w.field("nextToken")
+	sc.Step(`^I poll again with the returned cursor for vendor "([^"]*)"$`, func(vendor string) error {
+		tok, ok, err := w.field("nextCursor")
 		if err != nil {
 			return err
 		}
 		if !ok || render(tok) == "" {
-			return fmt.Errorf("the previous page carried no nextToken: %s", w.body)
+			return fmt.Errorf("the previous page carried no nextCursor: %s", w.body)
 		}
-		return w.request(http.MethodGet, "/vendor/purchase-orders?vendorId="+vendor+"&nextToken="+render(tok), "")
+		return w.request(http.MethodGet, "/vendor/purchase-orders?vendorId="+vendor+"&cursor="+render(tok), "")
 	})
 
 	// then

@@ -105,7 +105,7 @@ func TestPollPurchaseOrdersErrors(t *testing.T) {
 	failWith(t, h.session, "poll_purchase_orders", map[string]any{"vendorId": "V-1", "createdAfter": "not-a-date"}, "validation-failed")
 	failWith(t, h.session, "poll_purchase_orders", map[string]any{"vendorId": "V-1", "limit": -3}, "validation-failed")
 	failWith(t, h.session, "poll_purchase_orders", map[string]any{"vendorId": "V-1", "nodeId": "n-other"}, "not-found")
-	failWith(t, h.session, "poll_purchase_orders", map[string]any{"vendorId": "V-1", "nextToken": "!!bogus"}, "validation-failed")
+	failWith(t, h.session, "poll_purchase_orders", map[string]any{"vendorId": "V-1", "nextToken": "!!bogus"}, "invalid-cursor")
 }
 
 func TestGetPurchaseOrder(t *testing.T) {
@@ -325,7 +325,7 @@ func TestPollInboundShipmentsErrors(t *testing.T) {
 	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "createdAfter": "nope"}, "validation-failed")
 	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "limit": -1}, "validation-failed")
 	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "nodeId": "n-other"}, "not-found")
-	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "nextToken": "!!"}, "validation-failed")
+	failWith(t, h.session, "poll_inbound_shipments", map[string]any{"vendorId": "V-1", "nextToken": "!!"}, "invalid-cursor")
 }
 
 func TestGetInboundShipment(t *testing.T) {

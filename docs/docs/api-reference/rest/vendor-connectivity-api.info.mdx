@@ -38,7 +38,7 @@ the two organizations.
 
 Protocol rules (from the model's `business_decisions` and the Gap Register):
 
-- Poll purchase orders with `GET /vendor/purchase-orders`, paging with `nextToken`.
+- Poll purchase orders with `GET /vendor/purchase-orders`, paging with `cursor` and `nextCursor`.
   A purchase order may be delivered more than once (simulation knob
   `PO_REDELIVERY_RATE`); be idempotent on `poNumber`.
 - Acknowledge once, in full, before `ackBy`. Fill-or-kill: one decision covers

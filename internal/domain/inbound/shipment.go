@@ -252,7 +252,7 @@ func normaliseCarton(c Carton) (Carton, error) {
 	for j, it := range c.Contents {
 		n, err := normaliseItem(it)
 		if err != nil {
-			return Carton{}, fmt.Errorf("contents[%d]: %v", j, err)
+			return Carton{}, fmt.Errorf("contents[%d]: %w", j, err)
 		}
 		out.Contents = append(out.Contents, n)
 	}
@@ -302,10 +302,10 @@ func normaliseItem(it Item) (Item, error) {
 func ParseGTIN(s string) (string, error) {
 	g, err := gs1.ParseGTIN(s)
 	if err != nil {
-		return "", fmt.Errorf("gtin %q: %v", s, err)
+		return "", fmt.Errorf("gtin %q: %w", s, err)
 	}
 	if err := gs1.RejectVariableMeasure(g); err != nil {
-		return "", fmt.Errorf("gtin %q: %v", s, err)
+		return "", fmt.Errorf("gtin %q: %w", s, err)
 	}
 	return g.String(), nil
 }

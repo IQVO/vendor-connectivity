@@ -35,7 +35,7 @@ func decodeShipmentToken(s string) (shipmentToken, error) {
 	b, err := base64.RawURLEncoding.DecodeString(s)
 	var t shipmentToken
 	if err != nil || json.Unmarshal(b, &t) != nil || t.ShipmentID == "" || t.ShippedAt.IsZero() {
-		return shipmentToken{}, shared.Invalid("nextToken is not a token this API issued")
+		return shipmentToken{}, ports.ErrInvalidCursor
 	}
 	return t, nil
 }
@@ -59,7 +59,7 @@ func (s *Service) PollInboundShipments(ctx context.Context, q requests.InboundPo
 			return page, err
 		}
 		if t.VendorID != q.VendorID {
-			return page, shared.Invalid("nextToken belongs to another vendor")
+			return page, ports.ErrInvalidCursor
 		}
 		tok.NodeID = t.NodeID
 		after = &repository.ShipmentCursor{ShippedAt: t.ShippedAt, ShipmentID: t.ShipmentID}

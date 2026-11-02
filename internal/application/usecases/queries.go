@@ -36,7 +36,7 @@ func decodeToken(s string) (pageToken, error) {
 	b, err := base64.RawURLEncoding.DecodeString(s)
 	var t pageToken
 	if err != nil || json.Unmarshal(b, &t) != nil || t.PONumber == "" || t.IssuedAt.IsZero() {
-		return pageToken{}, shared.Invalid("nextToken is not a token this API issued")
+		return pageToken{}, ports.ErrInvalidCursor
 	}
 	return t, nil
 }
@@ -98,7 +98,7 @@ func (s *Service) pollFilter(ctx context.Context, q requests.PollQuery) (reposit
 			return f, err
 		}
 		if t.VendorID != q.VendorID {
-			return f, shared.Invalid("nextToken belongs to another vendor")
+			return f, ports.ErrInvalidCursor
 		}
 		f = repository.PurchaseOrderFilter{VendorID: t.VendorID, NodeID: t.NodeID, After: &repository.Cursor{IssuedAt: t.IssuedAt, PONumber: t.PONumber}}
 	}
@@ -201,6 +201,32 @@ func (s *Service) ListVendorNodes(ctx context.Context, vendorID string) (views.V
 	return out, nil
 }
 
+// ListVendorNodesPage is query ListVendorNodes as the REST page (GET /vendor/nodes):
+// up to limit nodes with an id after afterID, ordered by id. Next is the id of
+// the last node when more follow, else empty.
+func (s *Service) ListVendorNodesPage(ctx context.Context, vendorID, afterID string, limit int) (views.VendorNodeList, error) {
+	out := views.VendorNodeList{Nodes: []views.VendorNode{}}
+	if !shared.ValidID(vendorID) {
+		return out, shared.Invalid("vendorId is required")
+	}
+	if err := s.requireVendor(ctx, vendorID); err != nil {
+		return out, err
+	}
+	limit = s.pageLimit(limit)
+	nodes, err := s.d.Nodes.ListByVendorPage(ctx, vendorID, afterID, limit+1)
+	if err != nil {
+		return out, err
+	}
+	if len(nodes) > limit {
+		nodes = nodes[:limit]
+		out.Next = nodes[limit-1].ID
+	}
+	for _, n := range nodes {
+		out.Nodes = append(out.Nodes, nodeViewOf(n))
+	}
+	return out, nil
+}
+
 // GetScorecard is query GetScorecard (GET /vendor/nodes/{nodeId}/scorecard),
 // relayed synchronously from node-performance.
 func (s *Service) GetScorecard(ctx context.Context, vendorID, nodeID string) (views.Scorecard, error) {
@@ -208,7 +234,7 @@ func (s *Service) GetScorecard(ctx context.Context, vendorID, nodeID string) (vi
 		return views.Scorecard{}, err
 	}
 	sc, err := s.d.Performance.GetScorecard(ctx, nodeID)
-	var ref *gateway.Refusal
+	var ref *gateway.RefusalError
 	if errors.As(err, &ref) && ref.Status == 404 {
 		return views.Scorecard{}, ports.ErrNotFound
 	}

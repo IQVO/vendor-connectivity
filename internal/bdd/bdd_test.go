@@ -242,4 +242,4 @@ func (w *world) eventNames() []string {
 	return names
 }
 
-func refusal(code string) error { return &gateway.Refusal{Status: 409, Code: code, Message: code} }
+func refusal(code string) error { return &gateway.RefusalError{Status: 409, Code: code, Message: code} }

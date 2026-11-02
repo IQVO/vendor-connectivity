@@ -329,7 +329,7 @@ func labelKey(n purchaseorder.Number, pkg int) string {
 // upstreamError turns a neighbour failure into the application's sentinels:
 // a refusal is ErrUpstreamRefused, anything else ErrUpstreamUnavailable.
 func upstreamError(err error) error {
-	var ref *gateway.Refusal
+	var ref *gateway.RefusalError
 	if errors.As(err, &ref) {
 		return errors.Join(ports.ErrUpstreamRefused, err)
 	}

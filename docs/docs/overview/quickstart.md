@@ -133,11 +133,11 @@ curl -s "$BASE/vendor/transactions/<transactionId from step 4>?vendorId=V-WS"
 
 What to expect, from the code: step 1 answers `201` with the account, and a repeat with the same key
 replays the stored answer; a repeat with a different key answers `200` with the unchanged account.
-Step 3 answers a page `{"purchaseOrders":[...],"nextToken":"..."}` with no `nextToken` on the last
+Step 3 answers a page `{"items":[...],"nextCursor":"..."}` with no `nextCursor` on the last
 page. Step 4 answers `202` and `{"transactionId": "..."}`; the order moves to `ACK_PROCESSING` and, after
 `TX_PROCESSING_DELAY` and the next submission-processor pass (every `SUBMISSION_POLL_INTERVAL`), to
 `ACCEPTED`, publishing `PurchaseOrderAccepted` and `SubmissionProcessed`. A missing `Idempotency-Key`
-is `422 idempotency-key-required`; an unknown order is `404 not-found`; an acknowledgement after `ackBy` is
+is `400 idempotency-key-required`; an unknown order is `404 not-found`; an acknowledgement after `ackBy` is
 `409 ack-window-closed`. The error slugs are listed on [API reference](/docs/api-reference).
 
 To see purchase orders without a running order-sourcing, publish a `FulfillmentReleasedToNode`

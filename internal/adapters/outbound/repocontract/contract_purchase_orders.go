@@ -20,7 +20,7 @@ func purchaseOrders(t *testing.T, e Env) {
 	_, err = e.Orders.FindLatestByAssignment(ctx, "asg-1")
 	isErr(t, err, ports.ErrNotFound, "FindLatestByAssignment on empty")
 
-	p := NewOrder(t, "asg-1", "V-1", "n-1", T0)
+	p := NewOrder(t, "asg-1", vendorOne, nodeOne, T0)
 	must(t, e.Orders.Save(ctx, p))
 	got, err := e.Orders.Get(ctx, p.Number())
 	must(t, err)
@@ -34,7 +34,7 @@ func purchaseOrders(t *testing.T, e Env) {
 	}
 	_, err = e.Orders.FindByRelease(ctx, "asg-1", 2)
 	isErr(t, err, ports.ErrNotFound, "other release")
-	isErr(t, e.Orders.Save(ctx, NewOrder(t, "asg-1", "V-1", "n-1", T0)), ports.ErrConcurrentUpdate, "second order for one release")
+	isErr(t, e.Orders.Save(ctx, NewOrder(t, "asg-1", vendorOne, nodeOne, T0)), ports.ErrConcurrentUpdate, "second order for one release")
 	savedFullLifecycle(t, ctx, e)
 	latestRelease(t, ctx, e)
 }
@@ -43,7 +43,7 @@ func purchaseOrders(t *testing.T, e Env) {
 // labels, the acknowledgement and the shipment round-trip.
 func savedFullLifecycle(t *testing.T, ctx context.Context, e Env) {
 	t.Helper()
-	p := NewOrder(t, "asg-life", "V-1", "n-1", T0)
+	p := NewOrder(t, "asg-life", vendorOne, nodeOne, T0)
 	must(t, e.Orders.Save(ctx, p))
 	steps := []func(*purchaseorder.PurchaseOrder) error{
 		func(p *purchaseorder.PurchaseOrder) error {
@@ -78,7 +78,7 @@ func savedFullLifecycle(t *testing.T, ctx context.Context, e Env) {
 			t.Fatalf("step %d round trip:\n got %+v\nwant %+v", i, again.Snapshot(), cur.Snapshot())
 		}
 	}
-	cancelled := NewOrder(t, "asg-cancel", "V-1", "n-1", T0)
+	cancelled := NewOrder(t, "asg-cancel", vendorOne, nodeOne, T0)
 	must(t, e.Orders.Save(ctx, cancelled))
 	_, err := cancelled.Cancel("customer cancelled", T0.Add(time.Minute))
 	must(t, err)
@@ -94,7 +94,7 @@ func latestRelease(t *testing.T, ctx context.Context, e Env) {
 	t.Helper()
 	for rel := 1; rel <= 3; rel++ {
 		p, _, err := purchaseorder.Issue(purchaseorder.NewOrder{
-			AssignmentID: "asg-rel", ReleaseNo: rel, VendorID: "V-1", NodeID: "n-1", OrderID: "ord-r", Tier: purchaseorder.Standard,
+			AssignmentID: "asg-rel", ReleaseNo: rel, VendorID: vendorOne, NodeID: nodeOne, OrderID: "ord-r", Tier: purchaseorder.Standard,
 			RequiredShipBy: T0.Add(8 * time.Hour), AckWindow: time.Hour, Lines: []purchaseorder.NewLine{{ListingID: "lst-1", Quantity: 1}},
 		}, T0.Add(time.Duration(rel)*time.Minute))
 		must(t, err)
@@ -113,7 +113,7 @@ func orderQueries(t *testing.T, e Env) {
 	specs := []struct {
 		asg, vendorID, node string
 		at                  time.Duration
-	}{{"a1", "V-1", "n-1", 0}, {"a2", "V-1", "n-1", time.Minute}, {"a3", "V-1", "n-1", 2 * time.Minute}, {"a4", "V-1", "n-2", 2 * time.Minute}, {"a5", "V-2", "n-9", 4 * time.Minute}}
+	}{{"a1", vendorOne, nodeOne, 0}, {"a2", vendorOne, nodeOne, time.Minute}, {"a3", vendorOne, nodeOne, 2 * time.Minute}, {"a4", vendorOne, nodeTwo, 2 * time.Minute}, {"a5", "V-2", "n-9", 4 * time.Minute}}
 	byAsg := map[string]*purchaseorder.PurchaseOrder{}
 	for _, sp := range specs {
 		p := NewOrder(t, sp.asg, sp.vendorID, sp.node, T0.Add(sp.at))
@@ -131,13 +131,13 @@ func orderQueries(t *testing.T, e Env) {
 			t.Fatalf("List order broken at %d: %s then %s", i, a.Number(), b.Number())
 		}
 	}
-	v1, _ := e.Orders.List(ctx, repository.PurchaseOrderFilter{VendorID: "V-1"})
-	n2, _ := e.Orders.List(ctx, repository.PurchaseOrderFilter{VendorID: "V-1", NodeID: "n-2"})
-	if len(v1) != 4 || len(n2) != 1 || n2[0].NodeID() != "n-2" {
+	v1, _ := e.Orders.List(ctx, repository.PurchaseOrderFilter{VendorID: vendorOne})
+	n2, _ := e.Orders.List(ctx, repository.PurchaseOrderFilter{VendorID: vendorOne, NodeID: nodeTwo})
+	if len(v1) != 4 || len(n2) != 1 || n2[0].NodeID() != nodeTwo {
 		t.Fatalf("filters: v1=%d n2=%d", len(v1), len(n2))
 	}
 	cut := T0.Add(time.Minute)
-	later, _ := e.Orders.List(ctx, repository.PurchaseOrderFilter{VendorID: "V-1", IssuedAfter: &cut})
+	later, _ := e.Orders.List(ctx, repository.PurchaseOrderFilter{VendorID: vendorOne, IssuedAfter: &cut})
 	if len(later) != 2 {
 		t.Fatalf("IssuedAfter is strict: got %d, want 2", len(later))
 	}
@@ -145,7 +145,7 @@ func orderQueries(t *testing.T, e Env) {
 	var seen []purchaseorder.Number
 	var cur *repository.Cursor
 	for page := 0; page < 10; page++ {
-		got, err := e.Orders.List(ctx, repository.PurchaseOrderFilter{VendorID: "V-1", After: cur, Limit: 3})
+		got, err := e.Orders.List(ctx, repository.PurchaseOrderFilter{VendorID: vendorOne, After: cur, Limit: 3})
 		must(t, err)
 		if len(got) == 0 {
 			break

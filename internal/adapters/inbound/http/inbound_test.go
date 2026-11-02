@@ -43,16 +43,16 @@ func TestPollAndGetInboundShipments(t *testing.T) {
 		t.Fatalf("poll = %d %s", r.code, r.body)
 	}
 	page := r.json(t)
-	list := page["inboundShipments"].([]any)
-	if len(list) != 1 || page["nextToken"] == nil {
+	list := page["items"].([]any)
+	if len(list) != 1 || page["nextCursor"] == nil {
 		t.Fatalf("page = %s", r.body)
 	}
 	first := list[0].(map[string]any)
 	if first["shipmentId"] != "SHP-1" || first["sellerId"] != "S-1" || first["status"] != "SHIPPED" || len(first["pallets"].([]any)) != 1 || len(first["cartons"].([]any)) != 1 {
 		t.Fatalf("tree = %s", r.body)
 	}
-	next := a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&nextToken="+url.QueryEscape(page["nextToken"].(string)), "")
-	if got := next.json(t); next.code != 200 || len(got["inboundShipments"].([]any)) != 1 || got["nextToken"] != nil {
+	next := a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&cursor="+url.QueryEscape(page["nextCursor"].(string)), "")
+	if got := next.json(t); next.code != 200 || len(got["items"].([]any)) != 1 || got["nextCursor"] != nil {
 		t.Fatalf("second page = %d %s", next.code, next.body)
 	}
 }
@@ -62,7 +62,7 @@ func TestInboundPollFiltersAndGetByID(t *testing.T) {
 	a.shipped("SHP-1", "n-1", t0.Add(time.Hour))
 	a.shipped("SHP-2", "n-1", t0.Add(2*time.Hour))
 	if f := a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&nodeId=n-1&createdAfter="+url.QueryEscape(t0.Add(time.Hour).Format(time.RFC3339)), ""); f.code != 200 ||
-		len(f.json(t)["inboundShipments"].([]any)) != 1 {
+		len(f.json(t)["items"].([]any)) != 1 {
 		t.Fatalf("filtered = %d %s", f.code, f.body)
 	}
 	one := a.do("GET", "/vendor/inbound-shipments/SHP-2?vendorId=V-1", "")
@@ -77,7 +77,7 @@ func TestInboundShipmentReadsRefuseWhatTheyCannotAnswer(t *testing.T) {
 	a.do("GET", "/vendor/inbound-shipments/SHP-404?vendorId=V-1", "").problem(t, 404, "not-found")
 	a.do("GET", "/vendor/inbound-shipments/SHP-1", "").problem(t, 422, "validation-failed")
 	a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&createdAfter=yesterday", "").problem(t, 422, "validation-failed")
-	a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&limit=0", "").problem(t, 422, "validation-failed")
+	a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&limit=0", "").problem(t, 400, "invalid-limit")
 	a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&nodeId=n-404", "").problem(t, 404, "not-found")
 }
 

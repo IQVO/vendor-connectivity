@@ -129,6 +129,24 @@ func (r *NodeViewRepo) ListByVendor(ctx context.Context, vendorID string) ([]net
 	return out, rows.Err()
 }
 
+// ListByVendorPage is the keyset page of ListByVendor: ids after afterID, ordered by id.
+func (r *NodeViewRepo) ListByVendorPage(ctx context.Context, vendorID, afterID string, limit int) ([]network.Node, error) {
+	rows, err := queryFor(ctx, r.pool).Query(ctx, `SELECT `+nodeColumns+` FROM vendor_nodes WHERE operator = 'VENDOR' AND vendor_id = $1 AND node_id > $2 ORDER BY node_id LIMIT $3`, vendorID, afterID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []network.Node
+	for rows.Next() {
+		n, err := scanNode(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 // Save inserts or replaces the node row.
 func (r *NodeViewRepo) Save(ctx context.Context, n network.Node) error {
 	_, err := queryFor(ctx, r.pool).Exec(ctx, `

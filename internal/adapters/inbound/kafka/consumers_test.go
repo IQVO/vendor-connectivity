@@ -3,6 +3,7 @@ package kafka_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -162,7 +163,7 @@ func TestMalformedPayloadIsDeadLetteredAtOnceAndSkippedWithoutADLQ(t *testing.T)
 	f := newFixture(t)
 	bad := event("b1", kafkaconsumer.TypeReleasedToNode, "asg-1", m{"assignmentId": 7})
 	reader := newFakeReader(bad)
-	if err := runUntilCommits(t, f.sourcing(), reader, 1); err != context.Canceled {
+	if err := runUntilCommits(t, f.sourcing(), reader, 1); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run = %v", err)
 	}
 	got := f.dlq.published()
@@ -179,7 +180,7 @@ func TestMalformedPayloadIsDeadLetteredAtOnceAndSkippedWithoutADLQ(t *testing.T)
 func TestTransientFailureIsRetriedThenDeadLettered(t *testing.T) {
 	f := newFixture(t) // node n-9 is not known: ports.ErrNodeNotKnown is retryable (A4)
 	reader := newFakeReader(released("r1", "asg-1", "n-9"))
-	if err := runUntilCommits(t, f.sourcing(), reader, 1); err != context.Canceled {
+	if err := runUntilCommits(t, f.sourcing(), reader, 1); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run = %v", err)
 	}
 	got := f.dlq.published()

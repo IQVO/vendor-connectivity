@@ -158,14 +158,14 @@ asynchronous transaction a vendor reconciles.
 | network-fulfillment | SubmitAcknowledgement | Command | Vendor API `POST /vendor/acknowledgements` | OHS + PL (downstream is Conformist + ACL) |
 | network-fulfillment | RequestLabel | Command | Vendor API `POST /vendor/shipping-labels` | OHS + PL (downstream is Conformist + ACL) |
 | network-fulfillment | SubmitShipmentConfirmation | Command | Vendor API `POST /vendor/shipment-confirmations` | OHS + PL (downstream is Conformist + ACL) |
-| network-fulfillment | PollPurchaseOrders | Query | Vendor API `GET /vendor/purchase-orders?createdAfter=&nodeId=&nextToken=` | OHS + PL |
+| network-fulfillment | PollPurchaseOrders | Query | Vendor API `GET /vendor/purchase-orders?createdAfter=&nodeId=&cursor=` | OHS + PL |
 | network-fulfillment | GetPurchaseOrder | Query | Vendor API `GET /vendor/purchase-orders/{poNumber}` | OHS + PL |
 | network-fulfillment | GetTransaction | Query | Vendor API `GET /vendor/transactions/{transactionId}` | OHS + PL |
 | network-fulfillment | GetNode, ListVendorNodes | Query | Vendor API `GET /vendor/nodes/{nodeId}`, `GET /vendor/nodes` | OHS + PL |
 | network-fulfillment | GetScorecard | Query | Vendor API `GET /vendor/nodes/{nodeId}/scorecard` | OHS + PL |
 | network-fulfillment | PollInboundShipments, GetInboundShipment | Query | Vendor API `GET /vendor/inbound-shipments`, `GET /vendor/inbound-shipments/{shipmentId}` | OHS + PL |
 | network-fulfillment | SubmitInboundReceipt | Command | Vendor API `POST /vendor/inbound-receipts` | OHS + PL (downstream is Conformist + ACL) |
-| Network partner managers (human) | OnboardVendor, SuspendVendor, ReinstateVendor, GetVendor | Command, Query | REST `POST /vendors`, `POST /vendors/{vendorId}:suspend`, `POST /vendors/{vendorId}:reinstate`, `GET /vendors/{vendorId}` | UI |
+| Network partner managers (human) | OnboardVendor, SuspendVendor, ReinstateVendor, GetVendor | Command, Query | REST `POST /vendors`, `POST /vendors/{vendorId}/suspensions`, `POST /vendors/{vendorId}/reinstatements`, `GET /vendors/{vendorId}` | UI |
 | order-sourcing | FulfillmentReleasedToNode | Event | Kafka `retailnetwork.order-sourcing.events`, `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | Customer/Supplier |
 | order-sourcing | FulfillmentCancelled | Event | Kafka `retailnetwork.order-sourcing.events`, `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled` | Customer/Supplier |
 | node-topology | NodeRegistered | Event | Kafka `retailnetwork.node-topology.events`, `com.retailnetwork.logistics.node-topology.node.NodeRegistered` | Conformist |
@@ -267,7 +267,7 @@ Questions the aggregator's model raised, and how the code settled them:
   refused (`ErrCancelAfterAcknowledgement`), logged at INFO (`purchase order not cancelled`) and
   nothing is published. An acceptance that arrives after order-sourcing cancelled a `RELEASED`
   assignment is only logged there, so the vendor may still ship a cancelled group.
-- **Vendor suspension.** Settled: `POST /vendors/{vendorId}:suspend` and `:reinstate` exist, raise
+- **Vendor suspension.** Settled: `POST /vendors/{vendorId}/suspensions` and `POST /vendors/{vendorId}/reinstatements` exist, raise
   `VendorSuspended` and `VendorReinstated`, and a suspended vendor's writes answer
   `409 vendor-suspended` while reads stay open. No consumer reads the two events yet.
 - **The label request is synchronous.** Settled: `POST /vendor/shipping-labels` returns `200` with
