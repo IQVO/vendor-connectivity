@@ -52,12 +52,12 @@ func registerInbound(sc *godog.ScenarioContext, w *world) {
 		return w.feed(w.packagingConsumer(), inboundkafka.TypePackagingDeclared, item,
 			fmt.Sprintf(`{"catalogItemId":%q,"level":%q,"gtin":%q,"childGtin":"00614141000036","unitsPerPack":%d,"declaredAt":"2026-10-20T08:00:00Z"}`, item, level, gtin, units))
 	})
-	sc.Step(`^I poll inbound shipments again with the returned nextToken for vendor "([^"]*)"$`, func(vendor string) error {
-		v, _, err := w.field("nextToken")
+	sc.Step(`^I poll inbound shipments again with the returned cursor for vendor "([^"]*)"$`, func(vendor string) error {
+		v, _, err := w.field("nextCursor")
 		if err != nil {
 			return err
 		}
 		token, _ := v.(string)
-		return w.request("GET", "/vendor/inbound-shipments?vendorId="+url.QueryEscape(vendor)+"&limit=1&nextToken="+url.QueryEscape(token), "")
+		return w.request("GET", "/vendor/inbound-shipments?vendorId="+url.QueryEscape(vendor)+"&limit=1&cursor="+url.QueryEscape(token), "")
 	})
 }

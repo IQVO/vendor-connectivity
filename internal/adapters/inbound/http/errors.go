@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/claudioed/vendor-connectivity/internal/adapters/inbound/http/page"
 	"github.com/claudioed/vendor-connectivity/internal/application/ports"
 	"github.com/claudioed/vendor-connectivity/internal/domain/network"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
@@ -24,13 +25,14 @@ type problem struct {
 	title  string
 }
 
-// errUnknownVendorAction and the router's own 404 share the not-found problem.
 var internalProblem = problem{http.StatusInternalServerError, "internal-error", "Internal server error"}
 
 // Problems the middlewares write themselves, before any use case runs.
 var (
-	idempotencyKeyRequired = problem{http.StatusUnprocessableEntity, "idempotency-key-required", "Idempotency-Key header is required"}
-	idempotencyKeyReused   = problem{http.StatusUnprocessableEntity, "idempotency-key-reused", "Idempotency-Key was already used with a different request"}
+	idempotencyKeyRequired = problem{http.StatusBadRequest, "idempotency-key-required", "Idempotency-Key header is required"}
+	idempotencyKeyInvalid  = problem{http.StatusBadRequest, "idempotency-key-invalid", "Idempotency-Key header is not valid"}
+	idempotencyKeyReused   = problem{http.StatusConflict, "idempotency-key-reused", "Idempotency-Key was already used with a different request"}
+	unknownQueryParameter  = problem{http.StatusBadRequest, "unknown-query-parameter", "Unknown query parameter"}
 	rateLimited            = problem{http.StatusTooManyRequests, "rate-limited", "Rate limit exceeded"}
 )
 
@@ -43,12 +45,14 @@ var problemCatalogue = []struct {
 	p   problem
 }{
 	{errMalformedRequest, problem{http.StatusUnprocessableEntity, "validation-failed", "Validation failed"}},
+	{page.ErrInvalidLimit, problem{http.StatusBadRequest, "invalid-limit", "Invalid limit"}},
+	{page.ErrInvalidCursor, problem{http.StatusBadRequest, "invalid-cursor", "Invalid cursor"}},
+	{ports.ErrInvalidCursor, problem{http.StatusBadRequest, "invalid-cursor", "Invalid cursor"}},
 	{shared.ErrValidation, problem{http.StatusUnprocessableEntity, "validation-failed", "Validation failed"}},
 	{purchaseorder.ErrPartialAcknowledgement, problem{http.StatusUnprocessableEntity, "partial-acknowledgement", "An acknowledgement must cover every line with one decision"}},
 	{vendor.ErrAckWindowOutOfRange, problem{http.StatusUnprocessableEntity, "ack-window-out-of-range", "The acknowledgement window must be between 1h and 24h"}},
 	{network.ErrNodeNotOwnedByVendor, problem{http.StatusNotFound, "node-not-owned-by-vendor", "Node not found for this vendor"}},
 	{ports.ErrNotFound, problem{http.StatusNotFound, "not-found", "Not found"}},
-	{errUnknownVendorAction, problem{http.StatusNotFound, "not-found", "Not found"}},
 	{vendor.ErrVendorSuspended, problem{http.StatusConflict, "vendor-suspended", "The vendor is suspended"}},
 	{purchaseorder.ErrAlreadyAcknowledged, problem{http.StatusConflict, "already-acknowledged", "The purchase order was already acknowledged"}},
 	{purchaseorder.ErrAckWindowClosed, problem{http.StatusConflict, "ack-window-closed", "The acknowledgement window is closed"}},

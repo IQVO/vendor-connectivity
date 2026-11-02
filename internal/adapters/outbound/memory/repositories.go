@@ -266,6 +266,21 @@ func (r *NodeViewRepository) ListByVendor(ctx context.Context, vendorID string) 
 	return out, nil
 }
 
+// ListByVendorPage is the keyset page of ListByVendor: ids after afterID, ordered by id.
+func (r *NodeViewRepository) ListByVendorPage(ctx context.Context, vendorID, afterID string, limit int) ([]network.Node, error) {
+	all, err := r.ListByVendor(ctx, vendorID)
+	if err != nil {
+		return nil, err
+	}
+	var out []network.Node
+	for _, n := range all {
+		if n.ID > afterID && len(out) < limit {
+			out = append(out, n)
+		}
+	}
+	return out, nil
+}
+
 // Save inserts or replaces the node.
 func (r *NodeViewRepository) Save(ctx context.Context, n network.Node) error {
 	defer r.s.enter(ctx)()

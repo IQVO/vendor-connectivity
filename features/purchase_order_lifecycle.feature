@@ -13,8 +13,8 @@ Feature: Purchase order lifecycle
     And the purchase order of "asg-1" must be acknowledged by "2026-10-22T15:00:00Z"
     When I send GET "/vendor/purchase-orders?vendorId=V-1"
     Then the response status is 200
-    And the response lists 1 items in "purchaseOrders"
-    And the response field "purchaseOrders.0.state" is "ISSUED"
+    And the response lists 1 items in "items"
+    And the response field "items.0.state" is "ISSUED"
     And the response never mentions "orderId"
 
   Scenario: ackBy is capped by the required ship-by minus the handling time

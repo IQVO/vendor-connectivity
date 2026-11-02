@@ -109,6 +109,8 @@ type VendorNode struct {
 // VendorNodeList is the answer of GET /vendor/nodes.
 type VendorNodeList struct {
 	Nodes []VendorNode `json:"nodes"`
+	// Next is the id of the last node of this page when more follow (REST cursor); not serialised.
+	Next string `json:"-"`
 }
 
 // ScorecardWindow is one rolling window of a scorecard.

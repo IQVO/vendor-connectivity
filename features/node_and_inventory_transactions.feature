@@ -37,9 +37,9 @@ Feature: Node registration and inventory transactions
     And node "N-2" of vendor "V-2" has a handling time of 45 minutes
     When I send GET "/vendor/nodes?vendorId=V-1"
     Then the response status is 200
-    And the response lists 1 items in "nodes"
-    And the response field "nodes.0.nodeId" is "N-1"
-    And the response field "nodes.0.handlingTimeMinutes" is "45"
+    And the response lists 1 items in "items"
+    And the response field "items.0.nodeId" is "N-1"
+    And the response field "items.0.handlingTimeMinutes" is "45"
 
   Scenario: Another vendor's node is not found
     Given node "N-1" of vendor "V-1" has a handling time of 45 minutes

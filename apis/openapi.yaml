@@ -12,7 +12,7 @@ info:
 
     Protocol rules (from the model's `business_decisions` and the Gap Register):
 
-    - Poll purchase orders with `GET /vendor/purchase-orders`, paging with `nextToken`.
+    - Poll purchase orders with `GET /vendor/purchase-orders`, paging with `cursor` and `nextCursor`.
       A purchase order may be delivered more than once (simulation knob
       `PO_REDELIVERY_RATE`); be idempotent on `poNumber`.
     - Acknowledge once, in full, before `ackBy`. Fill-or-kill: one decision covers
@@ -74,8 +74,8 @@ paths:
       summary: Poll purchase orders (PollPurchaseOrders)
       description: |
         Returns purchase orders issued to the vendor's nodes after `createdAfter`,
-        oldest first, in pages. Pass the returned `nextToken` to fetch the next
-        page; an absent `nextToken` means the last page. A purchase order can be
+        oldest first, in pages. Pass the returned `nextCursor` as `cursor` to fetch the next
+        page (repeat the filters); an absent `nextCursor` means the last page. A purchase order can be
         returned again (`PO_REDELIVERY_RATE`); the vendor deduplicates on `poNumber`.
       parameters:
       - $ref: '#/components/parameters/VendorId'
@@ -92,12 +92,7 @@ paths:
         description: Only purchase orders for this node.
         schema:
           type: string
-      - name: nextToken
-        in: query
-        required: false
-        description: Opaque continuation token from the previous page. When present, the other filters are ignored.
-        schema:
-          type: string
+      - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
       responses:
         '200':
@@ -106,6 +101,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PurchaseOrderPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '422':
           $ref: '#/components/responses/ValidationProblem'
         '429':
@@ -156,6 +153,8 @@ paths:
             schema:
               $ref: '#/components/schemas/AcknowledgementRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '202':
           $ref: '#/components/responses/Accepted'
         '404':
@@ -187,6 +186,8 @@ paths:
             schema:
               $ref: '#/components/schemas/InventoryFeedRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '202':
           $ref: '#/components/responses/Accepted'
         '404':
@@ -207,13 +208,17 @@ paths:
         `nodeId` (G30).
       parameters:
       - $ref: '#/components/parameters/VendorId'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
       responses:
         '200':
-          description: The vendor's nodes.
+          description: One page of the vendor's nodes.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/VendorNodeList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '422':
           $ref: '#/components/responses/ValidationProblem'
         '429':
@@ -239,6 +244,8 @@ paths:
             schema:
               $ref: '#/components/schemas/NodeRegistrationRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '202':
           $ref: '#/components/responses/Accepted'
         '404':
@@ -308,6 +315,7 @@ paths:
       tags:
       - Nodes
       operationId: getScorecard
+      x-pagination-exempt: view  # one scorecard resource per node whose representation holds one entry per rolling window (a fixed, small set)
       summary: Get the node's measured scorecard (GetScorecard)
       description: 'Relayed synchronously from node-performance (`GET /scorecards/{nodeId}`). A node without observations has no scorecard: `404`
         `not-found`.'
@@ -352,8 +360,13 @@ paths:
             schema:
               $ref: '#/components/schemas/LabelRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '200':
           description: One label per requested package.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           content:
             application/json:
               schema:
@@ -389,6 +402,8 @@ paths:
             schema:
               $ref: '#/components/schemas/ShipmentConfirmationRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '202':
           $ref: '#/components/responses/Accepted'
         '404':
@@ -409,8 +424,8 @@ paths:
         Returns the `SHIPPED` inbound shipments bound for the vendor's nodes after
         `createdAfter`, oldest first, in pages. Every shipment is the pallet-and-carton
         tree shipment > pallet > carton > item. `createdAfter` compares with `shippedAt`,
-        the instant the seller handed the shipment over. Pass the returned `nextToken`
-        for the next page; an absent `nextToken` means the last page. A shipment
+        the instant the seller handed the shipment over. Pass the returned `nextCursor` as `cursor`
+        for the next page (repeat the filters); an absent `nextCursor` means the last page. A shipment
         leaves the poll once the network records its receipt.
       parameters:
       - $ref: '#/components/parameters/VendorId'
@@ -427,12 +442,7 @@ paths:
         description: Only shipments bound for this node.
         schema:
           type: string
-      - name: nextToken
-        in: query
-        required: false
-        description: Opaque continuation token from the previous page. When present, the other filters are ignored.
-        schema:
-          type: string
+      - $ref: '#/components/parameters/Cursor'
       - $ref: '#/components/parameters/Limit'
       responses:
         '200':
@@ -442,7 +452,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/InboundShipmentPage'
               example:
-                inboundShipments:
+                items:
                 - shipmentId: SHP-1001
                   sellerId: S-100
                   nodeId: n-1
@@ -471,7 +481,9 @@ paths:
                     - gtin: '00614141000036'
                       qtyEaches: 6
                     grossWeightG: 2100
-                nextToken: eyJ0IjoiMjAyNi0xMC0yNFQxMzowMDowMFoiLCJzIjoiU0hQLTEwMDEiLCJ2IjoiVi1XUyJ9
+                nextCursor: eyJzIjoiMjAyNi0xMC0yNFQxMzowMDowMFoiLCJpIjoiU0hQLTEwMDEifQ
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
@@ -545,6 +557,8 @@ paths:
                 complianceCodes:
                 - CARTON_CRUSHED
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '202':
           $ref: '#/components/responses/Accepted'
         '404':
@@ -594,20 +608,30 @@ paths:
             schema:
               $ref: '#/components/schemas/OnboardVendorRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '200':
           description: The vendor account already existed; returned unchanged.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/VendorAccount'
         '201':
           description: The vendor account, ACTIVE.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/VendorAccount'
         '422':
           $ref: '#/components/responses/ValidationProblem'
+        '409':
+          $ref: '#/components/responses/StateConflict'
   /vendors/{vendorId}:
     get:
       tags:
@@ -626,7 +650,7 @@ paths:
                 $ref: '#/components/schemas/VendorAccount'
         '404':
           $ref: '#/components/responses/NotFound'
-  /vendors/{vendorId}:suspend:
+  /vendors/{vendorId}/suspensions:
     post:
       tags:
       - Vendors
@@ -639,8 +663,13 @@ paths:
       - $ref: '#/components/parameters/VendorIdPath'
       - $ref: '#/components/parameters/IdempotencyKey'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '200':
           description: The vendor account.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           content:
             application/json:
               schema:
@@ -655,7 +684,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SuspendVendorRequest'
-  /vendors/{vendorId}:reinstate:
+  /vendors/{vendorId}/reinstatements:
     post:
       tags:
       - Vendors
@@ -667,8 +696,13 @@ paths:
       - $ref: '#/components/parameters/VendorIdPath'
       - $ref: '#/components/parameters/IdempotencyKey'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '200':
           description: The vendor account.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
           content:
             application/json:
               schema:
@@ -704,9 +738,10 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: Client-chosen key. A retry with the same key returns the first response (for an asynchronous write, the same `transactionId`).
+      description: 'Client-chosen key, 1 to 128 printable ASCII characters (`400 idempotency-key-required` when absent, `400 idempotency-key-invalid` when malformed). A retry with the same key, method, path and body returns the first response with `Idempotency-Replayed: true`; the same key with anything else is `409 idempotency-key-reused`.'
       schema:
         type: string
+        minLength: 1
         maxLength: 128
     VendorId:
       name: vendorId
@@ -734,20 +769,45 @@ components:
       name: limit
       in: query
       required: false
-      description: Page size, 1 to 200 (default 50).
+      description: Page size, 1 to 500 (default 100).
       schema:
         type: integer
         minimum: 1
-        maximum: 200
+        maximum: 500
+        default: 100
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque continuation token (`nextCursor` of the previous page). Repeat the filters on every page request. An undecodable cursor is `400 invalid-cursor`; an undeclared query parameter is `400 unknown-query-parameter`.
+      schema:
+        type: string
   headers:
+    IdempotencyReplayed:
+      description: '`true` when this response is a replay of the first response stored for the `Idempotency-Key`; absent otherwise.'
+      schema:
+        type: string
+        enum:
+        - 'true'
     RetryAfter:
       description: Seconds to wait before the next call.
       schema:
         type: integer
         minimum: 1
   responses:
+    BadRequest:
+      description: |
+        The request cannot be processed. Problem types: `idempotency-key-required`, `idempotency-key-invalid`,
+        `malformed-request`, `invalid-limit`, `invalid-cursor` and `unknown-query-parameter`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     Accepted:
       description: Accepted for processing. Reconcile with `GET /vendor/transactions/{transactionId}`.
+      headers:
+        Idempotency-Replayed:
+          $ref: '#/components/headers/IdempotencyReplayed'
       content:
         application/json:
           schema:
@@ -768,7 +828,8 @@ components:
         `confirm-without-label` (`ErrConfirmWithoutLabel`), `vendor-suspended`
         (`ErrVendorSuspended`), `illegal-transition` (a write against a state the model
         gives no `Err...` for) and `concurrent-update` (optimistic-concurrency
-        conflict; the caller re-reads and retries).
+        conflict; the caller re-reads and retries) and `idempotency-key-reused` (the `Idempotency-Key` was
+        already used with a different method, path or body).
       content:
         application/problem+json:
           schema:
@@ -1056,13 +1117,13 @@ components:
     PurchaseOrderPage:
       type: object
       required:
-      - purchaseOrders
+      - items
       properties:
-        purchaseOrders:
+        items:
           type: array
           items:
             $ref: '#/components/schemas/PurchaseOrder'
-        nextToken:
+        nextCursor:
           type: string
           description: Absent on the last page.
     AckLine:
@@ -1537,13 +1598,13 @@ components:
     InboundShipmentPage:
       type: object
       required:
-      - inboundShipments
+      - items
       properties:
-        inboundShipments:
+        items:
           type: array
           items:
             $ref: '#/components/schemas/InboundShipment'
-        nextToken:
+        nextCursor:
           type: string
           description: Absent on the last page.
     InboundReceiptItem:
@@ -1717,12 +1778,15 @@ components:
     VendorNodeList:
       type: object
       required:
-      - nodes
+      - items
       properties:
-        nodes:
+        items:
           type: array
           items:
             $ref: '#/components/schemas/VendorNode'
+        nextCursor:
+          type: string
+          description: Absent on the last page.
     SuspendVendorRequest:
       type: object
       properties:

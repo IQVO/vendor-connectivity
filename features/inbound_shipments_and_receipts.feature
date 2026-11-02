@@ -17,13 +17,13 @@ Feature: Inbound shipments and receipts
     And seller-inbound labels shipment "SHP-3" for node "N-1" without shipping it
     When I send GET "/vendor/inbound-shipments?vendorId=V-1"
     Then the response status is 200
-    And the response lists 1 items in "inboundShipments"
-    And the response field "inboundShipments.0.shipmentId" is "SHP-1"
-    And the response field "inboundShipments.0.status" is "SHIPPED"
-    And the response field "inboundShipments.0.pallets.0.sscc" is "006141410000000036"
-    And the response field "inboundShipments.0.pallets.0.cartons.0.contents.0.gtin" is "00614141000036"
-    And the response field "inboundShipments.0.cartons.0.kind" is "MIXED"
-    And the response field "nextToken" is absent
+    And the response lists 1 items in "items"
+    And the response field "items.0.shipmentId" is "SHP-1"
+    And the response field "items.0.status" is "SHIPPED"
+    And the response field "items.0.pallets.0.sscc" is "006141410000000036"
+    And the response field "items.0.pallets.0.cartons.0.contents.0.gtin" is "00614141000036"
+    And the response field "items.0.cartons.0.kind" is "MIXED"
+    And the response field "nextCursor" is absent
 
   Scenario: One shipment is read as a tree, another vendor's is not found
     Given seller-inbound ships shipment "SHP-1" to node "N-1"
@@ -35,18 +35,18 @@ Feature: Inbound shipments and receipts
     Then the response status is 404
     And the problem type is "not-found"
 
-  Scenario: Polling pages through shipments with nextToken
+  Scenario: Polling pages through shipments with cursor
     Given seller-inbound ships shipment "SHP-1" to node "N-1"
     And 1 minute passes
     And seller-inbound ships shipment "SHP-2" to node "N-1"
     When I send GET "/vendor/inbound-shipments?vendorId=V-1&limit=1"
-    Then the response lists 1 items in "inboundShipments"
-    And the response field "inboundShipments.0.shipmentId" is "SHP-1"
-    And the response field "nextToken" is present
-    When I poll inbound shipments again with the returned nextToken for vendor "V-1"
-    Then the response lists 1 items in "inboundShipments"
-    And the response field "inboundShipments.0.shipmentId" is "SHP-2"
-    And the response field "nextToken" is absent
+    Then the response lists 1 items in "items"
+    And the response field "items.0.shipmentId" is "SHP-1"
+    And the response field "nextCursor" is present
+    When I poll inbound shipments again with the returned cursor for vendor "V-1"
+    Then the response lists 1 items in "items"
+    And the response field "items.0.shipmentId" is "SHP-2"
+    And the response field "nextCursor" is absent
 
   Scenario: A receipt is accepted, processed and published
     Given seller-inbound ships shipment "SHP-1" to node "N-1"

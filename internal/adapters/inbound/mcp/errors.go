@@ -21,6 +21,7 @@ var errorCatalogue = []struct {
 	target error
 	slug   string
 }{
+	{ports.ErrInvalidCursor, "invalid-cursor"},
 	{shared.ErrValidation, "validation-failed"},
 	{network.ErrNodeNotOwnedByVendor, "node-not-owned-by-vendor"},
 	{ports.ErrNotFound, "not-found"},

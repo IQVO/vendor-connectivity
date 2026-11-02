@@ -42,7 +42,7 @@ type Config struct {
 // Page size and retention defaults.
 const (
 	DefaultPageSize              = 50
-	MaxPageSize                  = 200
+	MaxPageSize                  = 500
 	DefaultSubmissionMaxAttempts = 5
 	DefaultSubmissionRetention   = 30 * 24 * time.Hour
 	batchSize                    = 100
