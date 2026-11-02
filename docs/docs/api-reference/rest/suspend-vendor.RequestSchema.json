@@ -1,1 +1,1 @@
-{"title":"Body","body":{"required":false,"content":{"application/json":{"schema":{"type":"object","properties":{"reason":{"type":"string","description":"Why the partner manager suspended the vendor."}},"title":"SuspendVendorRequest"}}}}}
+{"title":"Body","body":{"required":false,"content":{"application/json":{"schema":{"type":"object","properties":{"reason":{"type":"string","maxLength":200,"description":"Why the partner manager suspended the vendor. The body itself may be omitted."}},"title":"SuspendVendorRequest"}}}}}
