@@ -224,6 +224,12 @@ func (d Deps) getVendor(ctx context.Context, in vendorInput) (views.VendorAccoun
 
 // --- registry -----------------------------------------------------------------
 
+// closedWorld is the OpenWorldHint of every tool: each one answers only from
+// this context's own state (docs/adr/0006). A package-level var so the
+// per-group register helpers can spell the full annotations literal inline,
+// the shape the fleet authority sensor reads (ReadOnlyHint provably true).
+var closedWorld = false
+
 // registerTools adds the nine read-only tools, one per GET operation of the
 // Vendor API, grouped the way the Vendor API groups them. Every tool is
 // annotated read-only, idempotent and closed-world, and declares its Agentic
@@ -231,16 +237,14 @@ func (d Deps) getVendor(ctx context.Context, in vendorInput) (views.VendorAccoun
 // own state, docs/adr/0011); TestToolSurface pins the set and fails the build
 // on any write-verb tool name (docs/adr/0006).
 func (d Deps) registerTools(server *mcp.Server) {
-	closedWorld := false
-	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld}
-	d.registerOrderTools(server, readOnly)
-	d.registerInboundTools(server, readOnly)
-	d.registerNodeTools(server, readOnly)
-	d.registerAccountTools(server, readOnly)
+	d.registerOrderTools(server)
+	d.registerInboundTools(server)
+	d.registerNodeTools(server)
+	d.registerAccountTools(server)
 }
 
 // registerOrderTools registers the purchase-order reads.
-func (d Deps) registerOrderTools(server *mcp.Server, readOnly *mcp.ToolAnnotations) {
+func (d Deps) registerOrderTools(server *mcp.Server) {
 
 	addTool(server, &mcp.Tool{
 		Name: "poll_purchase_orders",
@@ -252,7 +256,7 @@ func (d Deps) registerOrderTools(server *mcp.Server, readOnly *mcp.ToolAnnotatio
 			"the next page, absent on the last one. Read-only; an unknown vendor fails with not-found, a malformed one " +
 			"with validation-failed, a node of another vendor with node-not-owned-by-vendor and a bad nextToken with " +
 			"validation-failed.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),
 	}, d.pollPurchaseOrders)
 
@@ -262,13 +266,13 @@ func (d Deps) registerOrderTools(server *mcp.Server, readOnly *mcp.ToolAnnotatio
 			"requiredShipBy, ackBy), the lines, the acknowledgement once its transaction succeeded, the shipping labels " +
 			"and tracking numbers, and shippedAt once confirmed. Read-only; an order of another vendor fails with " +
 			"node-not-owned-by-vendor, an unknown one with not-found and a malformed vendorId with validation-failed.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),
 	}, d.getPurchaseOrder)
 }
 
 // registerInboundTools registers the inbound-shipment reads (ADR 0005).
-func (d Deps) registerInboundTools(server *mcp.Server, readOnly *mcp.ToolAnnotations) {
+func (d Deps) registerInboundTools(server *mcp.Server) {
 	addTool(server, &mcp.Tool{
 		Name: "poll_inbound_shipments",
 		Description: "Page through the inbound shipments bound for one vendor's nodes, oldest shipment first: " +
@@ -278,7 +282,7 @@ func (d Deps) registerInboundTools(server *mcp.Server, readOnly *mcp.ToolAnnotat
 			"page, absent on the last one. Read-only; an unknown vendor fails with not-found, a malformed one with " +
 			"validation-failed, a node of another vendor with node-not-owned-by-vendor and a bad nextToken with " +
 			"validation-failed.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),
 	}, d.pollInboundShipments)
 
@@ -288,20 +292,20 @@ func (d Deps) registerInboundTools(server *mcp.Server, readOnly *mcp.ToolAnnotat
 			"top-level cartons, and every item line in eaches (gtin, sku, qtyEaches, lot, expiry). A shipment that has " +
 			"not shipped yet, or is bound for another vendor's node, is as absent as an unknown one. Read-only; fails " +
 			"with not-found for an unknown or not-yet-shipped shipment and validation-failed for a malformed id.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),
 	}, d.getInboundShipment)
 }
 
 // registerNodeTools registers the node and scorecard reads.
-func (d Deps) registerNodeTools(server *mcp.Server, readOnly *mcp.ToolAnnotations) {
+func (d Deps) registerNodeTools(server *mcp.Server) {
 	addTool(server, &mcp.Tool{
 		Name: "list_vendor_nodes",
 		Description: "List the fulfilment nodes the network has registered for one vendor, sorted by nodeId: type and " +
 			"subtype, status (PROPOSED, ACTIVE, SUSPENDED or RETIRED), region, timezone, handling time and profile " +
 			"revision. The local copy of node-topology events, as GET /vendor/nodes serves it. Read-only; an unknown " +
 			"vendor fails with not-found and a malformed one with validation-failed.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),
 	}, d.listVendorNodes)
 
@@ -311,7 +315,7 @@ func (d Deps) registerNodeTools(server *mcp.Server, readOnly *mcp.ToolAnnotation
 			"minutes and profile revision. A node the network registered under another vendor is as absent as an unknown " +
 			"one. Read-only; fails with node-not-owned-by-vendor for a node of another vendor, not-found for an unknown " +
 			"one and validation-failed for a malformed id.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),
 	}, d.getVendorNode)
 
@@ -322,13 +326,13 @@ func (d Deps) registerNodeTools(server *mcp.Server, readOnly *mcp.ToolAnnotation
 			"promise-kept rate and feed freshness p95, with the observation count. A node without a scorecard yet fails " +
 			"with not-found. Read-only; the node must belong to the vendor (node-not-owned-by-vendor) and a neighbour " +
 			"outage surfaces as upstream-unavailable or upstream-refused.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),
 	}, d.getNodeScorecard)
 }
 
 // registerAccountTools registers the transaction and vendor-account reads.
-func (d Deps) registerAccountTools(server *mcp.Server, readOnly *mcp.ToolAnnotations) {
+func (d Deps) registerAccountTools(server *mcp.Server) {
 	addTool(server, &mcp.Tool{
 		Name: "get_transaction",
 		Description: "Follow one asynchronous write of a vendor by the transactionId its 202 answer returned: kind " +
@@ -336,7 +340,7 @@ func (d Deps) registerAccountTools(server *mcp.Server, readOnly *mcp.ToolAnnotat
 			"SUCCESS or FAILURE), receivedAt and processedAt, the node and poNumber it concerns and, when it failed, " +
 			"every error (code, message, path). Read-only; a transaction of another vendor is not-found, an unknown one " +
 			"not-found, a malformed vendorId validation-failed.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),
 	}, d.getTransaction)
 
@@ -346,7 +350,7 @@ func (d Deps) registerAccountTools(server *mcp.Server, readOnly *mcp.ToolAnnotat
 			"acknowledgement is accepted) and state (ACTIVE or SUSPENDED). Reads stay allowed while the vendor is " +
 			"suspended; only writes are refused. Read-only; an unknown vendor fails with not-found and a malformed one " +
 			"with validation-failed.",
-		Annotations: readOnly,
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),
 	}, d.getVendor)
 }
