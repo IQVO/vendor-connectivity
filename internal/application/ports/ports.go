@@ -160,7 +160,7 @@ type Random interface {
 }
 
 // NodeTopology is the model's sync_call to node-topology. Both methods return
-// *gateway.Refusal for a 4xx answer and ErrUpstreamUnavailable for an outage.
+// *gateway.RefusalError for a 4xx answer and ErrUpstreamUnavailable for an outage.
 // key is the Idempotency-Key.
 type NodeTopology interface {
 	RegisterNode(ctx context.Context, key string, req requests.NodeRegistration) (gateway.RegisteredNode, error)

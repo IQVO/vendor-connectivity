@@ -169,15 +169,15 @@ func TestRelay_SendFailureCarriesTheRow(t *testing.T) {
 	seedTyped(t, store, "Poison", "plan-9")
 	var logs bytes.Buffer
 	_, err := relay.NewRelay(store, sink, slog.New(slog.NewJSONHandler(&logs, nil)), relay.WithMaxAttempts(5)).RelayOnce(context.Background())
-	var sf *outbox.SendFailure
+	var sf *outbox.SendFailureError
 	if !errors.As(err, &sf) || sf.Attempts != 1 || sf.Message.EventType != "Poison" || string(sf.Message.Key) != "plan-9" || sf.RowID != 1 {
-		t.Fatalf("err = %v (%+v), want a SendFailure for row 1 (the poison row) with attempts 1", err, sf)
+		t.Fatalf("err = %v (%+v), want a SendFailureError for row 1 (the poison row) with attempts 1", err, sf)
 	}
 	if want := "outbox row 1 (Poison): message too large"; err.Error() != want {
 		t.Fatalf("err = %q, want %q", err.Error(), want)
 	}
 	if !errors.Is(err, sf.Err) {
-		t.Fatal("SendFailure must unwrap to the send error")
+		t.Fatal("SendFailureError must unwrap to the send error")
 	}
 	if recs := capRecords(t, &logs); len(recs) != 0 {
 		t.Fatalf("no attempt-cap ERROR expected below the cap, got %v", recs)

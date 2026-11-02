@@ -102,7 +102,7 @@ func TestRegisterVendorNodeRefusals(t *testing.T) {
 func TestNeighbourRefusalFailsTheTransactionWithItsErrCode(t *testing.T) {
 	h := newHarness(t, usecases.Config{})
 	h.onboard("V-1")
-	h.nt.Err = &gateway.Refusal{Status: 409, Code: "ErrVendorNodeCodeTaken", Message: "code taken", Path: "$.vendorNodeCode"}
+	h.nt.Err = &gateway.RefusalError{Status: 409, Code: "ErrVendorNodeCodeTaken", Message: "code taken", Path: "$.vendorNodeCode"}
 	acc, err := h.svc.RegisterVendorNode(h.ctx, registration())
 	h.must(err)
 	h.processAll()
@@ -430,7 +430,7 @@ func TestGetScorecardRelaysNodePerformance(t *testing.T) {
 	if err != nil || sc.NodeID != "n-1" || len(sc.Windows) != 1 || sc.Windows[0].Grade != "B" {
 		t.Fatalf("scorecard = %+v %v", sc, err)
 	}
-	h.perf.Err = &gateway.Refusal{Status: 404, Code: "ErrScorecardNotFound", Message: "none"}
+	h.perf.Err = &gateway.RefusalError{Status: 404, Code: "ErrScorecardNotFound", Message: "none"}
 	if _, err := h.svc.GetScorecard(h.ctx, "V-1", "n-1"); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("no scorecard yet: %v", err)
 	}
@@ -438,7 +438,7 @@ func TestGetScorecardRelaysNodePerformance(t *testing.T) {
 	if _, err := h.svc.GetScorecard(h.ctx, "V-1", "n-1"); !errors.Is(err, ports.ErrUpstreamUnavailable) {
 		t.Fatalf("outage: %v", err)
 	}
-	h.perf.Err = &gateway.Refusal{Status: 422, Code: "ErrX", Message: "m"}
+	h.perf.Err = &gateway.RefusalError{Status: 422, Code: "ErrX", Message: "m"}
 	if _, err := h.svc.GetScorecard(h.ctx, "V-1", "n-1"); !errors.Is(err, ports.ErrUpstreamRefused) {
 		t.Fatalf("refusal: %v", err)
 	}

@@ -184,7 +184,7 @@ func TestRequestLabelKeepsWhatWasIssuedWhenALaterPackageFails(t *testing.T) {
 	if err != nil || len(resp.Labels) != 2 || len(h.ship.Calls) != 3 {
 		t.Fatalf("the retry issues only the missing label: %+v %v calls %d", resp, err, len(h.ship.Calls))
 	}
-	h.ship.Err, h.ship.FailPackage = &gateway.Refusal{Status: 422, Code: "ErrX", Message: "m"}, 3
+	h.ship.Err, h.ship.FailPackage = &gateway.RefusalError{Status: 422, Code: "ErrX", Message: "m"}, 3
 	three := requests.LabelRequest{VendorID: "V-1", PONumber: po, Packages: []requests.LabelPackage{{PackageNo: 3}}}
 	if _, err := h.svc.RequestLabel(h.ctx, three); !errors.Is(err, ports.ErrUpstreamRefused) {
 		t.Fatalf("refusal: %v", err)

@@ -25,12 +25,12 @@ func inboundShipments(t *testing.T, e Env) {
 	_, err := e.Shipments.Get(ctx, "SHP-1")
 	isErr(t, err, ports.ErrNotFound, "Get of an unknown shipment")
 
-	a := shipmentRow("SHP-1", "n-1", T0, inbound.StatusShipped, oneCarton("006141410000000012"))
+	a := shipmentRow("SHP-1", nodeOne, T0, inbound.StatusShipped, oneCarton("006141410000000012"))
 	a.LabelledAt = T0.Add(-time.Hour)
 	must(t, e.Shipments.Save(ctx, a))
 	got, err := e.Shipments.Get(ctx, "SHP-1")
 	must(t, err)
-	if got.NodeID != "n-1" || got.Status != inbound.StatusShipped || !got.ShippedAt.Equal(T0) || !got.LabelledAt.Equal(a.LabelledAt) || !got.ReceivedAt.IsZero() ||
+	if got.NodeID != nodeOne || got.Status != inbound.StatusShipped || !got.ShippedAt.Equal(T0) || !got.LabelledAt.Equal(a.LabelledAt) || !got.ReceivedAt.IsZero() ||
 		len(got.Cartons) != 1 || got.Cartons[0].Dims == nil || got.Cartons[0].Dims.W != 300 || got.Cartons[0].Contents[0].Lot != "L-1" || got.Cartons[0].ParentSSCC != "006141410000000036" {
 		t.Fatalf("round trip = %+v", got)
 	}
@@ -47,11 +47,11 @@ func inboundShipments(t *testing.T, e Env) {
 func listShipped(t *testing.T, e Env) {
 	ctx := context.Background()
 	for _, sh := range []inbound.Shipment{
-		shipmentRow("SHP-2", "n-1", T0.Add(2*time.Hour), inbound.StatusShipped, oneCarton("006141410000000029")),
-		shipmentRow("SHP-3", "n-1", T0.Add(2*time.Hour), inbound.StatusShipped, oneCarton("006141410000000029")),
-		shipmentRow("SHP-4", "n-2", T0.Add(3*time.Hour), inbound.StatusShipped, oneCarton("006141410000000029")),
-		shipmentRow("SHP-5", "n-1", T0.Add(4*time.Hour), inbound.StatusLabelled, oneCarton("006141410000000029")),
-		shipmentRow("SHP-6", "n-1", T0.Add(5*time.Hour), inbound.StatusShipped),
+		shipmentRow("SHP-2", nodeOne, T0.Add(2*time.Hour), inbound.StatusShipped, oneCarton("006141410000000029")),
+		shipmentRow("SHP-3", nodeOne, T0.Add(2*time.Hour), inbound.StatusShipped, oneCarton("006141410000000029")),
+		shipmentRow("SHP-4", nodeTwo, T0.Add(3*time.Hour), inbound.StatusShipped, oneCarton("006141410000000029")),
+		shipmentRow("SHP-5", nodeOne, T0.Add(4*time.Hour), inbound.StatusLabelled, oneCarton("006141410000000029")),
+		shipmentRow("SHP-6", nodeOne, T0.Add(5*time.Hour), inbound.StatusShipped),
 		shipmentRow("SHP-7", "n-3", T0.Add(6*time.Hour), inbound.StatusShipped, oneCarton("006141410000000029")),
 	} {
 		must(t, e.Shipments.Save(ctx, sh))
@@ -67,21 +67,21 @@ func listShipped(t *testing.T, e Env) {
 		return out
 	}
 	// SHP-1 is CLOSED, SHP-5 LABELLED, SHP-6 has no manifest and SHP-7 is another node: none is listed.
-	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{"n-1", "n-2"}}); got != "SHP-2 SHP-3 SHP-4 " {
+	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{nodeOne, nodeTwo}}); got != "SHP-2 SHP-3 SHP-4 " {
 		t.Errorf("both nodes = %q", got)
 	}
-	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{"n-2"}}); got != "SHP-4 " {
+	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{nodeTwo}}); got != "SHP-4 " {
 		t.Errorf("n-2 = %q", got)
 	}
 	after := T0.Add(2 * time.Hour)
-	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{"n-1", "n-2"}, ShippedAfter: &after}); got != "SHP-4 " {
+	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{nodeOne, nodeTwo}, ShippedAfter: &after}); got != "SHP-4 " {
 		t.Errorf("shippedAfter is strict = %q", got)
 	}
 	cur := repository.ShipmentCursor{ShippedAt: T0.Add(2 * time.Hour), ShipmentID: "SHP-2"}
-	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{"n-1", "n-2"}, After: &cur}); got != "SHP-3 SHP-4 " {
+	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{nodeOne, nodeTwo}, After: &cur}); got != "SHP-3 SHP-4 " {
 		t.Errorf("keyset breaks the tie on the id = %q", got)
 	}
-	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{"n-1", "n-2"}, Limit: 2}); got != "SHP-2 SHP-3 " {
+	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{nodeOne, nodeTwo}, Limit: 2}); got != "SHP-2 SHP-3 " {
 		t.Errorf("limit = %q", got)
 	}
 	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{"n-9"}}); got != "" {

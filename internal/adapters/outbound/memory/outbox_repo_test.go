@@ -58,13 +58,13 @@ func TestOutboxRepoMessagesKeepsInsertionOrder(t *testing.T) {
 }
 
 // A failed send records its error on the row, leaves it unpublished and
-// reports it as the SendFailure of that row.
+// reports it as the SendFailureError of that row.
 func TestOutboxRepoRecordsTheFailureOfItsRow(t *testing.T) {
 	t.Parallel()
 	r := seededOutbox(t, 3)
 	boom := errors.New("kafka: broker unavailable")
 	published, err := r.Drain(context.Background(), 10, 0, func(context.Context, outbox.Message) error { return boom })
-	var sf *outbox.SendFailure
+	var sf *outbox.SendFailureError
 	if published != 0 || !errors.As(err, &sf) || sf.RowID != 1 || !errors.Is(sf.Err, boom) {
 		t.Fatalf("drain = %d, %v; want row 1 failing with the send error", published, err)
 	}

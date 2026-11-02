@@ -267,7 +267,7 @@ func TestScorecardAndUpstreamFailures(t *testing.T) {
 	}
 	a.perf.Err = io.ErrUnexpectedEOF
 	a.do("GET", "/vendor/nodes/n-1/scorecard?vendorId=V-1", "").problem(t, 503, "upstream-unavailable")
-	a.perf.Err = &gateway.Refusal{Status: 422, Code: "ErrX", Message: "m"}
+	a.perf.Err = &gateway.RefusalError{Status: 422, Code: "ErrX", Message: "m"}
 	a.do("GET", "/vendor/nodes/n-1/scorecard?vendorId=V-1", "").problem(t, 502, "upstream-refused")
 }
 

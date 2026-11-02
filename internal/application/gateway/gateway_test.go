@@ -28,8 +28,8 @@ func TestCodeFromProblemType(t *testing.T) {
 }
 
 func TestRefusalIsAnError(t *testing.T) {
-	var err error = &gateway.Refusal{Status: 409, Code: "ErrX", Message: "taken"}
-	var ref *gateway.Refusal
+	var err error = &gateway.RefusalError{Status: 409, Code: "ErrX", Message: "taken"}
+	var ref *gateway.RefusalError
 	if !errors.As(err, &ref) || ref.Code != "ErrX" {
 		t.Fatal("a refusal unwraps")
 	}
