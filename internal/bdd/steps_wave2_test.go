@@ -44,15 +44,15 @@ func registerWave2(sc *godog.ScenarioContext, w *world) {
 		return nil
 	})
 	sc.Step(`^I remember the tracking numbers of the issued labels$`, w.rememberTrackingNumbers)
-	sc.Step(`^I poll again with the returned nextToken for vendor "([^"]*)"$`, func(vendor string) error {
-		tok, ok, err := w.field("nextToken")
+	sc.Step(`^I poll again with the returned cursor for vendor "([^"]*)"$`, func(vendor string) error {
+		tok, ok, err := w.field("nextCursor")
 		if err != nil {
 			return err
 		}
 		if !ok || render(tok) == "" {
-			return fmt.Errorf("the previous page carried no nextToken: %s", w.body)
+			return fmt.Errorf("the previous page carried no nextCursor: %s", w.body)
 		}
-		return w.request(http.MethodGet, "/vendor/purchase-orders?vendorId="+vendor+"&nextToken="+render(tok), "")
+		return w.request(http.MethodGet, "/vendor/purchase-orders?vendorId="+vendor+"&cursor="+render(tok), "")
 	})
 
 	// then

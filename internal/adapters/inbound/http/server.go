@@ -95,9 +95,8 @@ func NewRouter(s *Server, logger *slog.Logger, serviceName string) http.Handler 
 
 	r.Method(http.MethodPost, "/vendors", write(s.handleOnboard))
 	r.Get("/vendors/{vendorId}", s.handleGetVendor)
-	// chi cannot route a ":verb" suffix inside one segment, so the two vendor
-	// actions share a pattern and are dispatched on the suffix.
-	r.Method(http.MethodPost, "/vendors/{vendorAction}", write(s.handleVendorAction))
+	r.Method(http.MethodPost, "/vendors/{vendorId}/suspensions", write(s.handleSuspendVendor))
+	r.Method(http.MethodPost, "/vendors/{vendorId}/reinstatements", write(s.handleReinstateVendor))
 	return r
 }
 

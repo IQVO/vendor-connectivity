@@ -42,6 +42,13 @@ func nodes(t *testing.T, e Env) {
 	if len(mine) != 2 || mine[0].ID != "n-0" || mine[1].ID != "n-1" {
 		t.Fatalf("ListByVendor = %+v", mine)
 	}
+	first, err := e.Nodes.ListByVendorPage(ctx, "V-1", "", 1)
+	must(t, err)
+	rest, err := e.Nodes.ListByVendorPage(ctx, "V-1", first[0].ID, 5)
+	must(t, err)
+	if len(first) != 1 || first[0].ID != "n-0" || len(rest) != 1 || rest[0].ID != "n-1" {
+		t.Fatalf("ListByVendorPage = %+v then %+v", first, rest)
+	}
 	none, err := e.Nodes.ListByVendor(ctx, "V-9")
 	if err != nil || len(none) != 0 {
 		t.Fatalf("no nodes is an empty list: %v %v", none, err)

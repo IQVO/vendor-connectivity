@@ -146,9 +146,9 @@ func TestPollInboundShipmentsRefusals(t *testing.T) {
 		"unknown vendor":    {requests.InboundPollQuery{VendorID: "V-X"}, ports.ErrNotFound},
 		"other vendor node": {requests.InboundPollQuery{VendorID: "V-1", NodeID: "n-9"}, network.ErrNodeNotOwnedByVendor},
 		"unknown node":      {requests.InboundPollQuery{VendorID: "V-1", NodeID: "n-404"}, ports.ErrNotFound},
-		"garbage token":     {requests.InboundPollQuery{VendorID: "V-1", NextToken: "%%%"}, shared.ErrValidation},
-		"json token":        {requests.InboundPollQuery{VendorID: "V-1", NextToken: "e30"}, shared.ErrValidation},
-		"foreign token":     {requests.InboundPollQuery{VendorID: "V-2", NextToken: token}, shared.ErrValidation},
+		"garbage token":     {requests.InboundPollQuery{VendorID: "V-1", NextToken: "%%%"}, ports.ErrInvalidCursor},
+		"json token":        {requests.InboundPollQuery{VendorID: "V-1", NextToken: "e30"}, ports.ErrInvalidCursor},
+		"foreign token":     {requests.InboundPollQuery{VendorID: "V-2", NextToken: token}, ports.ErrInvalidCursor},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

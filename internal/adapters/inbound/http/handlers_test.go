@@ -137,19 +137,17 @@ func TestVendorLifecycle(t *testing.T) {
 		t.Fatalf("get = %d %s", g.code, g.body)
 	}
 	a.do("GET", "/vendors/V-9", "").problem(t, 404, "not-found")
-	if s := a.do("POST", "/vendors/V-2:suspend", `{"reason":"late"}`); s.code != 200 || s.json(t)["state"] != "SUSPENDED" {
+	if s := a.do("POST", "/vendors/V-2/suspensions", `{"reason":"late"}`); s.code != 200 || s.json(t)["state"] != "SUSPENDED" {
 		t.Fatalf("suspend = %d %s", s.code, s.body)
 	}
-	if again := a.do("POST", "/vendors/V-2:suspend", ""); again.code != 200 || again.json(t)["state"] != "SUSPENDED" {
+	if again := a.do("POST", "/vendors/V-2/suspensions", ""); again.code != 200 || again.json(t)["state"] != "SUSPENDED" {
 		t.Fatalf("suspending twice is a no-op: %d %s", again.code, again.body)
 	}
-	if s := a.do("POST", "/vendors/V-2:reinstate", ""); s.code != 200 || s.json(t)["state"] != "ACTIVE" {
+	if s := a.do("POST", "/vendors/V-2/reinstatements", ""); s.code != 200 || s.json(t)["state"] != "ACTIVE" {
 		t.Fatalf("reinstate = %d %s", s.code, s.body)
 	}
-	a.do("POST", "/vendors/V-9:suspend", "").problem(t, 404, "not-found")
-	a.do("POST", "/vendors/V-2:explode", "").problem(t, 404, "not-found")
-	a.do("POST", "/vendors/V-2", "").problem(t, 404, "not-found")
-	a.do("POST", "/vendors/V-2:suspend", `{"nope":1}`).problem(t, 422, "validation-failed")
+	a.do("POST", "/vendors/V-9/suspensions", "").problem(t, 404, "not-found")
+	a.do("POST", "/vendors/V-2/suspensions", `{"nope":1}`).problem(t, 422, "validation-failed")
 }
 
 func TestPollAndGetPurchaseOrders(t *testing.T) {
@@ -157,20 +155,33 @@ func TestPollAndGetPurchaseOrders(t *testing.T) {
 	po1, po2 := a.issue("asg-1", "n-1"), a.issue("asg-2", "n-1")
 	r := a.do("GET", "/vendor/purchase-orders?vendorId=V-1&limit=1", "")
 	page := r.json(t)
-	list, _ := page["purchaseOrders"].([]any)
-	if r.code != 200 || len(list) != 1 || page["nextToken"] == "" || list[0].(map[string]any)["poNumber"] != po1 {
+	list, _ := page["items"].([]any)
+	if r.code != 200 || len(list) != 1 || page["nextCursor"] == "" || page["nextToken"] != nil || list[0].(map[string]any)["poNumber"] != po1 {
 		t.Fatalf("page 1 = %d %s", r.code, r.body)
 	}
-	next := a.do("GET", "/vendor/purchase-orders?vendorId=V-1&limit=1&nextToken="+page["nextToken"].(string), "").json(t)
-	if got := next["purchaseOrders"].([]any)[0].(map[string]any)["poNumber"]; got != po2 {
+	next := a.do("GET", "/vendor/purchase-orders?vendorId=V-1&limit=1&cursor="+page["nextCursor"].(string), "").json(t)
+	if got := next["items"].([]any)[0].(map[string]any)["poNumber"]; got != po2 {
 		t.Fatalf("page 2 = %v", next)
 	}
 	if r := a.do("GET", "/vendor/purchase-orders?vendorId=V-1&nodeId=n-1&createdAfter=2026-10-22T12:00:00Z", ""); r.code != 200 {
 		t.Fatalf("filters: %d %s", r.code, r.body)
 	}
 	a.do("GET", "/vendor/purchase-orders?vendorId=V-1&createdAfter=yesterday", "").problem(t, 422, "validation-failed")
-	a.do("GET", "/vendor/purchase-orders?vendorId=V-1&limit=0", "").problem(t, 422, "validation-failed")
-	a.do("GET", "/vendor/purchase-orders?vendorId=V-1&limit=x", "").problem(t, 422, "validation-failed")
+	for _, bad := range []string{"limit=0", "limit=x", "limit=", "limit=501", "limit=1&limit=2"} {
+		a.do("GET", "/vendor/purchase-orders?vendorId=V-1&"+bad, "").problem(t, 400, "invalid-limit")
+	}
+	for _, bad := range []string{"cursor=%25%25%25", "cursor=e30", "cursor=a&cursor=b"} {
+		a.do("GET", "/vendor/purchase-orders?vendorId=V-1&"+bad, "").problem(t, 400, "invalid-cursor")
+	}
+	// a cursor issued to another vendor is not valid for this one
+	a.do("POST", "/vendors", `{"vendorId":"V-7","name":"c","ackWindowMinutes":120}`)
+	a.do("GET", "/vendor/purchase-orders?vendorId=V-7&cursor="+page["nextCursor"].(string), "").problem(t, 400, "invalid-cursor")
+	// retired paging parameters fail loudly
+	for _, retired := range []string{"nextToken=x", "after=x", "offset=1", "from=x"} {
+		a.do("GET", "/vendor/purchase-orders?vendorId=V-1&"+retired, "").problem(t, 400, "unknown-query-parameter")
+		a.do("GET", "/vendor/inbound-shipments?vendorId=V-1&"+retired, "").problem(t, 400, "unknown-query-parameter")
+		a.do("GET", "/vendor/nodes?vendorId=V-1&"+retired, "").problem(t, 400, "unknown-query-parameter")
+	}
 	a.do("GET", "/vendor/purchase-orders", "").problem(t, 422, "validation-failed")
 	a.do("GET", "/vendor/purchase-orders?vendorId=V-9", "").problem(t, 404, "not-found")
 	if g := a.do("GET", "/vendor/purchase-orders/"+po1+"?vendorId=V-1", ""); g.code != 200 || g.json(t)["state"] != "ISSUED" {
@@ -218,7 +229,7 @@ func TestAcknowledgementIsAsynchronous(t *testing.T) {
 func TestSuspendedVendorWritesAreRefused(t *testing.T) {
 	a := newAPI(t)
 	po := a.issue("asg-1", "n-1")
-	a.do("POST", "/vendors/V-1:suspend", "")
+	a.do("POST", "/vendors/V-1/suspensions", "")
 	a.do("POST", "/vendor/acknowledgements", a.ack(po, "ACCEPT")).problem(t, 409, "vendor-suspended")
 	if r := a.do("GET", "/vendor/purchase-orders?vendorId=V-1", ""); r.code != 200 {
 		t.Fatalf("reads still work: %d", r.code)
@@ -236,7 +247,7 @@ func TestNodeRoutes(t *testing.T) {
 	if g := a.do("GET", "/vendor/nodes/n-1?vendorId=V-1", ""); g.code != 200 || g.json(t)["vendorNodeCode"] != "code-n-1" {
 		t.Fatalf("get node = %d %s", g.code, g.body)
 	}
-	if l := a.do("GET", "/vendor/nodes?vendorId=V-1", ""); l.code != 200 || len(l.json(t)["nodes"].([]any)) != 1 {
+	if l := a.do("GET", "/vendor/nodes?vendorId=V-1", ""); l.code != 200 || len(l.json(t)["items"].([]any)) != 1 {
 		t.Fatalf("list = %d %s", l.code, l.body)
 	}
 	a.do("GET", "/vendor/nodes?vendorId=", "").problem(t, 422, "validation-failed")
@@ -325,5 +336,47 @@ func TestIdempotencyAndRateLimitMiddlewareWiring(t *testing.T) {
 	}
 	if c := do("GET", "/healthz", ""); c != 200 {
 		t.Fatal("probes are not rate limited")
+	}
+}
+
+// TestRetiredRoutesAreGone pins the REST guideline cutover: the :verb routes
+// no longer exist (no alias, no dual route).
+func TestRetiredRoutesAreGone(t *testing.T) {
+	a := newAPI(t)
+	for _, route := range []string{"/vendors/V-1:suspend", "/vendors/V-1:reinstate"} {
+		if r := a.do("POST", route, ""); r.code != 404 && r.code != 405 {
+			t.Errorf("POST %s = %d, want 404 or 405", route, r.code)
+		}
+	}
+}
+
+// TestNodesPageWalksEveryNode pages /vendor/nodes with limit=2 over five nodes
+// and asserts no duplicate and no skipped node.
+func TestNodesPageWalksEveryNode(t *testing.T) {
+	a := newAPI(t)
+	for _, id := range []string{"n-2", "n-3", "n-4", "n-5"} {
+		a.node(id, "V-1")
+	}
+	seen := map[string]bool{}
+	url := "/vendor/nodes?vendorId=V-1&limit=2"
+	for pages := 0; url != ""; pages++ {
+		if pages > 5 {
+			t.Fatal("paging does not terminate")
+		}
+		body := a.do("GET", url, "").json(t)
+		for _, it := range body["items"].([]any) {
+			id := it.(map[string]any)["nodeId"].(string)
+			if seen[id] {
+				t.Fatalf("duplicate %s", id)
+			}
+			seen[id] = true
+		}
+		url = ""
+		if c, _ := body["nextCursor"].(string); c != "" {
+			url = "/vendor/nodes?vendorId=V-1&limit=2&cursor=" + c
+		}
+	}
+	if len(seen) != 5 {
+		t.Fatalf("saw %d nodes: %v", len(seen), seen)
 	}
 }

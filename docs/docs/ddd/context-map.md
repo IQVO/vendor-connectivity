@@ -25,7 +25,7 @@ flowchart LR
     VC["vendor-connectivity<br/>Supporting, partner"]
     NF[["network-fulfillment<br/>warehouse-systems<br/>Supporting in the fleet<br/>external org"]]
     OS2["order-sourcing<br/>Core, commerce"]
-    PM -->|"UI<br/>REST POST /vendors,<br/>:suspend, :reinstate"| VC
+    PM -->|"UI<br/>REST POST /vendors,<br/>/suspensions, /reinstatements"| VC
     OS1 -->|"U/D C/S<br/>Kafka Fulfillment-<br/>ReleasedToNode,<br/>FulfillmentCancelled"| VC
     VC -->|"U: OHS + PL<br/>D: CF + ACL<br/>Vendor API REST /vendor/..."| NF
     VC -->|"U/D C/S<br/>Kafka PurchaseOrderAccepted,<br/>Rejected, Expired,<br/>VendorShipmentConfirmed"| OS2

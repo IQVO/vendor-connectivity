@@ -355,9 +355,9 @@ func TestPollFiltersAndRefusals(t *testing.T) {
 		"unknown vendor":  {requests.PollQuery{VendorID: "V-9"}, ports.ErrNotFound},
 		"foreign node":    {requests.PollQuery{VendorID: "V-1", NodeID: "n-3"}, network.ErrNodeNotOwnedByVendor},
 		"unknown node":    {requests.PollQuery{VendorID: "V-1", NodeID: "n-9"}, ports.ErrNotFound},
-		"garbage token":   {requests.PollQuery{VendorID: "V-1", NextToken: "%%%"}, shared.ErrValidation},
-		"foreign token":   {requests.PollQuery{VendorID: "V-2", NextToken: small.NextToken}, shared.ErrValidation},
-		"token no fields": {requests.PollQuery{VendorID: "V-1", NextToken: "e30"}, shared.ErrValidation},
+		"garbage token":   {requests.PollQuery{VendorID: "V-1", NextToken: "%%%"}, ports.ErrInvalidCursor},
+		"foreign token":   {requests.PollQuery{VendorID: "V-2", NextToken: small.NextToken}, ports.ErrInvalidCursor},
+		"token no fields": {requests.PollQuery{VendorID: "V-1", NextToken: "e30"}, ports.ErrInvalidCursor},
 	} {
 		if _, err := h.svc.PollPurchaseOrders(h.ctx, tc.q); !errors.Is(err, tc.want) {
 			t.Errorf("%s: err = %v", name, err)

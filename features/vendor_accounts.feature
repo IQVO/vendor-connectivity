@@ -31,7 +31,7 @@ Feature: Vendor accounts
 
   Scenario: A suspended vendor's writes are refused until it is reinstated
     Given vendor "V-1" is onboarded with an acknowledgement window of 120 minutes
-    When I send POST "/vendors/V-1:suspend"
+    When I send POST "/vendors/V-1/suspensions"
     Then the response status is 200
     And the response field "state" is "SUSPENDED"
     When I send POST "/vendor/nodes" with:
@@ -40,7 +40,7 @@ Feature: Vendor accounts
       """
     Then the response status is 409
     And the problem type is "vendor-suspended"
-    When I send POST "/vendors/V-1:reinstate"
+    When I send POST "/vendors/V-1/reinstatements"
     Then the response status is 200
     And the response field "state" is "ACTIVE"
     And the outbox event types are "VendorOnboarded, VendorSuspended, VendorReinstated"
@@ -53,24 +53,24 @@ Feature: Vendor accounts
   Scenario: A suspended vendor can still read its nodes and orders
     Given vendor "V-1" is onboarded with an acknowledgement window of 120 minutes
     And node "N-1" of vendor "V-1" has a handling time of 45 minutes
-    When I send POST "/vendors/V-1:suspend"
+    When I send POST "/vendors/V-1/suspensions"
     Then the response status is 200
     When I send GET "/vendor/nodes?vendorId=V-1"
     Then the response status is 200
-    And the response lists 1 items in "nodes"
+    And the response lists 1 items in "items"
 
   Scenario: Suspending an already suspended vendor returns the account with no new event
     Given vendor "V-1" is onboarded with an acknowledgement window of 120 minutes
-    When I send POST "/vendors/V-1:suspend"
+    When I send POST "/vendors/V-1/suspensions"
     Then the response status is 200
-    When I send POST "/vendors/V-1:suspend"
+    When I send POST "/vendors/V-1/suspensions"
     Then the response status is 200
     And the response field "state" is "SUSPENDED"
     And the outbox event types are "VendorOnboarded, VendorSuspended"
 
   Scenario: Reinstating an active vendor returns the account with no new event
     Given vendor "V-1" is onboarded with an acknowledgement window of 120 minutes
-    When I send POST "/vendors/V-1:reinstate"
+    When I send POST "/vendors/V-1/reinstatements"
     Then the response status is 200
     And the response field "state" is "ACTIVE"
     And the outbox event types are "VendorOnboarded"

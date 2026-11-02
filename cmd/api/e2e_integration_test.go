@@ -553,8 +553,8 @@ func phaseSetup(t *testing.T, s *service, w *world) {
 	if got := s.call(http.MethodPost, "/vendors", `{"vendorId":"V-1","name":"Carrier A","ackWindowMinutes":240}`, "onboard-1", http.StatusCreated); got != body {
 		t.Fatalf("a replayed key answers the first response: %s vs %s", got, body)
 	}
-	assertProblem(t, s.call(http.MethodPost, "/vendors", `{"vendorId":"V-1","name":"Other","ackWindowMinutes":240}`, "onboard-1", http.StatusUnprocessableEntity), "idempotency-key-reused")
-	assertProblem(t, s.call(http.MethodPost, "/vendors", `{"vendorId":"V-9","name":"Other","ackWindowMinutes":240}`, "", http.StatusUnprocessableEntity), "idempotency-key-required")
+	assertProblem(t, s.call(http.MethodPost, "/vendors", `{"vendorId":"V-1","name":"Other","ackWindowMinutes":240}`, "onboard-1", http.StatusConflict), "idempotency-key-reused")
+	assertProblem(t, s.call(http.MethodPost, "/vendors", `{"vendorId":"V-9","name":"Other","ackWindowMinutes":240}`, "", http.StatusBadRequest), "idempotency-key-required")
 
 	produce(t, w.brokers, topicNodes,
 		nodeEvent(t, "evt-n1", "NodeRegistered", "n-1", `{"nodeId":"n-1","nodeType":"FULFILLMENT_CENTER","subtype":"SORTABLE","operator":"VENDOR","vendorId":"V-1","vendorNodeCode":"SITE-1","regionId":"r-1","timezone":"America/Sao_Paulo"}`),
@@ -592,7 +592,7 @@ type poView struct {
 func poll(t *testing.T, s *service, wantCount int) []poView {
 	t.Helper()
 	var page struct {
-		PurchaseOrders []poView `json:"purchaseOrders"`
+		PurchaseOrders []poView `json:"items"`
 	}
 	waitFor(t, 120*time.Second, fmt.Sprintf("%d purchase orders to be pollable", wantCount), func() bool {
 		status, raw := s.try(http.MethodGet, "/vendor/purchase-orders?vendorId=V-1", "", "")
@@ -753,7 +753,7 @@ func phaseInbound(t *testing.T, s *service, w *world) {
 			ShipmentID, NodeID, SellerID, Status string
 			Pallets                              []struct{ SSCC string }
 			Cartons                              []struct{ SSCC string }
-		} `json:"inboundShipments"`
+		} `json:"items"`
 	}
 	mustDecode(t, s.call(http.MethodGet, "/vendor/inbound-shipments?vendorId=V-1", "", "", http.StatusOK), &page)
 	if len(page.InboundShipments) != 1 || page.InboundShipments[0].ShipmentID != "SHP-1" || page.InboundShipments[0].SellerID != "S-1" ||

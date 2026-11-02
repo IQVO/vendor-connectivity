@@ -47,8 +47,8 @@ Source: `internal/application/usecases/vendors.go`, aggregate `internal/domain/v
 | Use case | Trigger | Inputs | Invariants | Events |
 | --- | --- | --- | --- | --- |
 | `OnboardVendor` | `POST /vendors` | `vendorId`, `name`, `ackWindowMinutes` | The window is 60 to 1440 minutes (`ErrAckWindowOutOfRange`). Onboarding an existing `vendorId` returns the account unchanged with `200` instead of `201`. | `VendorOnboarded` |
-| `SuspendVendor` | `POST /vendors/{vendorId}:suspend` | optional `reason` | ACTIVE moves to SUSPENDED; suspending a suspended vendor is a no-op that raises nothing. | `VendorSuspended` |
-| `ReinstateVendor` | `POST /vendors/{vendorId}:reinstate` | none | SUSPENDED moves to ACTIVE; no-op when already active. | `VendorReinstated` |
+| `SuspendVendor` | `POST /vendors/{vendorId}/suspensions` | optional `reason` | ACTIVE moves to SUSPENDED; suspending a suspended vendor is a no-op that raises nothing. | `VendorSuspended` |
+| `ReinstateVendor` | `POST /vendors/{vendorId}/reinstatements` | none | SUSPENDED moves to ACTIVE; no-op when already active. | `VendorReinstated` |
 | `GetVendor` | `GET /vendors/{vendorId}` | `vendorId` | Allowed while suspended. | none |
 
 A suspended vendor's writes are refused with `ErrVendorSuspended`; its reads stay open.
@@ -70,7 +70,7 @@ Source: `usecases/orders.go`, aggregate `internal/domain/purchaseorder`.
 | `SubmitAcknowledgement` | `POST /vendor/acknowledgements` (202) | `vendorId`, `poNumber`, `decision` (`ACCEPT` or `REJECT`), `reasonCode`, `lines` (`lineNo`, `quantity`) | Order owned by the vendor; state `ISSUED`; `now` not after `ackBy` (`ErrAckWindowClosed`, also for `EXPIRED`); a second one is `ErrAlreadyAcknowledged`; every line exactly once at its ordered quantity (`ErrPartialAcknowledgement`); `ACCEPT` carries no `reasonCode`, `REJECT` needs one of `OUT_OF_STOCK`, `UNKNOWN_LISTING`, `CANNOT_MEET_SHIP_BY`, `DISCONTINUED`. Moves the order to `ACK_PROCESSING` and receives an `ACKNOWLEDGEMENT` submission in the same unit. | none at receipt |
 | `RequestLabel` | `POST /vendor/shipping-labels` (200, synchronous) | `vendorId`, `poNumber`, `packages[].packageNo` | Order `ACCEPTED` (`ErrLabelBeforeAcceptance` earlier). 1 to 100 distinct package numbers from 1 to 999999. Labels already held are returned from storage; the missing ones are issued by shipping-and-tracking with the deterministic key `vc-label-<poNumber>-<packageNo>` and stored even if a later package fails. Re-requesting only labelled packages is allowed after shipment. | none |
 | `SubmitShipmentConfirmation` | `POST /vendor/shipment-confirmations` (202) | `vendorId`, `poNumber`, `trackingNumbers`, `shippedAt` | Order `ACCEPTED`; the tracking numbers are exactly the order's labelled ones (`ErrConfirmWithoutLabel`, also for an order not yet accepted). Moves to `SHIPMENT_PROCESSING` and receives a `SHIPMENT_CONFIRMATION` submission. | none at receipt |
-| `PollPurchaseOrders` | `GET /vendor/purchase-orders` | `vendorId`, optional `nodeId`, `createdAfter`, `nextToken`, `limit` (default 50, max 200) | Oldest first, keyset-paged by opaque `nextToken`. With `PO_REDELIVERY_RATE` a page may repeat its first order. Lines carry `packaging[]` from the catalogue view. | none |
+| `PollPurchaseOrders` | `GET /vendor/purchase-orders` | `vendorId`, optional `nodeId`, `createdAfter`, `cursor`, `limit` (default 100, max 500) | Oldest first, keyset-paged by opaque `cursor`/`nextCursor`. With `PO_REDELIVERY_RATE` a page may repeat its first order. Lines carry `packaging[]` from the catalogue view. | none |
 | `GetPurchaseOrder` | `GET /vendor/purchase-orders/{poNumber}` | `vendorId`, `poNumber` | The acknowledgement decision is visible only once its transaction succeeded. | none |
 
 ## Submissions (asynchronous writes)
@@ -93,7 +93,7 @@ Source: `usecases/submissions.go`, aggregate `internal/domain/submission`.
 | --- | --- | --- |
 | `ListVendorNodes`, `GetNode` | `GET /vendor/nodes`, `GET /vendor/nodes/{nodeId}` | From the local node view; ownership checked. |
 | `GetScorecard` | `GET /vendor/nodes/{nodeId}/scorecard` | Relayed synchronously from node-performance (`GET /scorecards/{nodeId}`); `503 upstream-unavailable` if it does not answer. |
-| `PollInboundShipments` | `GET /vendor/inbound-shipments` | Only `SHIPPED` shipments bound for the vendor's nodes, oldest shipment first, own `nextToken` bound to the vendor and node filter. |
+| `PollInboundShipments` | `GET /vendor/inbound-shipments` | Only `SHIPPED` shipments bound for the vendor's nodes, oldest shipment first, own `cursor` bound to the vendor and node filter. |
 | `GetInboundShipment` | `GET /vendor/inbound-shipments/{shipmentId}` | A shipment that has not shipped or belongs to another vendor's node is `404`. Cartons are grouped under pallets by `parentSscc`. |
 
 ## Consumer policies (local read models)

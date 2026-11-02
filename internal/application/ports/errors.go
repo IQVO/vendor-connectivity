@@ -17,6 +17,9 @@ var (
 	// ErrUpstreamRefused is a neighbour 4xx the caller cannot turn into a
 	// vendor-meaningful answer (problem type upstream-refused, 502).
 	ErrUpstreamRefused = errors.New("upstream refused")
+	// ErrInvalidCursor is a continuation token this API did not issue for this
+	// request (problem type invalid-cursor, 400).
+	ErrInvalidCursor = errors.New("cursor is not a valid page token")
 	// ErrNodeNotKnown marks a release for a node VendorNodeView has not seen
 	// yet: a retryable consumer error (assumption A4), never a client error.
 	ErrNodeNotKnown = errors.New("node not known yet")

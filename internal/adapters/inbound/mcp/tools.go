@@ -73,7 +73,7 @@ type pollPurchaseOrdersInput struct {
 	NodeID       string `json:"nodeId,omitempty" jsonschema:"keep only orders released to this node; omitted means every node of the vendor"`
 	CreatedAfter string `json:"createdAfter,omitempty" jsonschema:"keep only orders issued after this moment, an RFC 3339 date-time such as 2026-10-01T00:00:00Z; omitted means every issue date"`
 	NextToken    string `json:"nextToken,omitempty" jsonschema:"the opaque nextToken returned by the previous page; omitted means the first page"`
-	Limit        int    `json:"limit,omitempty" jsonschema:"page size, 1..200; omitted or 0 means the service default of 50"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"page size, 1..500; omitted or 0 means the service default of 50"`
 }
 
 type vendorShipmentInput struct {
@@ -86,7 +86,7 @@ type pollInboundShipmentsInput struct {
 	NodeID       string `json:"nodeId,omitempty" jsonschema:"keep only shipments bound for this node; omitted means every node of the vendor"`
 	CreatedAfter string `json:"createdAfter,omitempty" jsonschema:"keep only shipments shipped after this moment, an RFC 3339 date-time such as 2026-10-01T00:00:00Z; omitted means every ship date"`
 	NextToken    string `json:"nextToken,omitempty" jsonschema:"the opaque nextToken returned by the previous page; omitted means the first page"`
-	Limit        int    `json:"limit,omitempty" jsonschema:"page size, 1..200; omitted or 0 means the service default of 50"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"page size, 1..500; omitted or 0 means the service default of 50"`
 }
 
 // --- handlers -----------------------------------------------------------------

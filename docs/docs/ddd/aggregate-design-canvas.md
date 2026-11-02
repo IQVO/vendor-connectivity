@@ -56,8 +56,8 @@ None. The only coupling is the guard above: a `SUSPENDED` vendor's writes answer
 | Command | Issued by | Channel |
 | --- | --- | --- |
 | `OnboardVendor` | Network partner manager | REST `POST /vendors` |
-| `SuspendVendor` | operator | REST `POST /vendors/{vendorId}:suspend` (optional `reason`) |
-| `ReinstateVendor` | operator | REST `POST /vendors/{vendorId}:reinstate` |
+| `SuspendVendor` | operator | REST `POST /vendors/{vendorId}/suspensions` (optional `reason`) |
+| `ReinstateVendor` | operator | REST `POST /vendors/{vendorId}/reinstatements` |
 
 ### 7. Created Events
 

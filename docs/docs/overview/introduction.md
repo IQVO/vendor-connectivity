@@ -73,7 +73,7 @@ never gets more time to answer than it has left to pick and pack.
 
 ## Main capabilities
 
-1. Onboard, suspend and reinstate a vendor account (`POST /vendors`, `:suspend`, `:reinstate`).
+1. Onboard, suspend and reinstate a vendor account (`POST /vendors`, `POST /vendors/{vendorId}/suspensions`, `POST /vendors/{vendorId}/reinstatements`).
 2. Turn `FulfillmentReleasedToNode` into a purchase order with a computed `ackBy`; cancel it
    on `FulfillmentCancelled` while it is still `ISSUED`; expire it when `ackBy` passes.
 3. Accept the vendor's whole-order acknowledgement, label request and shipment confirmation,

@@ -170,7 +170,7 @@ Contract: [`apis/openapi.yaml`](apis/openapi.yaml). No authentication; a vendor 
 | `GET /vendor/inbound-shipments`, `GET /vendor/inbound-shipments/{shipmentId}` | poll the SHIPPED inbound shipments of the vendor's nodes, read one (pallet > carton > item tree) |
 | `POST /vendor/inbound-receipts` | report an inbound receipt (202, `INBOUND_RECEIPT`) |
 | `GET /vendor/transactions/{transactionId}` | outcome of a write |
-| `POST /vendors`, `GET /vendors/{vendorId}`, `POST /vendors/{vendorId}:suspend`, `:reinstate` | vendor account |
+| `POST /vendors`, `GET /vendors/{vendorId}`, `POST /vendors/{vendorId}/suspensions`, `POST /vendors/{vendorId}/reinstatements` | vendor account |
 | `GET /healthz`, `GET /readyz` | liveness, readiness |
 
 ### MCP server (read-only)
@@ -179,7 +179,7 @@ Contract: [`apis/openapi.yaml`](apis/openapi.yaml). No authentication; a vendor 
 
 | Tool | Read |
 | --- | --- |
-| `poll_purchase_orders` | the vendor's orders, paged with `nextToken`, narrowable to a node and an issue date |
+| `poll_purchase_orders` | the vendor's orders, paged with `nextToken` (the MCP tool keeps its own schema; the REST list uses `cursor`/`nextCursor`), narrowable to a node and an issue date |
 | `get_purchase_order` | one order: windows, lines, acknowledgement, labels, tracking |
 | `poll_inbound_shipments` | the shipments bound for the vendor's nodes, paged, with their pallet-and-carton trees |
 | `get_inbound_shipment` | one inbound shipment: pallets, cartons, item lines in eaches |
@@ -231,7 +231,7 @@ in-cluster ClusterIP boundary is the access control — and both reuse
 
 ## Operator micro-frontend (web/)
 
-`web/` is the `vendor_connectivity_mfe` Module Federation remote ([ADR 0007](docs/adr/0007-console-remote.md)): four read-only screens over the REST GETs (the purchase-order list with `nextToken` paging, one order's lifecycle and acknowledgement transaction, the inbound shipments with their pallet-and-carton trees, and the vendor's nodes with their scorecards). The shell mounts it under `/vendor-connectivity/*` and serves it at `/mfes/vendor-connectivity/`; the API base comes from the console's runtime `apiOrigin`. `@warehouse/ui-kit` is a sibling checkout:
+`web/` is the `vendor_connectivity_mfe` Module Federation remote ([ADR 0007](docs/adr/0007-console-remote.md)): four read-only screens over the REST GETs (the purchase-order list with `cursor`/`nextCursor` paging, one order's lifecycle and acknowledgement transaction, the inbound shipments with their pallet-and-carton trees, and the vendor's nodes with their scorecards). The shell mounts it under `/vendor-connectivity/*` and serves it at `/mfes/vendor-connectivity/`; the API base comes from the console's runtime `apiOrigin`. `@warehouse/ui-kit` is a sibling checkout:
 
 ```sh
 cd web && npm ci && npm run dev            # standalone on :4021

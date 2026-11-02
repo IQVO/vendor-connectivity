@@ -36,7 +36,7 @@ type OnboardVendor struct {
 	AckWindowMinutes int    `json:"ackWindowMinutes"`
 }
 
-// SuspendVendor is the optional body of POST /vendors/{vendorId}:suspend.
+// SuspendVendor is the optional body of POST /vendors/{vendorId}/suspensions.
 type SuspendVendor struct {
 	Reason string `json:"reason,omitempty"`
 }

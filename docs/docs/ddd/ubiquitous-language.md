@@ -34,7 +34,7 @@ The terms of the aggregates (`internal/domain/vendor`, `purchaseorder`, `submiss
 | **notBefore** | `receivedAt + TX_PROCESSING_DELAY`; a submission is never processed earlier. | `submission.Submission` field `notBefore`, `Due(now)` | — |
 | **Label** | `labelRef + trackingNumber + carrier`; never the address. | `purchaseorder.Label` | **Shipping Label** in shipping-and-tracking, the aggregate that also holds the encrypted ship-to snapshot |
 | **Vendor API** | The Open Host Service of this context; its JSON schemas are the Published Language. | `apis/openapi.yaml` | The in-org REST of other contexts, which vendors never call |
-| **nextToken** | Opaque continuation token of the PO poll. | query parameter `nextToken` | A timestamp watermark (`createdAfter`) |
+| **cursor / nextCursor** | Opaque continuation token of the PO poll. | query parameter `cursor`, response member `nextCursor` | A timestamp watermark (`createdAfter`) |
 | **Simulation knobs** | `TX_PROCESSING_DELAY`, `TX_FAILURE_RATE`, `RATE_LIMIT_RPS`, `PO_REDELIVERY_RATE`; all default to well-behaved. | `usecases.Knobs` | Production configuration |
 
 ## Neighbour terms this context uses
@@ -91,7 +91,7 @@ how the seam works end to end is on
 | Label (`labelRef`, `trackingNumber`, `carrier`) | `LabelResult` | No address on either side of the seam |
 | Promise / deliver-by window | none | The fleet never sees the delivery promise; it sees only `requiredShipBy` |
 | `ackBy` | `acknowledgeBy` | The fleet fixes `receivedAt + 24h`; the network's `ackBy` can be earlier, so the fleet must read it from the PO |
-| `GET /vendor/purchase-orders` with `nextToken` | `PollDemand` | The fleet polls "since watermark" |
+| `GET /vendor/purchase-orders` with `cursor` | `PollDemand` | The fleet polls "since watermark" |
 | `POST /vendor/acknowledgements` | `SubmitAcknowledgement(accepted)` | Fill-or-kill on both sides; the fleet's port has no reason-code argument today |
 | `POST /vendor/inventory` | the fleet's availability submission | Carries the fleet's `CapabilityOffer` quantity and `Basis`; method name not re-verified |
 | `PUT /vendor/nodes/{nodeId}/profile` | the fleet's capability declaration | Method name changed since the aggregator pack; see network-fulfillment ADR 0027 |

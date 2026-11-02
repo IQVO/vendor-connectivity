@@ -55,7 +55,7 @@ transaction as the aggregate change.
 | --- | --- |
 | Type | `com.retailnetwork.partner.vendor-connectivity.vendoraccount.VendorSuspended` |
 | Subject / key | `vendorId` |
-| Produced by | `SuspendVendor` (REST `POST /vendors/{vendorId}:suspend`), only when the account was `ACTIVE` |
+| Produced by | `SuspendVendor` (REST `POST /vendors/{vendorId}/suspensions`), only when the account was `ACTIVE` |
 | Consumers | none yet |
 
 | Field | Type | Meaning |
@@ -70,7 +70,7 @@ transaction as the aggregate change.
 | --- | --- |
 | Type | `com.retailnetwork.partner.vendor-connectivity.vendoraccount.VendorReinstated` |
 | Subject / key | `vendorId` |
-| Produced by | `ReinstateVendor` (REST `POST /vendors/{vendorId}:reinstate`), only when the account was `SUSPENDED` |
+| Produced by | `ReinstateVendor` (REST `POST /vendors/{vendorId}/reinstatements`), only when the account was `SUSPENDED` |
 | Consumers | none yet |
 
 | Field | Type | Meaning |

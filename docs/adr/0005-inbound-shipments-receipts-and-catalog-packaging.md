@@ -18,7 +18,7 @@ tolerant local copy of the payloads it consumes.
 
 ### Vendor API
 
-- `GET /vendor/inbound-shipments?vendorId=&nodeId=&createdAfter=&nextToken=&limit=`: the SHIPPED
+- `GET /vendor/inbound-shipments?vendorId=&nodeId=&createdAfter=&cursor=&limit=`: the SHIPPED
   shipments with a manifest bound for the vendor's nodes, oldest first, keyset-paged by
   `(shippedAt, shipmentId)` exactly like the purchase-order poll. `createdAfter` compares with
   `shippedAt`. `nodeId` of another vendor is `node-not-owned-by-vendor`. A shipment leaves the poll

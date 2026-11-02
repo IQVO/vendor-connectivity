@@ -74,6 +74,9 @@ type NodeViewRepository interface {
 	Get(ctx context.Context, nodeID string) (network.Node, error)
 	// ListByVendor returns the nodes owned by the vendor ordered by id ascending.
 	ListByVendor(ctx context.Context, vendorID string) ([]network.Node, error)
+	// ListByVendorPage returns up to limit of the vendor's nodes with an id
+	// strictly greater than afterID ("" = from the start), ordered by id ascending.
+	ListByVendorPage(ctx context.Context, vendorID, afterID string, limit int) ([]network.Node, error)
 	// Save inserts or replaces the node row.
 	Save(ctx context.Context, n network.Node) error
 }
