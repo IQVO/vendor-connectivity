@@ -38,6 +38,35 @@ type Reads interface {
 	GetVendor(ctx context.Context, vendorID string) (views.VendorAccount, error)
 }
 
+// Authority levels (Agentic Standard v2, AS-1). Every registered tool
+// declares exactly one of these in its Meta under authorityMetaKey; the fleet
+// rule is .claude/rules/fleet/agent-authority.md (warehouse-docs
+// agents/fleet/agent-authority.md). This context's MCP charter is read-only
+// (docs/adr/0006), so every tool is L1: it reads facts of this context and
+// changes nothing. The full L1..L4 vocabulary is the fleet contract (G1:
+// there is no L5), so every level stays declared even while no tool here
+// uses L2..L4 yet; the helper shape is pinned by the fleet sensor
+// (internal/architecture/mcp_authority_fitness_test.go).
+const (
+	// authorityMetaKey is the tools/list _meta key carrying a tool's level.
+	authorityMetaKey = "com.warehouse/authority"
+	// authorityL1 reads facts and changes nothing.
+	authorityL1 = "L1"
+	// authorityL2 is a pure recommendation: computes a proposal, changes nothing.
+	authorityL2 = "L2" //nolint:unused // the fleet vocabulary (G1); no L2 tool in this read-only context yet
+	// authorityL3 mutates state; the caller is accountable.
+	authorityL3 = "L3" //nolint:unused // the fleet vocabulary (G1); no L3 tool in this read-only context yet
+	// authorityL4 mutates state inside a bounded envelope an ADR grants.
+	authorityL4 = "L4" //nolint:unused // the fleet vocabulary (G1); no ADR grants L4 here
+)
+
+// authorityMeta is the Meta a tool registers to declare its authority level.
+// The parameter stays even though every tool here is L1: one name, one shape,
+// across the fleet.
+func authorityMeta(level string) mcp.Meta { //nolint:unparam // every tool here passes authorityL1; the shape is the fleet contract
+	return mcp.Meta{authorityMetaKey: level}
+}
+
 // Deps is everything the MCP tools need, injected by the composition root.
 // It carries the read surface only; the adapter never constructs an outbound
 // adapter itself, and it holds no write use case at all (docs/adr/0006). A
@@ -197,8 +226,10 @@ func (d Deps) getVendor(ctx context.Context, in vendorInput) (views.VendorAccoun
 
 // registerTools adds the nine read-only tools, one per GET operation of the
 // Vendor API, grouped the way the Vendor API groups them. Every tool is
-// annotated read-only, idempotent and closed-world; TestToolSurface pins the
-// set and fails the build on any write-verb name (docs/adr/0006).
+// annotated read-only, idempotent and closed-world, and declares its Agentic
+// Standard authority level in Meta (L1 for all nine: a read of this context's
+// own state, docs/adr/0011); TestToolSurface pins the set and fails the build
+// on any write-verb tool name (docs/adr/0006).
 func (d Deps) registerTools(server *mcp.Server) {
 	closedWorld := false
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld}
@@ -222,6 +253,7 @@ func (d Deps) registerOrderTools(server *mcp.Server, readOnly *mcp.ToolAnnotatio
 			"with validation-failed, a node of another vendor with node-not-owned-by-vendor and a bad nextToken with " +
 			"validation-failed.",
 		Annotations: readOnly,
+		Meta:        authorityMeta(authorityL1),
 	}, d.pollPurchaseOrders)
 
 	addTool(server, &mcp.Tool{
@@ -231,6 +263,7 @@ func (d Deps) registerOrderTools(server *mcp.Server, readOnly *mcp.ToolAnnotatio
 			"and tracking numbers, and shippedAt once confirmed. Read-only; an order of another vendor fails with " +
 			"node-not-owned-by-vendor, an unknown one with not-found and a malformed vendorId with validation-failed.",
 		Annotations: readOnly,
+		Meta:        authorityMeta(authorityL1),
 	}, d.getPurchaseOrder)
 }
 
@@ -246,6 +279,7 @@ func (d Deps) registerInboundTools(server *mcp.Server, readOnly *mcp.ToolAnnotat
 			"validation-failed, a node of another vendor with node-not-owned-by-vendor and a bad nextToken with " +
 			"validation-failed.",
 		Annotations: readOnly,
+		Meta:        authorityMeta(authorityL1),
 	}, d.pollInboundShipments)
 
 	addTool(server, &mcp.Tool{
@@ -255,6 +289,7 @@ func (d Deps) registerInboundTools(server *mcp.Server, readOnly *mcp.ToolAnnotat
 			"not shipped yet, or is bound for another vendor's node, is as absent as an unknown one. Read-only; fails " +
 			"with not-found for an unknown or not-yet-shipped shipment and validation-failed for a malformed id.",
 		Annotations: readOnly,
+		Meta:        authorityMeta(authorityL1),
 	}, d.getInboundShipment)
 }
 
@@ -267,6 +302,7 @@ func (d Deps) registerNodeTools(server *mcp.Server, readOnly *mcp.ToolAnnotation
 			"revision. The local copy of node-topology events, as GET /vendor/nodes serves it. Read-only; an unknown " +
 			"vendor fails with not-found and a malformed one with validation-failed.",
 		Annotations: readOnly,
+		Meta:        authorityMeta(authorityL1),
 	}, d.listVendorNodes)
 
 	addTool(server, &mcp.Tool{
@@ -276,6 +312,7 @@ func (d Deps) registerNodeTools(server *mcp.Server, readOnly *mcp.ToolAnnotation
 			"one. Read-only; fails with node-not-owned-by-vendor for a node of another vendor, not-found for an unknown " +
 			"one and validation-failed for a malformed id.",
 		Annotations: readOnly,
+		Meta:        authorityMeta(authorityL1),
 	}, d.getVendorNode)
 
 	addTool(server, &mcp.Tool{
@@ -286,6 +323,7 @@ func (d Deps) registerNodeTools(server *mcp.Server, readOnly *mcp.ToolAnnotation
 			"with not-found. Read-only; the node must belong to the vendor (node-not-owned-by-vendor) and a neighbour " +
 			"outage surfaces as upstream-unavailable or upstream-refused.",
 		Annotations: readOnly,
+		Meta:        authorityMeta(authorityL1),
 	}, d.getNodeScorecard)
 }
 
@@ -299,6 +337,7 @@ func (d Deps) registerAccountTools(server *mcp.Server, readOnly *mcp.ToolAnnotat
 			"every error (code, message, path). Read-only; a transaction of another vendor is not-found, an unknown one " +
 			"not-found, a malformed vendorId validation-failed.",
 		Annotations: readOnly,
+		Meta:        authorityMeta(authorityL1),
 	}, d.getTransaction)
 
 	addTool(server, &mcp.Tool{
@@ -308,6 +347,7 @@ func (d Deps) registerAccountTools(server *mcp.Server, readOnly *mcp.ToolAnnotat
 			"suspended; only writes are refused. Read-only; an unknown vendor fails with not-found and a malformed one " +
 			"with validation-failed.",
 		Annotations: readOnly,
+		Meta:        authorityMeta(authorityL1),
 	}, d.getVendor)
 }
 
