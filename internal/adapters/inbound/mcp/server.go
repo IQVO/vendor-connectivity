@@ -48,14 +48,16 @@ const instructions = "Vendor connectivity of the retail network (read-only): pag
 	"here changes data: acknowledgements, inventory feeds, shipment confirmations, label requests and inbound " +
 	"receipts are REST operations of vendor-connectivity."
 
-// NewServer builds the MCP server for this bounded context with every tool
-// registered.
+// NewServer builds the MCP server for this bounded context with every tool,
+// resource and workflow prompt registered.
 func NewServer(deps Deps) *mcp.Server {
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: serverName, Version: serverVersion},
 		&mcp.ServerOptions{Instructions: instructions},
 	)
 	deps.registerTools(server)
+	deps.registerResources(server)
+	deps.registerPrompts(server)
 	return server
 }
 
