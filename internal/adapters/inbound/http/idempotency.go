@@ -221,6 +221,17 @@ func (c *capture) Write(b []byte) (int, error) {
 // runFreshRequest handles a genuinely new key: capture the response, persist
 // the outcome in the same transaction, commit, and only then write to the
 // real client.
+//
+// The handler runs behind a SAVEPOINT. A mapped domain conflict (a lost race
+// on a unique index, 23505 answered as a truthful 409) fails a statement on
+// the server and leaves the shared transaction ABORTED, so recording the
+// outcome would hit 25P02 and the client would see a 500. Releasing the
+// savepoint exposes that: the release fails, ROLLBACK TO SAVEPOINT discards
+// only the handler's partial writes (the key-row INSERT before the savepoint
+// survives) and heals the transaction, and the 4xx outcome is recorded and
+// committed like any other. A 2xx answer behind a failed release is a lie
+// (its writes are gone), so it rolls everything back and fails the request:
+// the same key retries the real work.
 func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request, tx pgx.Tx, bind TxBinder, route, key string, next http.Handler) {
 	defer func() {
 		if p := recover(); p != nil {
@@ -228,6 +239,11 @@ func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request
 			panic(p)
 		}
 	}()
+	if _, err := tx.Exec(ctx, "SAVEPOINT handler_run"); err != nil {
+		_ = tx.Rollback(ctx)
+		writeError(w, r, err)
+		return
+	}
 	rec := &capture{header: http.Header{}}
 	next.ServeHTTP(rec, r.WithContext(bind(ctx, tx)))
 	if rec.code == 0 {
@@ -239,6 +255,21 @@ func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request
 		_ = tx.Rollback(ctx)
 		flush(w, rec)
 		return
+	}
+	if _, err := tx.Exec(ctx, "RELEASE SAVEPOINT handler_run"); err != nil {
+		// A statement inside the handler failed on the server: the
+		// transaction is aborted. Roll back to the savepoint to heal it.
+		if _, rerr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT handler_run"); rerr != nil {
+			_ = tx.Rollback(ctx)
+			writeError(w, r, err)
+			return
+		}
+		if rec.code < http.StatusBadRequest {
+			// A success whose writes are gone is neither returned nor cached.
+			_ = tx.Rollback(ctx)
+			writeError(w, r, err)
+			return
+		}
 	}
 	headers, err := json.Marshal(rec.header)
 	if err != nil {
