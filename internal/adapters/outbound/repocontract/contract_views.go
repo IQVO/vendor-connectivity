@@ -10,7 +10,7 @@ import (
 
 func nodes(t *testing.T, e Env) {
 	ctx := context.Background()
-	_, err := e.Nodes.Get(ctx, "n-1")
+	_, err := e.Nodes.Get(ctx, nodeOne)
 	isErr(t, err, ports.ErrNotFound, "Get on empty")
 	reg := func(id, vendorID string, op network.Operator) network.Node {
 		n, err := network.Node{}.OnRegistered(network.Registered{NodeID: id, NodeType: "FULFILLMENT_CENTER", Subtype: "SORTABLE", Operator: op,
@@ -18,35 +18,35 @@ func nodes(t *testing.T, e Env) {
 		must(t, err)
 		return n
 	}
-	n1 := reg("n-1", "V-1", network.OperatorVendor)
+	n1 := reg(nodeOne, vendorOne, network.OperatorVendor)
 	must(t, e.Nodes.Save(ctx, n1))
-	got, err := e.Nodes.Get(ctx, "n-1")
+	got, err := e.Nodes.Get(ctx, nodeOne)
 	must(t, err)
 	if got != n1 {
 		t.Fatalf("round trip: %+v vs %+v", got, n1)
 	}
-	n1, err = n1.OnProfileDeclared("n-1", 2, 90)
+	n1, err = n1.OnProfileDeclared(nodeOne, 2, 90)
 	must(t, err)
-	n1, err = n1.OnStatus("n-1", network.StatusActive)
+	n1, err = n1.OnStatus(nodeOne, network.StatusActive)
 	must(t, err)
 	must(t, e.Nodes.Save(ctx, n1))
-	got, _ = e.Nodes.Get(ctx, "n-1")
+	got, _ = e.Nodes.Get(ctx, nodeOne)
 	if got != n1 || got.HandlingTimeMinutes != 90 || got.Status != network.StatusActive {
 		t.Fatalf("upsert replaced the row: %+v", got)
 	}
-	must(t, e.Nodes.Save(ctx, reg("n-0", "V-1", network.OperatorVendor)))
-	must(t, e.Nodes.Save(ctx, reg("n-2", "V-2", network.OperatorVendor)))
+	must(t, e.Nodes.Save(ctx, reg("n-0", vendorOne, network.OperatorVendor)))
+	must(t, e.Nodes.Save(ctx, reg(nodeTwo, "V-2", network.OperatorVendor)))
 	must(t, e.Nodes.Save(ctx, reg("n-3", "", network.OperatorNetwork)))
-	mine, err := e.Nodes.ListByVendor(ctx, "V-1")
+	mine, err := e.Nodes.ListByVendor(ctx, vendorOne)
 	must(t, err)
-	if len(mine) != 2 || mine[0].ID != "n-0" || mine[1].ID != "n-1" {
+	if len(mine) != 2 || mine[0].ID != "n-0" || mine[1].ID != nodeOne {
 		t.Fatalf("ListByVendor = %+v", mine)
 	}
-	first, err := e.Nodes.ListByVendorPage(ctx, "V-1", "", 1)
+	first, err := e.Nodes.ListByVendorPage(ctx, vendorOne, "", 1)
 	must(t, err)
-	rest, err := e.Nodes.ListByVendorPage(ctx, "V-1", first[0].ID, 5)
+	rest, err := e.Nodes.ListByVendorPage(ctx, vendorOne, first[0].ID, 5)
 	must(t, err)
-	if len(first) != 1 || first[0].ID != "n-0" || len(rest) != 1 || rest[0].ID != "n-1" {
+	if len(first) != 1 || first[0].ID != "n-0" || len(rest) != 1 || rest[0].ID != nodeOne {
 		t.Fatalf("ListByVendorPage = %+v then %+v", first, rest)
 	}
 	none, err := e.Nodes.ListByVendor(ctx, "V-9")
@@ -59,7 +59,7 @@ func listings(t *testing.T, e Env) {
 	ctx := context.Background()
 	_, err := e.Listings.Get(ctx, "lst-1")
 	isErr(t, err, ports.ErrNotFound, "Get on empty")
-	l, err := network.NewListing("lst-1", "n-1", "item-1")
+	l, err := network.NewListing("lst-1", nodeOne, "item-1")
 	must(t, err)
 	must(t, e.Listings.Save(ctx, l))
 	got, err := e.Listings.Get(ctx, "lst-1")
@@ -67,10 +67,10 @@ func listings(t *testing.T, e Env) {
 	if got != l {
 		t.Fatalf("round trip: %+v", got)
 	}
-	l.NodeID = "n-2"
+	l.NodeID = nodeTwo
 	must(t, e.Listings.Save(ctx, l))
 	got, _ = e.Listings.Get(ctx, "lst-1")
-	if got.NodeID != "n-2" {
+	if got.NodeID != nodeTwo {
 		t.Fatalf("upsert replaced the row: %+v", got)
 	}
 }

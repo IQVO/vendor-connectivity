@@ -234,7 +234,7 @@ func (s *Service) GetScorecard(ctx context.Context, vendorID, nodeID string) (vi
 		return views.Scorecard{}, err
 	}
 	sc, err := s.d.Performance.GetScorecard(ctx, nodeID)
-	var ref *gateway.Refusal
+	var ref *gateway.RefusalError
 	if errors.As(err, &ref) && ref.Status == 404 {
 		return views.Scorecard{}, ports.ErrNotFound
 	}

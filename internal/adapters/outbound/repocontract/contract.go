@@ -17,6 +17,14 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/domain/vendor"
 )
 
+// Shared fixture identifiers the whole contract suite builds its vendors
+// and fulfilment nodes around.
+const (
+	vendorOne = "V-1"
+	nodeOne   = "n-1"
+	nodeTwo   = "n-2"
+)
+
 // Env is one fresh, empty implementation under test.
 type Env struct {
 	UoW         ports.UnitOfWork
@@ -85,33 +93,33 @@ func NewOrder(t *testing.T, assignment, vendorID, nodeID string, issuedAt time.T
 // NewSubmission receives a submission at at with the given delay.
 func NewSubmission(t *testing.T, id string, kind submission.Kind, at time.Time, delay time.Duration) *submission.Submission {
 	t.Helper()
-	s, err := submission.Receive(submission.NewSubmission{ID: submission.ID(id), VendorID: "V-1", Kind: kind, Payload: []byte(`{"vendorId":"V-1"}`)}, at, delay)
+	s, err := submission.Receive(submission.NewSubmission{ID: submission.ID(id), VendorID: vendorOne, Kind: kind, Payload: []byte(`{"vendorId":"` + vendorOne + `"}`)}, at, delay)
 	must(t, err)
 	return s
 }
 
 func vendors(t *testing.T, e Env) {
 	ctx := context.Background()
-	_, err := e.Vendors.Get(ctx, "V-1")
+	_, err := e.Vendors.Get(ctx, vendorOne)
 	isErr(t, err, ports.ErrNotFound, "Get on empty")
-	a := NewVendor(t, "V-1")
+	a := NewVendor(t, vendorOne)
 	must(t, e.Vendors.Save(ctx, a))
-	got, err := e.Vendors.Get(ctx, "V-1")
+	got, err := e.Vendors.Get(ctx, vendorOne)
 	must(t, err)
 	if !reflect.DeepEqual(got.Snapshot(), a.Snapshot()) {
 		t.Fatalf("round trip:\n got %+v\nwant %+v", got.Snapshot(), a.Snapshot())
 	}
-	isErr(t, e.Vendors.Save(ctx, NewVendor(t, "V-1")), ports.ErrConcurrentUpdate, "second create")
+	isErr(t, e.Vendors.Save(ctx, NewVendor(t, vendorOne)), ports.ErrConcurrentUpdate, "second create")
 	_, err = got.Suspend("audit", T0.Add(time.Hour))
 	must(t, err)
 	must(t, e.Vendors.Save(ctx, got))
-	stale, _ := e.Vendors.Get(ctx, "V-1")
-	fresh, _ := e.Vendors.Get(ctx, "V-1")
+	stale, _ := e.Vendors.Get(ctx, vendorOne)
+	fresh, _ := e.Vendors.Get(ctx, vendorOne)
 	_, _ = stale.Reinstate(T0.Add(2 * time.Hour))
 	_, _ = fresh.Reinstate(T0.Add(2 * time.Hour))
 	must(t, e.Vendors.Save(ctx, fresh))
 	isErr(t, e.Vendors.Save(ctx, stale), ports.ErrConcurrentUpdate, "stale update")
-	again, _ := e.Vendors.Get(ctx, "V-1")
+	again, _ := e.Vendors.Get(ctx, vendorOne)
 	if again.Version() != 3 || again.State() != vendor.Active {
 		t.Fatalf("stored = %+v", again.Snapshot())
 	}

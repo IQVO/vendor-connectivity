@@ -118,7 +118,7 @@ func RequireIdempotencyKey(pool *pgxpool.Pool, bind TxBinder) func(http.Handler)
 				replayCachedResponse(w, r, pool, route, key, requestHash)
 				return
 			}
-			runFreshRequest(ctx, w, r, tx, bind, route, key, next)
+			runFreshRequest(ctx, w, r, tx, bind, key, next)
 		})
 	}
 }
@@ -174,11 +174,11 @@ func replayCachedResponse(w http.ResponseWriter, r *http.Request, pool *pgxpool.
 	_, _ = w.Write(body)
 }
 
-var errMissingOutcome = errorString("idempotency row committed with no recorded outcome")
+var errMissingOutcome = idempotencyError("idempotency row committed with no recorded outcome")
 
-type errorString string
+type idempotencyError string
 
-func (e errorString) Error() string { return string(e) }
+func (e idempotencyError) Error() string { return string(e) }
 
 func copyStoredHeaders(dst http.Header, raw []byte) {
 	if len(raw) == 0 {
@@ -232,7 +232,7 @@ func (c *capture) Write(b []byte) (int, error) {
 // committed like any other. A 2xx answer behind a failed release is a lie
 // (its writes are gone), so it rolls everything back and fails the request:
 // the same key retries the real work.
-func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request, tx pgx.Tx, bind TxBinder, route, key string, next http.Handler) {
+func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request, tx pgx.Tx, bind TxBinder, key string, next http.Handler) {
 	defer func() {
 		if p := recover(); p != nil {
 			_ = tx.Rollback(ctx)

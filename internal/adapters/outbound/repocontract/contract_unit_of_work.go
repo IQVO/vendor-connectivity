@@ -20,23 +20,23 @@ func unitOfWork(t *testing.T, e Env) {
 		must(t, err)
 		return n
 	}
-	ev := []shared.Event{vendor.VendorOnboarded{Header: shared.Header{Version: 1, At: T0}, VendorID: "V-1", Name: "n", AckWindowMinutes: 60}}
+	ev := []shared.Event{vendor.VendorOnboarded{Header: shared.Header{Version: 1, At: T0}, VendorID: vendorOne, Name: "n", AckWindowMinutes: 60}}
 	// commit
 	err := e.UoW.Do(ctx, func(ctx context.Context) error {
-		must(t, e.Vendors.Save(ctx, NewVendor(t, "V-1")))
+		must(t, e.Vendors.Save(ctx, NewVendor(t, vendorOne)))
 		must(t, e.Outbox.Append(ctx, ev...))
 		_, err := e.Inbox.Claim(ctx, "evt-commit", "t", T0)
 		return err
 	})
 	must(t, err)
-	if _, err := e.Vendors.Get(ctx, "V-1"); err != nil || count() != 1 {
+	if _, err := e.Vendors.Get(ctx, vendorOne); err != nil || count() != 1 {
 		t.Fatalf("commit must persist the vendor and its outbox row: %v %d", err, count())
 	}
 	// rollback
 	err = e.UoW.Do(ctx, func(ctx context.Context) error {
 		must(t, e.Vendors.Save(ctx, NewVendor(t, "V-2")))
 		must(t, e.Outbox.Append(ctx, ev...))
-		must(t, e.Orders.Save(ctx, NewOrder(t, "asg-rb", "V-2", "n-1", T0)))
+		must(t, e.Orders.Save(ctx, NewOrder(t, "asg-rb", "V-2", nodeOne, T0)))
 		if _, err := e.Inbox.Claim(ctx, "evt-rollback", "t", T0); err != nil {
 			return err
 		}

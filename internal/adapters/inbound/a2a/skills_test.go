@@ -119,13 +119,13 @@ func TestWireNeighbourFailuresAreProblemsAndDoNotLeak(t *testing.T) {
 	wantProblem(t, env, 503, "upstream-unavailable")
 	assertNoLeak(t, env, text, "10.0.0.7")
 
-	f.perf.Err = &gateway.Refusal{Status: 403, Code: "forbidden", Message: "token abc123 rejected", Path: "/scorecards/n-1"}
+	f.perf.Err = &gateway.RefusalError{Status: 403, Code: "forbidden", Message: "token abc123 rejected", Path: "/scorecards/n-1"}
 	env, text = w.skill(t, skillGetNodeScorecard, args)
 	wantProblem(t, env, 502, "upstream-refused")
 	assertNoLeak(t, env, text, "abc123")
 
 	// A neighbour 404 is the node having no scorecard yet: not-found.
-	f.perf.Err = &gateway.Refusal{Status: 404, Code: "not-found", Message: "no scorecard"}
+	f.perf.Err = &gateway.RefusalError{Status: 404, Code: "not-found", Message: "no scorecard"}
 	env, _ = w.skill(t, skillGetNodeScorecard, args)
 	wantProblem(t, env, 404, "not-found")
 }

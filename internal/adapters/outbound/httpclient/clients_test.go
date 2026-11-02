@@ -169,7 +169,7 @@ func assertGradedWindow(t *testing.T, w views.ScorecardWindow) {
 func TestRefusalsCarryTheNeighboursErrName(t *testing.T) {
 	srv, _ := neighbour(t, 409, `{"type":"stale-profile-revision","title":"Stale","status":409,"detail":"revision 2 is not newer than 3"}`)
 	_, err := httpclient.NewNodeTopology(srv.URL, nil).RegisterNode(context.Background(), "k", registration())
-	var ref *gateway.Refusal
+	var ref *gateway.RefusalError
 	if !errors.As(err, &ref) || ref.Status != 409 || ref.Code != "ErrStaleProfileRevision" || ref.Message != "revision 2 is not newer than 3" {
 		t.Fatalf("err = %v", err)
 	}

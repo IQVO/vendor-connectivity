@@ -98,7 +98,7 @@ func registerGiven(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^vendor "([^"]*)" has accepted the purchase order of "([^"]*)"$`, func(vendor, asg string) error {
 		body := fmt.Sprintf(`{"vendorId":%q,"poNumber":"{po:%s}","decision":"ACCEPT","lines":[{"lineNo":1,"quantity":2},{"lineNo":2,"quantity":1}]}`, vendor, asg)
 		if err := w.write(http.MethodPost, "/vendor/acknowledgements", body); err != nil || w.status != http.StatusAccepted {
-			return fmt.Errorf("acknowledge: %v %d %s", err, w.status, w.body)
+			return fmt.Errorf("acknowledge: %w %d %s", err, w.status, w.body)
 		}
 		_, err := w.svc.ProcessDueSubmissions(context.Background())
 		return err

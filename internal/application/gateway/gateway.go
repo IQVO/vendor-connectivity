@@ -39,9 +39,9 @@ type IssuedLabel struct {
 	Carrier        string
 }
 
-// Refusal is a neighbour's 4xx answer: a deterministic refusal, not an outage.
+// RefusalError is a neighbour's 4xx answer: a deterministic refusal, not an outage.
 // Code is the neighbour's Err identifier derived from its problem type.
-type Refusal struct {
+type RefusalError struct {
 	Status  int
 	Code    string
 	Message string
@@ -49,7 +49,7 @@ type Refusal struct {
 }
 
 // Error implements error.
-func (r *Refusal) Error() string {
+func (r *RefusalError) Error() string {
 	return fmt.Sprintf("neighbour refused (%d %s): %s", r.Status, r.Code, r.Message)
 }
 

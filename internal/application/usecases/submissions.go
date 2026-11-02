@@ -133,7 +133,7 @@ func success() result { return result{outcome: submission.Outcome{Status: submis
 // refusal is a failed transaction carrying the neighbour's Err code, anything
 // else leaves the submission PROCESSING for the next pass (A10).
 func classify(err error) result {
-	var ref *gateway.Refusal
+	var ref *gateway.RefusalError
 	switch {
 	case err == nil:
 		return success()
@@ -184,7 +184,7 @@ func (s *Service) executeInventory(ctx context.Context, sub *submission.Submissi
 		return failure(CodeMalformedPayload, err.Error(), "")
 	}
 	err := s.d.Offers.ApplyInventoryFeed(ctx, string(sub.ID()), req)
-	var ref *gateway.Refusal
+	var ref *gateway.RefusalError
 	if errors.As(err, &ref) && ref.Code == codeFeedAlreadyApplied {
 		return success() // an earlier attempt of this very transaction applied it (A10)
 	}

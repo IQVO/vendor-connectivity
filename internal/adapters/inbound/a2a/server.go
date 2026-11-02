@@ -75,6 +75,10 @@ type Deps struct {
 // exposes. The card declares no security schemes on purpose: this surface is
 // unauthenticated by the same fleet-wide decision as REST and MCP; schemes
 // are added here, not in a redesign, if that decision is ever reversed.
+// contentTypeJSON is the single content mode every skill accepts and the
+// card offers by default (alongside plain text for human-readable answers).
+const contentTypeJSON = "application/json"
+
 func Card(cfg Config) *a2a.AgentCard {
 	return &a2a.AgentCard{
 		Name:        "vendor-connectivity",
@@ -87,8 +91,8 @@ func Card(cfg Config) *a2a.AgentCard {
 		SupportedInterfaces: []*a2a.AgentInterface{
 			a2a.NewAgentInterface(cfg.AgentURL, a2a.TransportProtocolJSONRPC),
 		},
-		DefaultInputModes:  []string{"application/json", "text/plain"},
-		DefaultOutputModes: []string{"application/json", "text/plain"},
+		DefaultInputModes:  []string{contentTypeJSON, "text/plain"},
+		DefaultOutputModes: []string{contentTypeJSON, "text/plain"},
 		Capabilities:       a2a.AgentCapabilities{Streaming: false},
 		Skills: []a2a.AgentSkill{
 			{
@@ -96,7 +100,7 @@ func Card(cfg Config) *a2a.AgentCard {
 				Name:        "Check where one purchase order stands",
 				Description: "Read one purchase order released to a vendor, by vendorId and poNumber: state (ISSUED, ACK_PROCESSING, ACCEPTED, REJECTED, EXPIRED, SHIPMENT_PROCESSING, SHIPPED or CANCELLED), nodeId, the windows (issuedAt, requiredShipBy, ackBy), the lines (lineNo, listingId, quantity) and, once they exist, the acknowledgement, the labels, the tracking numbers and shippedAt. Never a ship-to address, an orderId or a delivery promise. Answers a 404 problem for an unknown vendor or order and for an order of another vendor (node-not-owned-by-vendor). Persists nothing.",
 				Tags:        []string{"vendor", "purchase-order", "read"},
-				InputModes:  []string{"application/json"},
+				InputModes:  []string{contentTypeJSON},
 				Examples: []string{
 					`{"skill":"get_purchase_order","arguments":{"vendorId":"vend-south-1","poNumber":"PO-9a1b-0001"}}`,
 				},
@@ -106,7 +110,7 @@ func Card(cfg Config) *a2a.AgentCard {
 				Name:        "Read how one vendor node is performing",
 				Description: "Read a vendor node's rolling scorecards, by vendorId and nodeId, relayed live from the node-performance context: per window (7d, 30d, 90d) the grade, on-time handover rate, late acknowledgement rate, reject rate, expiry rate, promise-kept rate and feed freshness p95, with the observation count. The node must belong to the vendor. Answers a 404 problem for an unknown vendor, a node of another vendor or a node without a scorecard yet, and a 503/502 problem when node-performance is unavailable or refuses. Persists nothing.",
 				Tags:        []string{"vendor", "node", "scorecard", "read"},
-				InputModes:  []string{"application/json"},
+				InputModes:  []string{contentTypeJSON},
 				Examples: []string{
 					`{"skill":"get_node_scorecard","arguments":{"vendorId":"vend-south-1","nodeId":"node-76c2"}}`,
 				},
