@@ -23,7 +23,7 @@ The outbox relay, the five consumers and three loops (submission processor, expi
 Shutdown: /readyz 503, `SHUTDOWN_DRAIN_DELAY` (5s), drain HTTP, stop consumers and loops, stop relay, close pool. cmd/** never imports internal/adapters/outbound/memory or repocontract. No authentication on REST. See docs/docs/overview/runtime.md.
 
 ## REST
-chi router implementing every operation of apis/openapi.yaml (15 `/vendor/*` operations plus the 4 `/vendors` account operations) plus /healthz, /readyz. Every write takes `Idempotency-Key` (table `idempotency_keys`, key = (route, key), 24h, replays the first response, same key + other request = 422 `idempotency-key-reused`).
+chi router implementing every operation of apis/openapi.yaml (15 `/vendor/*` operations plus the 4 `/vendors` account operations) plus /healthz, /readyz. Every POST/PATCH takes `Idempotency-Key` (table `idempotency_keys`, key is GLOBAL — looked up alone, fingerprint = method + path + body hash, 24h, replays the first response; same key + other request = 409 `idempotency-key-reused`; replay carries `Idempotency-Replayed: true`). List GETs page with `limit` + keyset `cursor`, body `{items,nextCursor}`.
 Every write returns 202 + `transactionId` except a label (200, documented exception). `vendorId` is in every write body and a required query parameter on reads (consistency check, not security). A suspended vendor's writes are 409 `vendor-suspended`.
 NUL: 404 in the path, 400 `malformed-request` elsewhere. Errors are RFC 9457 problem+json, `type` = slug: not-found, illegal-transition, concurrent-update, validation-failed + one kebab-case slug per model Err (internal/adapters/inbound/http/errors.go).
 
