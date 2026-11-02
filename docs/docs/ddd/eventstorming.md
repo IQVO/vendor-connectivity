@@ -64,7 +64,7 @@ flowchart TB
     E1["PurchaseOrderIssued"]:::event
     H1["Hotspot H1, resolved: handlingTime<br/>comes from NodeOperational-<br/>ProfileDeclared"]:::hotspot
     V["Vendor system<br/>network-fulfillment"]:::external
-    R2["Purchase orders<br/>poll with nextToken"]:::readmodel
+    R2["Purchase orders<br/>poll with cursor"]:::readmodel
     C2["SubmitAcknowledgement<br/>whole order"]:::command
     C3["Receive submission<br/>ACKNOWLEDGEMENT"]:::command
     G2["Submission<br/>PROCESSING"]:::aggregate
@@ -269,6 +269,6 @@ goes out for every processed write (board 2).
 | H1: `ackBy` needs `handlingTime` | Hotspot, resolved | `NodeOperationalProfileDeclared` is consumed and stored as `handling_time_minutes` on `vendor_nodes`; `purchaseorder.ComputeAckBy` uses it |
 | H2: cancel after acknowledgement is refused | Hotspot, open (one race) | `ErrCancelAfterAcknowledgement`; `CancelOnSourcingCancel` logs and publishes nothing; an acceptance after order-sourcing cancelled a `RELEASED` assignment is only logged there |
 | H3: label is synchronous | Hotspot, kept by design | `POST /vendor/shipping-labels` answers `200` with the labels; it calls shipping-and-tracking inline |
-| H4: suspension had no route, event or effect | Hotspot, resolved | `POST /vendors/{vendorId}:suspend` and `:reinstate`, `VendorSuspended` and `VendorReinstated`, `vendor.Account.EnsureActive` before every write |
+| H4: suspension had no route, event or effect | Hotspot, resolved | `POST /vendors/{vendorId}/suspensions` and `POST /vendors/{vendorId}/reinstatements`, `VendorSuspended` and `VendorReinstated`, `vendor.Account.EnsureActive` before every write |
 | H5: vendor never learns its `nodeId` | Hotspot, resolved | `GET /vendor/transactions/{transactionId}` returns `nodeId` (`result_node_id`) |
 | H6: caller identity without auth | Hotspot, open | `vendorId` is a body field and a required query parameter; `ErrNodeNotOwnedByVendor` is a consistency check, not authentication (in-cluster boundary) |

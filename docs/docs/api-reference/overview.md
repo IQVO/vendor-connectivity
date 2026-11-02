@@ -35,8 +35,8 @@ body.
 | --- | --- | --- | --- |
 | Vendors | `POST /vendors` | `onboardVendor` | `201` with the account; `200` with the unchanged account when the `vendorId` exists |
 | Vendors | `GET /vendors/{vendorId}` | `getVendor` | `200` |
-| Vendors | `POST /vendors/{vendorId}:suspend`, `POST /vendors/{vendorId}:reinstate` | `suspendVendor`, `reinstateVendor` | `200` with the account |
-| Purchase Orders | `GET /vendor/purchase-orders` | `pollPurchaseOrders` | `200`, a page with `nextToken` |
+| Vendors | `POST /vendors/{vendorId}/suspensions`, `POST /vendors/{vendorId}/reinstatements` | `suspendVendor`, `reinstateVendor` | `200` with the account |
+| Purchase Orders | `GET /vendor/purchase-orders` | `pollPurchaseOrders` | `200`, a page `{items, nextCursor}` |
 | Purchase Orders | `GET /vendor/purchase-orders/{poNumber}` | `getPurchaseOrder` | `200` |
 | Acknowledgements | `POST /vendor/acknowledgements` | `submitAcknowledgement` | `202 {transactionId}` |
 | Inventory | `POST /vendor/inventory` | `submitInventory` | `202 {transactionId}` |
@@ -66,14 +66,16 @@ but not in `apis/openapi.yaml`. The `:suspend` and `:reinstate` actions share on
   `ErrSimulatedFailure`; a neighbour refusal fails a transaction with the neighbour's `Err...` code.
   A failed acknowledgement returns the order to `ISSUED` (so the vendor may try again inside the
   window) and a failed shipment confirmation returns it to `ACCEPTED`.
-- **Idempotency.** `Idempotency-Key` is 1 to 128 characters and scoped to method and path. Every
-  response below 500 (4xx included) is stored for 24 h and replayed for the same key and body
-  (for an asynchronous write, the same `transactionId`); the same key with a different body is
-  `422 idempotency-key-reused`; a missing or oversized key is `422 idempotency-key-required`. A
-  5xx rolls back and is never stored.
-- **Paging.** Polls take `nodeId`, `createdAfter` (RFC 3339), `limit` (default 50, maximum 200)
-  and the opaque `nextToken` of the previous page; no `nextToken` marks the last page. A token is
-  bound to its vendor and filters. Polling is oldest-first, and with `PO_REDELIVERY_RATE` a page may
+- **Idempotency.** `Idempotency-Key` (1 to 128 printable ASCII characters) is global, not per route, and
+  every POST is behind it. Every response below 500 (4xx included) is stored for 24 h and replayed for
+  the same key, method, path and body (for an asynchronous write, the same `transactionId`) with the
+  header `Idempotency-Replayed: true`; the same key with a different method, path or body is
+  `409 idempotency-key-reused`; a missing key is `400 idempotency-key-required` and a malformed one
+  `400 idempotency-key-invalid`. A 5xx rolls back and is never stored.
+- **Paging.** Polls take `nodeId`, `createdAfter` (RFC 3339), `limit` (default 100, maximum 500)
+  and the opaque `cursor` (the `nextCursor` of the previous page); no `nextCursor` marks the last page.
+  Every list answers `{items, nextCursor}`, and a query parameter a list does not declare (such as the
+  retired `nextToken`) is `400 unknown-query-parameter`. Polling is oldest-first, and with `PO_REDELIVERY_RATE` a page may
   repeat its first order, so consumers must be idempotent on `poNumber`.
 - **Rate limit.** `429 rate-limited` with `Retry-After` (whole seconds, at least 1) when the
   per-process token bucket is empty.
@@ -85,7 +87,8 @@ but not in `apis/openapi.yaml`. The `:suspend` and `:reinstate` actions share on
   `node-not-owned-by-vendor` (404); `vendor-suspended`, `already-acknowledged`,
   `ack-window-closed`, `label-before-acceptance`, `confirm-without-label`,
   `cancel-after-acknowledgement`, `submission-already-processed`, `submission-not-due` (409);
-  `rate-limited` (429); `idempotency-key-required`, `idempotency-key-reused` (422);
+  `rate-limited` (429); `idempotency-key-reused` (409); `idempotency-key-required`, `idempotency-key-invalid`,
+  `invalid-limit`, `invalid-cursor`, `unknown-query-parameter` (400);
   `upstream-unavailable` (503); `upstream-refused` (502); and `internal-error` (500). The map is
   `internal/adapters/inbound/http/errors.go`; remedies are on
   [Troubleshooting](/docs/operations/troubleshooting).

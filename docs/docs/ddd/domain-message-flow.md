@@ -28,8 +28,8 @@ sequenceDiagram
     participant NP as node-<br/>performance
     OS->>VC: evt:<br/>FulfillmentReleasedToNode
     VC->>NP: evt: PurchaseOrderIssued
-    NF->>VC: qry: GET<br/>/vendor/purchase-orders<br/>with nextToken
-    VC-->>NF: qry: reply purchaseOrders,<br/>nextToken
+    NF->>VC: qry: GET<br/>/vendor/purchase-orders<br/>with cursor
+    VC-->>NF: qry: reply items,<br/>nextCursor
     NF->>VC: cmd: POST<br/>/vendor/acknowledgements<br/>ACCEPT, every line
     VC-->>NF: cmd: reply 202<br/>transactionId
     Note over VC: after notBefore,<br/>ProcessSubmission SUCCESS,<br/>PO ACCEPTED
@@ -71,7 +71,7 @@ sequenceDiagram
     OS->>VC: evt:<br/>FulfillmentReleasedToNode<br/>releaseNo 1
     VC->>NP: evt: PurchaseOrderIssued
     NF->>VC: qry: GET<br/>/vendor/purchase-orders
-    VC-->>NF: qry: reply purchaseOrders
+    VC-->>NF: qry: reply items
     alt vendor rejects in full
         NF->>VC: cmd: POST<br/>/vendor/acknowledgements<br/>REJECT CANNOT_MEET_SHIP_BY
         VC-->>NF: cmd: reply 202<br/>transactionId
