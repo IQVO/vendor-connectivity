@@ -175,7 +175,7 @@ Contract: [`apis/openapi.yaml`](apis/openapi.yaml). No authentication; a vendor 
 
 ### MCP server (read-only)
 
-`cmd/mcp` is a second binary exposing the same nine reads to the AI ecosystem over the official MCP Go SDK, Streamable HTTP only, at `/mcp` and `/` with an open `/healthz` ([ADR 0006](docs/adr/0006-mcp-server-adoption.md)). It is read-only by construction — the adapter holds exactly the read methods the REST GETs call — and it never dials Kafka, runs the relay, the consumers or the loops. No auth (fleet-wide decision); access control is the ClusterIP boundary, and Kong rewrites `/api/mcp/vendor-connectivity` to `/mcp`.
+`cmd/mcp` is a second binary exposing the same nine reads to the AI ecosystem over the official MCP Go SDK, Streamable HTTP only, at `/mcp` and `/` with an open `/healthz` ([ADR 0006](docs/adr/0006-mcp-server-adoption.md)). It is read-only by construction — the adapter holds exactly the read methods the REST GETs call — and it never dials Kafka, runs the relay, the consumers or the loops. No auth (fleet-wide decision); access control is the ClusterIP boundary, and Kong rewrites `/api/mcp/vendor-connectivity` to `/mcp`. Every tool declares the Agentic Standard authority level `L1` (`com.warehouse/authority` in `tools/list` `_meta`, both A2A skills tag `authority:L1`), the handler is stateless (2026-07-28 `server/discover` answered, no session id), and the surface is complete with the `warehouse://vendor-connectivity/vendors/{vendorId}/nodes` resource and the `triage_vendor_orders` operator prompt ([ADR 0011](docs/adr/0011-agent-authority-levels-and-complete-mcp-surface.md)).
 
 | Tool | Read |
 | --- | --- |

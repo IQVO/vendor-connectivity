@@ -23,7 +23,12 @@ a field without `omitempty` is required.
 :::
 
 Every tool carries the same annotations: `readOnlyHint: true`, `idempotentHint: true`,
-`openWorldHint: false`. A failing read comes back as a tool result with `isError: true` and the
+`openWorldHint: false`, and — the fleet's Agentic Standard v2 (AS-1,
+[ADR 0011](/docs/adr/0011-agent-authority-levels-and-complete-mcp-surface)) — an
+authority level `L1` in its `tools/list` `_meta` under `com.warehouse/authority`:
+every tool here is a pure read of this context's own state (`L2` would be a computed
+recommendation, `L3` a write; the charter has neither). The Agent Card skills carry
+the same level as an `authority:L1` tag. A failing read comes back as a tool result with `isError: true` and the
 text `<slug>: <detail>`, where the slug is the REST problem slug (`validation-failed`,
 `not-found`, `node-not-owned-by-vendor`, `upstream-unavailable`, `upstream-refused`); any other
 failure is `internal-error: an unexpected internal error occurred` and is logged server-side
@@ -50,7 +55,24 @@ There are no write tools. Acknowledgements, inventory feeds, shipment confirmati
 requests, inbound receipts, node registration and the vendor lifecycle are REST operations
 (see the [API overview](/docs/api-reference)).
 
+## Resource and prompt (AS-3)
+
+The surface is complete, not tools-only (ADR 0011):
+
+- **Resource** `warehouse://vendor-connectivity/vendors/{vendorId}/nodes` — the vendor
+  node roster, the same scoped read model as `list_vendor_nodes` (behind
+  `GET /vendor/nodes`), served as JSON text. Read-only, bounded to one vendor's nodes.
+- **Prompt** `triage_vendor_orders` — the operator SOP for triaging one vendor's orders
+  (account state, node roster, open orders against their `ackBy` windows, in-flight
+  transactions, what to escalate). One typed required argument, `vendorId`. It names the
+  read tools but never calls them and encodes no write: vendor writes stay REST
+  operations.
+
 ## Calling it
+
+The handler is **stateless** (AS-4, ADR 0011): no `Mcp-Session-Id` is issued, and the
+server answers the 2026-07-28 revision's per-request handshake (`server/discover`)
+while legacy `initialize` clients keep working.
 
 ```bash
 curl -s -X POST http://localhost:8090/mcp \
