@@ -56,13 +56,13 @@ export function NodesScreen() {
         state={nodes}
         what="fulfilment nodes"
         whenIdle="Enter a vendor id to list its fulfilment nodes."
-        isEmpty={(d) => d.nodes.length === 0}
+        isEmpty={(d) => d.items.length === 0}
         empty="No fulfilment nodes registered for this vendor yet."
       >
         {(d) => (
           <DataTable<VendorNode>
             rowKey={(n) => n.nodeId}
-            rows={d.nodes}
+            rows={d.items}
             onRowClick={(n) => setSelected(n.nodeId)}
             columns={[
               { key: "id", header: "Node", render: (n) => n.nodeId },
