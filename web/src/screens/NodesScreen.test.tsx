@@ -22,7 +22,7 @@ async function askFor(vendorId: string) {
 
 describe("NodesScreen", () => {
   it("lists the vendor's nodes with their topology facts", async () => {
-    mockApi({ "GET /vendor/nodes": json({ nodes: [vendorNode(), vendorNode({ nodeId: "node-aa10", subtype: "NON_SORTABLE", status: "PROPOSED", timezone: "Europe/Berlin" })] }) });
+    mockApi({ "GET /vendor/nodes": json({ items: [vendorNode(), vendorNode({ nodeId: "node-aa10", subtype: "NON_SORTABLE", status: "PROPOSED", timezone: "Europe/Berlin" })] }) });
     renderScreen();
     await askFor("vend-south-1");
     expect(await screen.findByText("node-76c2")).toBeInTheDocument();
@@ -34,7 +34,7 @@ describe("NodesScreen", () => {
 
   it("relays the selected node's scorecard", async () => {
     const api = mockApi({
-      "GET /vendor/nodes": json({ nodes: [vendorNode()] }),
+      "GET /vendor/nodes": json({ items: [vendorNode()] }),
       "GET /vendor/nodes/node-76c2/scorecard": json(scorecard()),
     });
     renderScreen();
@@ -47,7 +47,7 @@ describe("NodesScreen", () => {
   });
 
   it("shows an empty note for a vendor with no nodes", async () => {
-    mockApi({ "GET /vendor/nodes": json({ nodes: [] }) });
+    mockApi({ "GET /vendor/nodes": json({ items: [] }) });
     renderScreen();
     await askFor("vend-empty");
     expect(await screen.findByText(/No fulfilment nodes registered/)).toBeInTheDocument();
@@ -55,7 +55,7 @@ describe("NodesScreen", () => {
 
   it("renders a neighbour outage as the problem it is", async () => {
     mockApi({
-      "GET /vendor/nodes": json({ nodes: [vendorNode()] }),
+      "GET /vendor/nodes": json({ items: [vendorNode()] }),
       "GET /vendor/nodes/node-76c2/scorecard": problem(503, "upstream-unavailable", "Upstream unavailable", "node-performance is not answering"),
     });
     renderScreen();

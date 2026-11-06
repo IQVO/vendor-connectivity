@@ -89,27 +89,44 @@ async function get<T>(path: string): Promise<T> {
 
 const seg = encodeURIComponent;
 
-/** GET /vendor/purchase-orders -- the vendor's orders, oldest first, paged. */
+/**
+ * Reads one `{items,nextCursor}` page (fleet REST guideline 5.2). A 200 that is
+ * not a page -- a bare array, the retired `purchaseOrders` / `inboundShipments`
+ * / `nodes` keys, `items` missing or null -- is REFUSED with an ApiError rather
+ * than shown as an empty list, so a contract break is loud, never "no orders".
+ */
+function toPage<T>(body: unknown, path: string): { items: T[]; nextCursor?: string } {
+  const items: unknown = body !== null && typeof body === "object" && !Array.isArray(body) ? Reflect.get(body, "items") : undefined;
+  if (!Array.isArray(items)) {
+    throw new ApiError(502, { detail: `GET ${path} answered 200 but not a {items,nextCursor} page` }, "Response is not a page");
+  }
+  const next: unknown = Reflect.get(body as object, "nextCursor");
+  return { items: items as T[], nextCursor: typeof next === "string" && next !== "" ? next : undefined };
+}
+
+/** GET /vendor/purchase-orders -- the vendor's orders, oldest first, one page (`cursor` = the previous page's nextCursor). */
 export async function pollPurchaseOrders(q: PollQuery): Promise<PurchaseOrderPage> {
-  const res = await get<PurchaseOrderPage>(
-    withQuery("/vendor/purchase-orders", {
+  const path = "/vendor/purchase-orders";
+  const body = await get<unknown>(
+    withQuery(path, {
       vendorId: q.vendorId, nodeId: q.nodeId, createdAfter: q.createdAfter,
-      nextToken: q.nextToken, limit: q.limit,
+      cursor: q.cursor, limit: q.limit,
     }),
   );
-  return { purchaseOrders: res.purchaseOrders ?? [], nextToken: res.nextToken || undefined };
+  return toPage<PurchaseOrder>(body, path);
 }
 
 /** GET /vendor/inbound-shipments -- the shipments bound for the vendor's
- *  nodes, oldest first, paged. */
+ *  nodes, oldest first, one page. */
 export async function pollInboundShipments(q: InboundPollQuery): Promise<InboundShipmentPage> {
-  const res = await get<InboundShipmentPage>(
-    withQuery("/vendor/inbound-shipments", {
+  const path = "/vendor/inbound-shipments";
+  const body = await get<unknown>(
+    withQuery(path, {
       vendorId: q.vendorId, nodeId: q.nodeId, createdAfter: q.createdAfter,
-      nextToken: q.nextToken, limit: q.limit,
+      cursor: q.cursor, limit: q.limit,
     }),
   );
-  return { inboundShipments: res.inboundShipments ?? [], nextToken: res.nextToken || undefined };
+  return toPage<InboundShipment>(body, path);
 }
 
 /** GET /vendor/inbound-shipments/{shipmentId} -- the pallet-and-carton tree
@@ -123,10 +140,20 @@ export async function getPurchaseOrder(vendorId: string, poNumber: string): Prom
   return get<PurchaseOrder>(withQuery(`/vendor/purchase-orders/${seg(poNumber)}`, { vendorId }));
 }
 
-/** GET /vendor/nodes -- the vendor's fulfilment nodes, sorted by nodeId. */
+/** Pages followed for the node list: a bound, so a producer that keeps returning a nextCursor cannot loop the screen forever. */
+export const NODE_LIST_MAX_PAGES = 50;
+
+/** GET /vendor/nodes -- every node of the vendor, sorted by nodeId (follows nextCursor to the last page). */
 export async function listVendorNodes(vendorId: string): Promise<VendorNodeList> {
-  const res = await get<VendorNodeList>(withQuery("/vendor/nodes", { vendorId }));
-  return { nodes: res.nodes ?? [] };
+  const items: VendorNode[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < NODE_LIST_MAX_PAGES; page++) {
+    const res = toPage<VendorNode>(await get<unknown>(withQuery("/vendor/nodes", { vendorId, cursor })), "/vendor/nodes");
+    items.push(...res.items);
+    if (res.nextCursor === undefined) return { items };
+    cursor = res.nextCursor;
+  }
+  throw new ApiError(502, { detail: `GET /vendor/nodes still had a nextCursor after ${NODE_LIST_MAX_PAGES} pages` }, "Node list too long");
 }
 
 /** GET /vendor/nodes/{nodeId} (node-not-owned-by-vendor for another vendor's). */

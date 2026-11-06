@@ -52,8 +52,9 @@ export interface PurchaseOrder {
 
 /** One page of GET /vendor/purchase-orders. */
 export interface PurchaseOrderPage {
-  purchaseOrders: PurchaseOrder[];
-  nextToken?: string;
+  items: PurchaseOrder[];
+  /** Absent on the last page. */
+  nextCursor?: string;
 }
 
 /** A node as the network knows it (the local copy of node-topology events). */
@@ -71,7 +72,7 @@ export interface VendorNode {
 }
 
 export interface VendorNodeList {
-  nodes: VendorNode[];
+  items: VendorNode[];
 }
 
 /** One rolling window of a node's scorecard, relayed from node-performance. */
@@ -126,7 +127,7 @@ export interface PollQuery {
   vendorId: string;
   nodeId?: string;
   createdAfter?: string;
-  nextToken?: string;
+  cursor?: string;
   limit?: number;
 }
 
@@ -167,8 +168,9 @@ export interface InboundShipment {
 
 /** One page of GET /vendor/inbound-shipments. */
 export interface InboundShipmentPage {
-  inboundShipments: InboundShipment[];
-  nextToken?: string;
+  items: InboundShipment[];
+  /** Absent on the last page. */
+  nextCursor?: string;
 }
 
 /** Filters of the inbound-shipment poll. */
@@ -176,6 +178,6 @@ export interface InboundPollQuery {
   vendorId: string;
   nodeId?: string;
   createdAfter?: string;
-  nextToken?: string;
+  cursor?: string;
   limit?: number;
 }

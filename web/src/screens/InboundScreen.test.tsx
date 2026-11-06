@@ -30,7 +30,7 @@ describe("InboundScreen", () => {
 
   it("lists the vendor's inbound shipments with their tree sizes", async () => {
     const api = mockApi({
-      "GET /vendor/inbound-shipments": json({ inboundShipments: [inboundShipment()] }),
+      "GET /vendor/inbound-shipments": json({ items: [inboundShipment()] }),
     });
     renderScreen();
     await askFor("vend-south-1");
@@ -42,22 +42,22 @@ describe("InboundScreen", () => {
     expect(call.query.get("nodeId")).toBeNull();
   });
 
-  it("passes the node filter through and pages with nextToken", async () => {
+  it("passes the node filter through and pages with nextCursor", async () => {
     const api = mockApi({
-      "GET /vendor/inbound-shipments": json({ inboundShipments: [inboundShipment()], nextToken: "tok-9" }),
+      "GET /vendor/inbound-shipments": json({ items: [inboundShipment()], nextCursor: "tok-9" }),
     });
     renderScreen();
     await askFor("vend-south-1", "node-76c2");
     await screen.findByText("ish-4b7e");
     expect(api.to("GET /vendor/inbound-shipments")[0].query.get("nodeId")).toBe("node-76c2");
-    api.set("GET /vendor/inbound-shipments", json({ inboundShipments: [inboundShipment({ shipmentId: "ish-0a5c" })] }));
+    api.set("GET /vendor/inbound-shipments", json({ items: [inboundShipment({ shipmentId: "ish-0a5c" })] }));
     (await screen.findByRole("button", { name: "Next page" })).click();
     await screen.findByText("ish-0a5c");
-    expect(api.to("GET /vendor/inbound-shipments")[1].query.get("nextToken")).toBe("tok-9");
+    expect(api.to("GET /vendor/inbound-shipments")[1].query.get("cursor")).toBe("tok-9");
   });
 
   it("renders an empty page honestly", async () => {
-    mockApi({ "GET /vendor/inbound-shipments": json({ inboundShipments: [] }) });
+    mockApi({ "GET /vendor/inbound-shipments": json({ items: [] }) });
     renderScreen();
     await askFor("vend-empty");
     expect(await screen.findByText(/No inbound shipments/)).toBeInTheDocument();

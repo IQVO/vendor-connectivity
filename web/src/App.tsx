@@ -58,7 +58,7 @@ function ConnectivityLayout() {
  *
  *   - (index): redirects to orders.
  *   - orders: the purchase orders released to one vendor, paged with
- *     nextToken, narrowable to one node.
+ *     nextCursor, narrowable to one node.
  *   - orders/:poNumber: one order -- its windows, lines, acknowledgement,
  *     labels and tracking numbers.
  *   - inbound: the inbound shipments bound for the vendor's nodes, paged;

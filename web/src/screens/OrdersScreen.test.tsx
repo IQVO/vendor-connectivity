@@ -37,7 +37,7 @@ describe("OrdersScreen", () => {
 
   it("shows the vendor's orders, oldest first, with their windows", async () => {
     const api = mockApi({
-      "GET /vendor/purchase-orders": json({ purchaseOrders: [purchaseOrder({ state: "ACCEPTED" })] }),
+      "GET /vendor/purchase-orders": json({ items: [purchaseOrder({ state: "ACCEPTED" })] }),
     });
     renderScreen();
     await askFor("vend-south-1");
@@ -51,23 +51,23 @@ describe("OrdersScreen", () => {
   });
 
   it("passes the node filter through", async () => {
-    const api = mockApi({ "GET /vendor/purchase-orders": json({ purchaseOrders: [] }) });
+    const api = mockApi({ "GET /vendor/purchase-orders": json({ items: [] }) });
     renderScreen();
     await askFor("vend-south-1", "node-76c2");
     await screen.findByText(/No purchase orders/);
     expect(api.to("GET /vendor/purchase-orders")[0].query.get("nodeId")).toBe("node-76c2");
   });
 
-  it("pages with the opaque nextToken", async () => {
-    const api = mockApi({ "GET /vendor/purchase-orders": json({ purchaseOrders: [purchaseOrder()], nextToken: "tok-2" }) });
+  it("pages with the opaque nextCursor", async () => {
+    const api = mockApi({ "GET /vendor/purchase-orders": json({ items: [purchaseOrder()], nextCursor: "tok-2" }) });
     renderScreen();
     await askFor("vend-south-1");
     const next = await screen.findByRole("button", { name: "Next page" });
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
-    api.set("GET /vendor/purchase-orders", json({ purchaseOrders: [purchaseOrder({ poNumber: "PO-9A1B-0002" })] }));
+    api.set("GET /vendor/purchase-orders", json({ items: [purchaseOrder({ poNumber: "PO-9A1B-0002" })] }));
     (next as HTMLElement).click();
     await screen.findByText("PO-9A1B-0002");
-    expect(api.to("GET /vendor/purchase-orders")[1].query.get("nextToken")).toBe("tok-2");
+    expect(api.to("GET /vendor/purchase-orders")[1].query.get("cursor")).toBe("tok-2");
     expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled();
   });
 
