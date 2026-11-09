@@ -29,7 +29,9 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 			`{"vendorId":"V-1","reinstatedAt":"2026-10-22T13:00:00Z"}`},
 		{"purchaseorder", "PurchaseOrderIssued", po, "events", TopicEvents,
 			`{"poNumber":"PO-asg-1-1","vendorId":"V-1","nodeId":"n-1","assignmentId":"asg-1","releaseNo":1,` +
-				`"requiredShipBy":"2026-10-24T13:00:00Z","ackBy":"2026-10-22T15:00:00Z","lines":[{"lineNo":1,"listingId":"lst-1","quantity":2}]}`},
+				`"requiredShipBy":"2026-10-24T13:00:00Z","ackBy":"2026-10-22T15:00:00Z","lines":[{"lineNo":1,"listingId":"lst-1","quantity":2},` +
+				// ADR 0012: ownerRef is omitted for operator-owned stock (line 1), present for a seller's (line 2).
+				`{"lineNo":2,"listingId":"lst-2","quantity":1,"ownerRef":"seller-7"}]}`},
 		{"purchaseorder", "PurchaseOrderAccepted", po, "events", TopicEvents,
 			`{"poNumber":"PO-asg-1-1","assignmentId":"asg-1","releaseNo":1,"nodeId":"n-1","acceptedAt":"2026-10-22T13:00:00Z","transactionId":"tx-1"}`},
 		{"purchaseorder", "PurchaseOrderRejected", po, "events", TopicEvents,

@@ -18,6 +18,9 @@ type PoLine struct {
 	LineNo    int    `json:"lineNo"`
 	ListingID string `json:"listingId"`
 	Quantity  int    `json:"quantity"`
+	// OwnerRef is the owner of the goods to pick (the seller's ownerRef);
+	// omitted for operator-owned stock (ADR 0012).
+	OwnerRef string `json:"ownerRef,omitempty"`
 	// Packaging is the active packaging of the listing's catalogue item, from
 	// CatalogPackagingView (empty when none was declared).
 	Packaging []Packaging `json:"packaging"`

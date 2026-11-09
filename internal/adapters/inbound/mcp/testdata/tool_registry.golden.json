@@ -451,6 +451,9 @@
               "listingId": {
                 "type": "string"
               },
+              "ownerRef": {
+                "type": "string"
+              },
               "packaging": {
                 "items": {
                   "additionalProperties": false,
@@ -1232,6 +1235,9 @@
                       "type": "integer"
                     },
                     "listingId": {
+                      "type": "string"
+                    },
+                    "ownerRef": {
                       "type": "string"
                     },
                     "packaging": {
