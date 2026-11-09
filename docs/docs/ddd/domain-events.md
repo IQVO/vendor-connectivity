@@ -96,7 +96,7 @@ transaction as the aggregate change.
 | `releaseNo` | integer | The release of that assignment |
 | `requiredShipBy` | date-time | The pickup cutoff to be ready for |
 | `ackBy` | date-time | `min(issuedAt + ackWindow, requiredShipBy - handlingTime)` |
-| `lines` | array of `{lineNo, listingId, quantity}` | The `PoLine`s |
+| `lines` | array of `{lineNo, listingId, quantity, ownerRef?}` | The `PoLine`s; `ownerRef` names the seller whose stock to pick, omitted for operator-owned stock (ADR 0012) |
 
 ### PurchaseOrderAccepted
 
@@ -237,7 +237,7 @@ and dispatches on the full `type` string.
 
 | Producer | Full type | What this context does | Idempotency beyond the inbox |
 | --- | --- | --- | --- |
-| order-sourcing | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | Policy `IssueOnRelease`: if `nodeId` is a `VENDOR` node in `VendorNodeView`, issue a purchase order from `assignmentId`, `releaseNo`, `requiredShipBy`, `tier` and `lines` (`listingId`, `quantity`); `orderId` and `tier` are kept internally for the label call and never published; anything else in the payload is ignored. A node not yet in the view is a retryable failure | `poNumber` is derived from `assignmentId + releaseNo`; a second release event with the same pair finds the order and does nothing |
+| order-sourcing | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | Policy `IssueOnRelease`: if `nodeId` is a `VENDOR` node in `VendorNodeView`, issue a purchase order from `assignmentId`, `releaseNo`, `requiredShipBy`, `tier` and `lines` (`listingId`, `quantity`, optional `ownerRef`: absent means operator-owned, ADR 0012); `orderId` and `tier` are kept internally for the label call and never published; anything else in the payload is ignored. A node not yet in the view is a retryable failure | `poNumber` is derived from `assignmentId + releaseNo`; a second release event with the same pair finds the order and does nothing |
 | order-sourcing | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled` | Policy `CancelOnSourcingCancel`: `CancelPurchaseOrder` on the order of the assignment's highest `releaseNo` (no order is a no-op) | A `CANCELLED` order is left as is; a non-`ISSUED` one is refused (`ErrCancelAfterAcknowledgement`), logged at INFO, nothing published and not retried |
 | node-topology | `com.retailnetwork.logistics.node-topology.node.NodeRegistered` | Upsert `VendorNodeView` (`nodeId`, `vendorId`, `vendorNodeCode`, `nodeType`, `subtype`, `operator`, `regionId`, `timezone`); a brand new node is `PROPOSED`, an existing status is kept | Upsert by `nodeId` |
 | node-topology | `com.retailnetwork.logistics.node-topology.node.NodeOperationalProfileDeclared` | Store `handlingTimeMinutes` and `profileRevision` (feeds `ackBy`) | A revision not higher than the stored one is ignored |

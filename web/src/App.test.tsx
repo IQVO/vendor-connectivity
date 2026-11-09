@@ -19,11 +19,11 @@ function renderUnderHost(path: string) {
 }
 
 const ROUTES = {
-  "GET /vendor/purchase-orders": json({ purchaseOrders: [purchaseOrder()] }),
+  "GET /vendor/purchase-orders": json({ items: [purchaseOrder()] }),
   "GET /vendor/purchase-orders/PO-9A1B-0001": json(purchaseOrder()),
-  "GET /vendor/inbound-shipments": json({ inboundShipments: [inboundShipment()] }),
+  "GET /vendor/inbound-shipments": json({ items: [inboundShipment()] }),
   "GET /vendor/inbound-shipments/ish-4b7e": json(inboundShipment()),
-  "GET /vendor/nodes": json({ nodes: [vendorNode()] }),
+  "GET /vendor/nodes": json({ items: [vendorNode()] }),
 };
 
 describe("App", () => {

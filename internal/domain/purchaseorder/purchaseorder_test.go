@@ -15,7 +15,7 @@ func newOrderInput() NewOrder {
 	return NewOrder{
 		AssignmentID: "asg-1", ReleaseNo: 1, VendorID: "V-WS", NodeID: "n-1", OrderID: "ord-1", GroupNo: 2, Tier: NextDay,
 		RequiredShipBy: t0.Add(8 * time.Hour), AckWindow: 4 * time.Hour, HandlingTime: time.Hour,
-		Lines: []NewLine{{ListingID: "lst-1", Quantity: 2}, {ListingID: "lst-2", Quantity: 5}},
+		Lines: []NewLine{{ListingID: "lst-1", Quantity: 2}, {ListingID: "lst-2", Quantity: 5, OwnerRef: "seller-7"}},
 	}
 }
 
@@ -114,7 +114,8 @@ func TestIssueBuildsTheOrderAndRaisesTheEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantLines := []Line{{1, "lst-1", 2}, {2, "lst-2", 5}}
+	// Line 1 is operator-owned (empty OwnerRef), line 2 a seller's stock (ADR 0012).
+	wantLines := []Line{{LineNo: 1, ListingID: "lst-1", Quantity: 2}, {LineNo: 2, ListingID: "lst-2", Quantity: 5, OwnerRef: "seller-7"}}
 	assertSnapshot(t, p, Snapshot{
 		Number: NumberFor("asg-1", 1), VendorID: "V-WS", NodeID: "n-1", AssignmentID: "asg-1", OrderID: "ord-1", GroupNo: 2, Tier: NextDay,
 		ReleaseNo: 1, IssuedAt: t0, RequiredShipBy: t0.Add(8 * time.Hour), AckBy: t0.Add(4 * time.Hour), Lines: wantLines, State: Issued, Version: 1,
@@ -172,6 +173,7 @@ func TestIssueRejectsBadInput(t *testing.T) {
 		"zero quantity":     func(n *NewOrder) { n.Lines[0].Quantity = 0 },
 		"huge quantity":     func(n *NewOrder) { n.Lines[0].Quantity = MaxQuantity + 1 },
 		"bad listing":       func(n *NewOrder) { n.Lines[1].ListingID = "" },
+		"bad owner":         func(n *NewOrder) { n.Lines[1].OwnerRef = "a b" },
 	}
 	for name, mut := range tests {
 		in := newOrderInput()

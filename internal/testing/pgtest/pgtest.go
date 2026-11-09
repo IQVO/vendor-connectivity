@@ -29,6 +29,10 @@ const (
 	templateName = "vc_template"
 )
 
+// Pool is the pool type the helpers hand out, re-exported so test files
+// that hold one never import the driver.
+type Pool = pgxpool.Pool
+
 var (
 	once      sync.Once
 	container *tcpostgres.PostgresContainer
@@ -105,6 +109,26 @@ func URL(t *testing.T) string {
 	ctx := context.Background()
 	name := fmt.Sprintf("t_%d", seq.Add(1))
 	if err := adminExec(ctx, `CREATE DATABASE `+name+` TEMPLATE `+templateName); err != nil {
+		t.Fatalf("create database %s: %v", name, err)
+	}
+	url, err := databaseURL(ctx, name)
+	if err != nil {
+		t.Fatalf("database url: %v", err)
+	}
+	return url
+}
+
+// EmptyURL returns the DSN of a FRESH database with NO migrations applied,
+// for tests that walk the migrations step by step.
+func EmptyURL(t *testing.T) string {
+	t.Helper()
+	once.Do(start)
+	if errStart != nil {
+		t.Fatalf("start postgres container: %v", errStart)
+	}
+	ctx := context.Background()
+	name := fmt.Sprintf("e_%d", seq.Add(1))
+	if err := adminExec(ctx, `CREATE DATABASE `+name); err != nil {
 		t.Fatalf("create database %s: %v", name, err)
 	}
 	url, err := databaseURL(ctx, name)

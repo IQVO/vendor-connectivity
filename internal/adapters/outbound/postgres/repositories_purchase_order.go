@@ -26,10 +26,13 @@ const orderColumns = `po_number, vendor_id, node_id, assignment_id, release_no, 
 	lines, ack_decision, ack_reason_code, ack_transaction_id, labels, shipment_transaction_id, shipment_shipped_at, shipment_tracking,
 	cancel_reason, cancelled_at, version`
 
+// lineJSON is one element of purchase_orders.lines. ownerRef is always
+// written ("" = operator-owned); migration 0004 backfilled it (ADR 0012).
 type lineJSON struct {
 	LineNo    int    `json:"lineNo"`
 	ListingID string `json:"listingId"`
 	Quantity  int    `json:"quantity"`
+	OwnerRef  string `json:"ownerRef"`
 }
 
 type labelJSON struct {
@@ -66,7 +69,7 @@ func fillOrder(s *purchaseorder.Snapshot, lines, labels, tracking []byte, decisi
 		return fmt.Errorf("decode lines: %w", err)
 	}
 	for _, l := range ls {
-		s.Lines = append(s.Lines, purchaseorder.Line{LineNo: l.LineNo, ListingID: l.ListingID, Quantity: l.Quantity})
+		s.Lines = append(s.Lines, purchaseorder.Line{LineNo: l.LineNo, ListingID: l.ListingID, Quantity: l.Quantity, OwnerRef: l.OwnerRef})
 	}
 	var lb []labelJSON
 	if err := json.Unmarshal(labels, &lb); err != nil {
@@ -205,7 +208,7 @@ func (r *PurchaseOrderRepo) Save(ctx context.Context, p *purchaseorder.PurchaseO
 func orderJSON(s purchaseorder.Snapshot) (lines, labels, tracking []byte, err error) {
 	ls := make([]lineJSON, len(s.Lines))
 	for i, l := range s.Lines {
-		ls[i] = lineJSON{LineNo: l.LineNo, ListingID: l.ListingID, Quantity: l.Quantity}
+		ls[i] = lineJSON{LineNo: l.LineNo, ListingID: l.ListingID, Quantity: l.Quantity, OwnerRef: l.OwnerRef}
 	}
 	lb := make([]labelJSON, len(s.Labels))
 	for i, l := range s.Labels {

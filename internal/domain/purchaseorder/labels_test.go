@@ -353,6 +353,7 @@ func TestRestoreRejectsCorruptSnapshots(t *testing.T) {
 		"cancelled no time":   func() Snapshot { s := good(Cancelled); s.CancelledAt = time.Time{}; return s },
 		"issued cancel":       func() Snapshot { s := good(Issued); s.CancelReason = "x"; return s },
 		"issued cancel time":  func() Snapshot { s := good(Issued); s.CancelledAt = t0; return s },
+		"bad owner":           func() Snapshot { s := good(Issued); s.Lines[0].OwnerRef = "-x"; return s },
 	}
 	for name, mk := range tests {
 		if _, err := Restore(mk()); !errors.Is(err, shared.ErrInvalidSnapshot) {
@@ -360,7 +361,7 @@ func TestRestoreRejectsCorruptSnapshots(t *testing.T) {
 		}
 	}
 	edge := good(Accepted)
-	edge.Lines = []Line{{1, "lst-1", MaxQuantity}}
+	edge.Lines = []Line{{LineNo: 1, ListingID: "lst-1", Quantity: MaxQuantity, OwnerRef: "seller-7"}}
 	edge.GroupNo, edge.ReleaseNo = 0, 1
 	if _, err := Restore(edge); err != nil {
 		t.Errorf("edge values: %v", err)

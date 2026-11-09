@@ -58,7 +58,7 @@ type: com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceip
 | `VendorOnboarded` | `vendorId` | OnboardVendor is saved | `{vendorId, name, ackWindowMinutes}` | node-performance |
 | `VendorSuspended` | `vendorId` | SuspendVendor is saved (Gap G30) | `{vendorId, suspendedAt, reason?}` | none yet |
 | `VendorReinstated` | `vendorId` | ReinstateVendor is saved (Gap G30) | `{vendorId, reinstatedAt}` | none yet |
-| `PurchaseOrderIssued` | `poNumber` | IssuePurchaseOrder is saved (state ISSUED) | `{poNumber, vendorId, nodeId, assignmentId, releaseNo, requiredShipBy, ackBy, lines[{lineNo, listingId, quantity}]}` | node-performance |
+| `PurchaseOrderIssued` | `poNumber` | IssuePurchaseOrder is saved (state ISSUED) | `{poNumber, vendorId, nodeId, assignmentId, releaseNo, requiredShipBy, ackBy, lines[{lineNo, listingId, quantity, ownerRef?}]}` (`ownerRef` omitted for operator-owned stock, ADR 0012) | node-performance |
 | `PurchaseOrderAccepted` | `poNumber` | the ACCEPT acknowledgement transaction succeeded | `{poNumber, assignmentId, releaseNo, nodeId, acceptedAt, transactionId}` | order-sourcing, node-performance |
 | `PurchaseOrderRejected` | `poNumber` | the REJECT acknowledgement transaction succeeded | `{poNumber, assignmentId, releaseNo, nodeId, reasonCode, rejectedAt}` | order-sourcing, node-performance |
 | `PurchaseOrderExpired` | `poNumber` | the sweep expired an ISSUED order past `ackBy` | `{poNumber, assignmentId, releaseNo, nodeId, ackBy}` | order-sourcing, node-performance |

@@ -89,11 +89,13 @@ func ValidTier(t Tier) bool {
 	return false
 }
 
-// Line is one PoLine.
+// Line is one PoLine. OwnerRef names whose stock to pick (the seller's
+// ownerRef); empty means operator-owned stock (ADR 0012).
 type Line struct {
 	LineNo    int
 	ListingID string
 	Quantity  int
+	OwnerRef  string
 }
 
 // Decision is the AckDecision.
@@ -212,10 +214,11 @@ func ComputeAckBy(issuedAt time.Time, ackWindow time.Duration, requiredShipBy ti
 	return byWindow.UTC()
 }
 
-// NewLine is one line of a release.
+// NewLine is one line of a release; an empty OwnerRef is operator-owned.
 type NewLine struct {
 	ListingID string
 	Quantity  int
+	OwnerRef  string
 }
 
 // NewOrder is the input of Issue.
@@ -241,7 +244,7 @@ func Issue(in NewOrder, now time.Time) (*PurchaseOrder, []shared.Event, error) {
 	}
 	lines := make([]Line, len(in.Lines))
 	for i, l := range in.Lines {
-		lines[i] = Line{LineNo: i + 1, ListingID: l.ListingID, Quantity: l.Quantity}
+		lines[i] = Line{LineNo: i + 1, ListingID: l.ListingID, Quantity: l.Quantity, OwnerRef: l.OwnerRef}
 	}
 	p, err := build(Snapshot{
 		Number: NumberFor(in.AssignmentID, in.ReleaseNo), VendorID: in.VendorID, NodeID: in.NodeID, AssignmentID: in.AssignmentID,

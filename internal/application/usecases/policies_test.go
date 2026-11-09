@@ -161,6 +161,19 @@ func TestIssueOnReleaseComputesAckBy(t *testing.T) {
 	}
 }
 
+func TestIssueOnReleaseCarriesTheLineOwner(t *testing.T) {
+	h := newHarness(t, usecases.Config{})
+	h.onboard("V-1")
+	h.vendorNode("n-1", "V-1", 60)
+	in := release("asg-1", "n-1")
+	in.Lines[1].OwnerRef = "seller-7"
+	h.must(h.svc.IssueOnRelease(h.ctx, "evt-r", "FulfillmentReleasedToNode", in))
+	o := h.order(string(purchaseorder.NumberFor("asg-1", 1)))
+	if len(o.Lines) != 2 || o.Lines[0].OwnerRef != "" || o.Lines[1].OwnerRef != "seller-7" {
+		t.Fatalf("an absent owner is operator-owned, a named one is carried (ADR 0012): %+v", o.Lines)
+	}
+}
+
 func TestIssueOnReleaseIsIdempotent(t *testing.T) {
 	h := newHarness(t, usecases.Config{})
 	h.onboard("V-1")

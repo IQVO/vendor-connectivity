@@ -141,6 +141,52 @@ func TestReleaseIssuesAPurchaseOrderAndCancelCancelsIt(t *testing.T) {
 	}
 }
 
+// issuedLines feeds one FulfillmentReleasedToNode with the given lines to the
+// sourcing consumer and returns the issued order's lines.
+func issuedLines(t *testing.T, lines []m) []purchaseorder.Line {
+	t.Helper()
+	f := newFixture(t)
+	ctx := context.Background()
+	if err := f.nodes().HandleMessage(ctx, registered("e1", "n-1", "V-1")); err != nil {
+		t.Fatal(err)
+	}
+	msg := event("r1", kafkaconsumer.TypeReleasedToNode, "asg-1", m{"assignmentId": "asg-1", "releaseNo": 1, "orderId": "ord-1", "groupNo": 1, "nodeId": "n-1",
+		"requiredShipBy": "2026-10-22T21:00:00Z", "tier": "NEXT_DAY", "lines": lines})
+	if err := f.sourcing().HandleMessage(ctx, msg); err != nil {
+		t.Fatal(err)
+	}
+	po, err := f.store.Orders().Get(ctx, purchaseorder.NumberFor("asg-1", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return po.Lines()
+}
+
+// ADR 0012: lines[].ownerRef is optional; absent means operator-owned.
+func TestReleasedLineWithoutOwnerRefIsOperatorOwned(t *testing.T) {
+	got := issuedLines(t, []m{{"listingId": "lst-1", "quantity": 2}})
+	want := []purchaseorder.Line{{LineNo: 1, ListingID: "lst-1", Quantity: 2}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("lines = %+v, want %+v", got, want)
+	}
+}
+
+func TestReleasedLineOwnerRefIsCarriedPerLine(t *testing.T) {
+	got := issuedLines(t, []m{
+		{"listingId": "lst-1", "quantity": 2, "ownerRef": "seller-7"},
+		{"listingId": "lst-2", "quantity": 1},
+		{"listingId": "lst-3", "quantity": 4, "ownerRef": ""},
+	})
+	want := []purchaseorder.Line{
+		{LineNo: 1, ListingID: "lst-1", Quantity: 2, OwnerRef: "seller-7"},
+		{LineNo: 2, ListingID: "lst-2", Quantity: 1},
+		{LineNo: 3, ListingID: "lst-3", Quantity: 4},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("lines = %+v, want %+v", got, want)
+	}
+}
+
 func TestSkippableMessagesReturnNil(t *testing.T) {
 	f := newFixture(t)
 	c := f.sourcing()

@@ -113,10 +113,12 @@ type ReleasedToNode struct {
 	Lines          []ReleasedLine
 }
 
-// ReleasedLine is one line of a release.
+// ReleasedLine is one line of a release. OwnerRef is the owner of the stock
+// to pick (the seller's ownerRef); empty means operator-owned (ADR 0012).
 type ReleasedLine struct {
 	ListingID string
 	Quantity  int
+	OwnerRef  string
 }
 
 // FulfillmentCancelled carries the FulfillmentCancelled facts this context uses.

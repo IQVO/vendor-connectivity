@@ -18,7 +18,7 @@ const INITIAL: Filters = { vendorId: "", nodeId: "" };
 
 /**
  * The inbound shipments bound for one vendor's nodes (GET
- * /vendor/inbound-shipments, oldest first, paged with the opaque nextToken),
+ * /vendor/inbound-shipments, oldest first, paged with the opaque nextCursor),
  * and one shipment's pallet-and-carton tree on demand (GET
  * /vendor/inbound-shipments/{shipmentId}). Read-only: recording a receipt is
  * a vendor-system write, not something this console does.
@@ -30,7 +30,7 @@ export function InboundScreen() {
   const token = tokens[tokens.length - 1];
   const page = useRequest(
     applied ? () => pollInboundShipments({
-      vendorId: applied.vendorId, nodeId: applied.nodeId || undefined, limit: 25, nextToken: token || undefined,
+      vendorId: applied.vendorId, nodeId: applied.nodeId || undefined, limit: 25, cursor: token || undefined,
     }) : null,
     `inbound|${applied?.vendorId}|${applied?.nodeId}|${token}`,
   );
@@ -75,14 +75,14 @@ export function InboundScreen() {
         state={page}
         what="inbound shipments"
         whenIdle="Enter a vendor id to poll its inbound shipments."
-        isEmpty={(d) => d.inboundShipments.length === 0}
+        isEmpty={(d) => d.items.length === 0}
         empty="No inbound shipments for this vendor (and node filter)."
       >
         {(d) => (
           <Stack>
             <DataTable<InboundShipment>
               rowKey={(s) => s.shipmentId}
-              rows={d.inboundShipments}
+              rows={d.items}
               columns={[
                 {
                   key: "id",
@@ -107,8 +107,8 @@ export function InboundScreen() {
               </button>
               <button
                 type="button"
-                disabled={!d.nextToken}
-                onClick={() => d.nextToken && setTokens((t) => [...t, d.nextToken as string])}
+                disabled={!d.nextCursor}
+                onClick={() => d.nextCursor && setTokens((t) => [...t, d.nextCursor as string])}
               >
                 Next page
               </button>

@@ -80,6 +80,7 @@ how the seam works end to end is on
 | Purchase Order, `poNumber` | `NetworkOrder`, `NetworkRef` | Opaque to the fleet, never parsed |
 | `lineNo` | `NetworkLineRef` | Unique within one PO |
 | `listingId` | `NetworkProductId`, translated to `SKU` by `ProductTranslation` | A listing is per node; the SKU is the fleet's |
+| Line `ownerRef` (the seller's `ownerRef`; omitted = operator-owned) | not read yet | ADR 0012: the fleet may read it to pick owner-segregated stock; until then seller-owned lines are picked as before |
 | Node (`nodeId`) | Site (`siteCode`) | Mapping persisted in `network-fulfillment`, never a string convention |
 | `vendorNodeCode` | `siteCode` | What the fleet sends when it registers a node |
 | Node type `FULFILLMENT_CENTER` + subtype | `siteRole` (facility-layout ADR 0037) | Per the model's `fleet_site_role_mapping`; see [Node model](https://iqvo.github.io/warehouse-docs/network/network-model/node-model) |

@@ -29,7 +29,7 @@ func orderView(p *purchaseorder.PurchaseOrder) views.PurchaseOrder {
 		Lines: make([]views.PoLine, 0, len(p.Lines())), Labels: labelViews(p.Labels()), TrackingNumbers: []string{},
 	}
 	for _, l := range p.Lines() {
-		v.Lines = append(v.Lines, views.PoLine{LineNo: l.LineNo, ListingID: l.ListingID, Quantity: l.Quantity, Packaging: []views.Packaging{}})
+		v.Lines = append(v.Lines, views.PoLine{LineNo: l.LineNo, ListingID: l.ListingID, Quantity: l.Quantity, OwnerRef: l.OwnerRef, Packaging: []views.Packaging{}})
 	}
 	// The decision is visible only once its transaction succeeded (A25).
 	if a, ok := p.Ack(); ok && (p.State() == purchaseorder.Accepted || p.State() == purchaseorder.Rejected ||
@@ -94,7 +94,7 @@ func (s *Service) issue(ctx context.Context, node network.Node, in requests.Rele
 	}
 	lines := make([]purchaseorder.NewLine, len(in.Lines))
 	for i, l := range in.Lines {
-		lines[i] = purchaseorder.NewLine{ListingID: l.ListingID, Quantity: l.Quantity}
+		lines[i] = purchaseorder.NewLine{ListingID: l.ListingID, Quantity: l.Quantity, OwnerRef: l.OwnerRef}
 	}
 	p, evs, err := purchaseorder.Issue(purchaseorder.NewOrder{
 		AssignmentID: in.AssignmentID, ReleaseNo: in.ReleaseNo, VendorID: node.VendorID, NodeID: node.ID, OrderID: in.OrderID,

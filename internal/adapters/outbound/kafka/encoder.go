@@ -49,6 +49,7 @@ type poLineData struct {
 	LineNo    int    `json:"lineNo"`
 	ListingID string `json:"listingId"`
 	Quantity  int    `json:"quantity"`
+	OwnerRef  string `json:"ownerRef,omitempty"` // omitted for operator-owned stock (ADR 0012)
 }
 
 type issuedData struct {
@@ -235,7 +236,7 @@ func purchaseOrderPayload(ev shared.Event) (any, error) {
 	case purchaseorder.PurchaseOrderIssued:
 		lines := make([]poLineData, len(e.Lines))
 		for i, l := range e.Lines {
-			lines[i] = poLineData{LineNo: l.LineNo, ListingID: l.ListingID, Quantity: l.Quantity}
+			lines[i] = poLineData{LineNo: l.LineNo, ListingID: l.ListingID, Quantity: l.Quantity, OwnerRef: l.OwnerRef}
 		}
 		return issuedData{PONumber: string(e.PONumber), VendorID: e.VendorID, NodeID: e.NodeID, AssignmentID: e.AssignmentID, ReleaseNo: e.ReleaseNo,
 			RequiredShipBy: ts(e.RequiredShipBy), AckBy: ts(e.AckBy), Lines: lines}, nil

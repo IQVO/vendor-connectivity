@@ -18,7 +18,7 @@ const INITIAL: Filters = { vendorId: "", nodeId: "" };
 
 /**
  * The purchase orders released to one vendor: GET /vendor/purchase-orders,
- * oldest first, a page at a time. Paging follows the opaque `nextToken`;
+ * oldest first, a page at a time. Paging follows the opaque `nextCursor`;
  * the tokens already visited are kept so "Previous" walks back without the
  * API having to support it. Narrowing to one node restarts at the first
  * page. A read-only screen: acknowledging an order is a REST write of the
@@ -27,12 +27,12 @@ const INITIAL: Filters = { vendorId: "", nodeId: "" };
 export function OrdersScreen() {
   const [draft, setDraft] = useState<Filters>(INITIAL);
   const [applied, setApplied] = useState<Filters | null>(null);
-  // tokens[i] is the nextToken of page i+1 ("" = the first page).
+  // tokens[i] is the nextCursor of page i+1 ("" = the first page).
   const [tokens, setTokens] = useState<string[]>([""]);
   const token = tokens[tokens.length - 1];
   const page = useRequest(
     applied ? () => pollPurchaseOrders({
-      vendorId: applied.vendorId, nodeId: applied.nodeId || undefined, limit: 25, nextToken: token || undefined,
+      vendorId: applied.vendorId, nodeId: applied.nodeId || undefined, limit: 25, cursor: token || undefined,
     }) : null,
     `orders|${applied?.vendorId}|${applied?.nodeId}|${token}`,
   );
@@ -77,14 +77,14 @@ export function OrdersScreen() {
         state={page}
         what="purchase orders"
         whenIdle="Enter a vendor id to poll its purchase orders."
-        isEmpty={(d) => d.purchaseOrders.length === 0}
+        isEmpty={(d) => d.items.length === 0}
         empty="No purchase orders for this vendor (and node filter)."
       >
         {(d) => (
           <Stack>
             <DataTable<PurchaseOrder>
               rowKey={(o) => o.poNumber}
-              rows={d.purchaseOrders}
+              rows={d.items}
               columns={[
                 {
                   key: "po",
@@ -113,8 +113,8 @@ export function OrdersScreen() {
               </button>
               <button
                 type="button"
-                disabled={!d.nextToken}
-                onClick={() => d.nextToken && setTokens((t) => [...t, d.nextToken as string])}
+                disabled={!d.nextCursor}
+                onClick={() => d.nextCursor && setTokens((t) => [...t, d.nextCursor as string])}
               >
                 Next page
               </button>

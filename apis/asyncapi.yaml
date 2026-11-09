@@ -1016,6 +1016,9 @@ components:
         quantity:
           type: integer
           minimum: 1
+        ownerRef:
+          type: string
+          description: The owner of the goods to pick (the seller's ownerRef); omitted for operator-owned stock (ADR 0012).
     RejectReason:
       type: string
       enum:
@@ -1678,6 +1681,9 @@ components:
                     quantity:
                       type: integer
                       minimum: 1
+                    ownerRef:
+                      type: string
+                      description: Optional. The owner of the stock to pick (the seller's ownerRef); absent means operator-owned stock (ADR 0012).
     FulfillmentCancelledEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'

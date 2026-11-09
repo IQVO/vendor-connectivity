@@ -27,6 +27,10 @@ func purchaseOrders(t *testing.T, e Env) {
 	if !reflect.DeepEqual(got.Snapshot(), p.Snapshot()) {
 		t.Fatalf("round trip:\n got %+v\nwant %+v", got.Snapshot(), p.Snapshot())
 	}
+	// ADR 0012: the line owner survives the store, empty (operator-owned) included.
+	if ls := got.Lines(); len(ls) != 2 || ls[0].OwnerRef != "" || ls[1].OwnerRef != "seller-7" || ls[1].OwnerRef != p.Lines()[1].OwnerRef {
+		t.Fatalf("line owners = %+v", ls)
+	}
 	byRelease, err := e.Orders.FindByRelease(ctx, "asg-1", 1)
 	must(t, err)
 	if byRelease.Number() != p.Number() {
