@@ -71,6 +71,8 @@ type releasedData struct {
 	Lines          []struct {
 		ListingID string `json:"listingId"`
 		Quantity  int    `json:"quantity"`
+		// OwnerRef is optional: absent (or empty) means operator-owned stock (ADR 0012).
+		OwnerRef string `json:"ownerRef"`
 	} `json:"lines"`
 }
 
@@ -137,7 +139,7 @@ func SourcingHandlers(svc *usecases.Service, logger *slog.Logger) map[string]Han
 			in := requests.ReleasedToNode{AssignmentID: d.AssignmentID, ReleaseNo: d.ReleaseNo, OrderID: d.OrderID, GroupNo: d.GroupNo,
 				NodeID: d.NodeID, RequiredShipBy: d.RequiredShipBy, Tier: d.Tier}
 			for _, l := range d.Lines {
-				in.Lines = append(in.Lines, requests.ReleasedLine{ListingID: l.ListingID, Quantity: l.Quantity})
+				in.Lines = append(in.Lines, requests.ReleasedLine{ListingID: l.ListingID, Quantity: l.Quantity, OwnerRef: l.OwnerRef})
 			}
 			err = svc.IssueOnRelease(ctx, e.ID(), e.Type(), in)
 			if err == nil {

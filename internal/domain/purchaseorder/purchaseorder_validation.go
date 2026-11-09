@@ -43,6 +43,9 @@ func checkLines(lines []Line) error {
 		if !shared.ValidID(l.ListingID) || l.Quantity < 1 || l.Quantity > MaxQuantity {
 			return fmt.Errorf("line %d needs a valid listingId and a quantity from 1 to %d", l.LineNo, MaxQuantity)
 		}
+		if l.OwnerRef != "" && !shared.ValidID(l.OwnerRef) {
+			return fmt.Errorf("line %d has an invalid ownerRef", l.LineNo)
+		}
 	}
 	return nil
 }

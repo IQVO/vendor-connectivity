@@ -53,7 +53,7 @@ erDiagram
         TIMESTAMPTZ required_ship_by
         TIMESTAMPTZ ack_by "fixed at issue"
         TEXT state "CHECK the 8 PO states"
-        JSONB lines "lineNo, listingId, quantity"
+        JSONB lines "lineNo, listingId, quantity, ownerRef"
         TEXT ack_decision "nullable, ACCEPT or REJECT"
         TEXT ack_reason_code "nullable"
         TEXT ack_transaction_id "nullable, by value"

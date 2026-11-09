@@ -34,7 +34,7 @@ func published() []shared.Event {
 		vendor.VendorSuspended{Header: hdr(), VendorID: "V-1", Reason: "late acknowledgements"},
 		vendor.VendorReinstated{Header: hdr(), VendorID: "V-1"},
 		purchaseorder.PurchaseOrderIssued{Header: hdr(), PONumber: "PO-asg-1-1", VendorID: "V-1", NodeID: "n-1", AssignmentID: "asg-1", ReleaseNo: 1,
-			RequiredShipBy: later, AckBy: t0.Add(2 * time.Hour), Lines: []purchaseorder.Line{{LineNo: 1, ListingID: "lst-1", Quantity: 2}}},
+			RequiredShipBy: later, AckBy: t0.Add(2 * time.Hour), Lines: []purchaseorder.Line{{LineNo: 1, ListingID: "lst-1", Quantity: 2}, {LineNo: 2, ListingID: "lst-2", Quantity: 1, OwnerRef: "seller-7"}}},
 		purchaseorder.PurchaseOrderAccepted{Header: hdr(), PONumber: "PO-asg-1-1", AssignmentID: "asg-1", ReleaseNo: 1, NodeID: "n-1", AcceptedAt: t0, TransactionID: "tx-1"},
 		purchaseorder.PurchaseOrderRejected{Header: hdr(), PONumber: "PO-asg-1-1", AssignmentID: "asg-1", ReleaseNo: 1, NodeID: "n-1", ReasonCode: "OUT_OF_STOCK", RejectedAt: t0},
 		purchaseorder.PurchaseOrderExpired{Header: hdr(), PONumber: "PO-asg-1-1", AssignmentID: "asg-1", ReleaseNo: 1, NodeID: "n-1", AckBy: t0},

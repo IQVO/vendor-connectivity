@@ -79,12 +79,13 @@ func NewVendor(t *testing.T, id string) *vendor.Account {
 }
 
 // NewOrder issues an ISSUED order for (assignment, release 1) at issuedAt.
+// Line 1 is operator-owned (empty ownerRef), line 2 a seller's stock (ADR 0012).
 func NewOrder(t *testing.T, assignment, vendorID, nodeID string, issuedAt time.Time) *purchaseorder.PurchaseOrder {
 	t.Helper()
 	p, _, err := purchaseorder.Issue(purchaseorder.NewOrder{
 		AssignmentID: assignment, ReleaseNo: 1, VendorID: vendorID, NodeID: nodeID, OrderID: "ord-" + assignment, GroupNo: 1,
 		Tier: purchaseorder.NextDay, RequiredShipBy: issuedAt.Add(8 * time.Hour), AckWindow: 4 * time.Hour, HandlingTime: time.Hour,
-		Lines: []purchaseorder.NewLine{{ListingID: "lst-1", Quantity: 2}, {ListingID: "lst-2", Quantity: 1}},
+		Lines: []purchaseorder.NewLine{{ListingID: "lst-1", Quantity: 2}, {ListingID: "lst-2", Quantity: 1, OwnerRef: "seller-7"}},
 	}, issuedAt)
 	must(t, err)
 	return p
