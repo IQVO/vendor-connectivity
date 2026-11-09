@@ -34,7 +34,7 @@ and E4 and Gap Register items G2, G4, G12 and G32 shape the seam.
 | `...node-topology.node.NodeOperationalProfileDeclared` | nodeId, profileRevision, handlingTimeMinutes | `VendorNodeView.handlingTimeMinutes` for `ackBy` (E4, G4); a lower revision never overwrites a higher one |
 | `...node-topology.node.NodeActivated` / `NodeSuspended` / `NodeRetired` | nodeId | `VendorNodeView.status` |
 | `com.retailnetwork.commerce.offer-availability.listing.ListingCreated` | listingId, catalogItemId?, nodeId | upsert `ListingView` (A12) |
-| `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | assignmentId, releaseNo, orderId, groupNo?, nodeId, requiredShipBy, tier, lines[{listingId, quantity}] | policy `IssueOnRelease` -> `PurchaseOrderIssued` (A1, A3, A4) |
+| `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | assignmentId, releaseNo, orderId, groupNo?, nodeId, requiredShipBy, tier, lines[{listingId, quantity, ownerRef?}] (`ownerRef` absent = operator-owned, ADR 0012) | policy `IssueOnRelease` -> `PurchaseOrderIssued` (A1, A3, A4) |
 | `...order-sourcing.assignment.FulfillmentCancelled` | assignmentId, orderId?, groupNo?, reason? | policy `CancelOnSourcingCancel` (A15, A16) |
 
 Consumer rules: one mandatory consumer group `VENDOR_CONNECTIVITY_CONSUMER_GROUP`; the inbox table
