@@ -78,6 +78,20 @@ Payload rules:
   the same transaction that moves the order to ACCEPTED.
 - A breaking payload change is a new `.v2` type and dataschema, never a mutation of v1.
 
+### Consumed types added by later ADRs
+
+ADR 0003 lists every consumed type. A consumed type that arrives with its own ADR is
+also recorded here so the catalogue shows the full string (these are other contexts'
+types, never published by this service):
+
+| Type | Stream | Policy | ADR |
+|---|---|---|---|
+| `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleaseWithdrawn` | events | `CancelOnReleaseWithdrawn` | 0013 |
+
+```text
+type: com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleaseWithdrawn stream: events
+```
+
 ## Consequences
 
 - Consumers need nothing but this catalogue and `apis/asyncapi.yaml`; there is no

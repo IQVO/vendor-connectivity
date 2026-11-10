@@ -60,7 +60,7 @@ See [Integration](/docs/ecosystem/integration).
 
 ## Consumed
 
-Thirteen types from four producers, each deduplicated on the CloudEvents `id` in
+Fourteen types from four producers, each deduplicated on the CloudEvents `id` in
 `processed_events`, dispatched on the full `type`, decoded tolerantly (unknown fields ignored)
 and dead-lettered to `<topic>.dlq` when they cannot be applied. Source:
 `internal/adapters/inbound/kafka/consumers.go` and `inbound_consumers.go`.
@@ -74,6 +74,7 @@ and dead-lettered to `<topic>.dlq` when they cannot be applied. Source:
 | same | `com.retailnetwork.partner.offer-availability.catalogitem.CatalogItemPackagingDeclared` and `CatalogItemPackLevelRetired` (the `commerce` tier spelling is accepted too) | `catalogItemId`, `level`, `gtin`, `childGtin`, units per pack, timestamps |
 | order-sourcing, `retailnetwork.order-sourcing.events` | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | `assignmentId`, `releaseNo`, `orderId`, `groupNo`, `nodeId`, `requiredShipBy`, `tier`, `lines[{listingId, quantity}]` |
 | same | `...assignment.FulfillmentCancelled` | `assignmentId`, `reason` |
+| same | `...assignment.FulfillmentReleaseWithdrawn` | `assignmentId` (the carrier), `releaseNo`, `reason` |
 | seller-inbound, `retailnetwork.seller-inbound.events` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentLabelled` | `shipmentId`, `planId`, `sellerId`, `nodeId`, `cartons[]` (SSCC, parent, kind, contents, weight, dimensions), `labelledAt` |
 | same | `...inboundshipment.InboundShipmentShipped` | `shipmentId`, `planId`, `sellerId`, `nodeId`, `shippedAt` |
 | same | `...inboundshipment.InboundShipmentReceived` | `shipmentId`, `sellerId`, `nodeId`, `status`, `receivedAt` |
