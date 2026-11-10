@@ -114,6 +114,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	registerWhen(sc, w)
 	registerThen(sc, w)
 	registerWave2(sc, w)
+	registerWithdrawn(sc, w)
 	registerInbound(sc, w)
 }
 

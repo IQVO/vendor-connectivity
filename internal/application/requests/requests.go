@@ -127,6 +127,14 @@ type FulfillmentCancelled struct {
 	Reason       string
 }
 
+// ReleaseWithdrawn carries the FulfillmentReleaseWithdrawn facts this context
+// uses (ADR 0013): the carrier's assignment id and the withdrawn release number.
+type ReleaseWithdrawn struct {
+	AssignmentID string
+	ReleaseNo    int
+	Reason       string
+}
+
 // NodeRegisteredFacts carries NodeRegistered.
 type NodeRegisteredFacts struct {
 	NodeID, NodeType, Subtype, Operator, VendorID, VendorNodeCode, RegionID, Timezone string
