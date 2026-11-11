@@ -30,9 +30,9 @@ info:
     transaction and an always-on relay drains them to Kafka (at-least-once; the CloudEvents `id` is stored with the outbox row, so a retry
     republishes the same `id`). The types are catalogued in ADR 0004.
 
-    **Consumed.** Thirteen types from four producers (ADR 0003, ADR 0005): seller-inbound `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`; offer-availability `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`; node-topology `NodeRegistered`, `NodeOperationalProfileDeclared`,
+    **Consumed.** Fourteen types from four producers (ADR 0003, ADR 0005): seller-inbound `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived`; offer-availability `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`; node-topology `NodeRegistered`, `NodeOperationalProfileDeclared`,
     `NodeActivated`, `NodeSuspended`, `NodeRetired`; offer-availability `ListingCreated`; order-sourcing `FulfillmentReleasedToNode`,
-    `FulfillmentCancelled`. Each is deduplicated on the CloudEvents `id` in the `processed_events` inbox table, dispatched on the full
+    `FulfillmentCancelled`, `FulfillmentReleaseWithdrawn`. Each is deduplicated on the CloudEvents `id` in the `processed_events` inbox table, dispatched on the full
     `type`, decoded tolerantly (unknown fields are ignored) and dead-lettered to `<topic>.dlq` (with `x-dlq-source-topic`, `x-dlq-source-partition`, `x-dlq-source-offset`, `x-dlq-error` and `x-dlq-failed-at` headers) after a bounded number of failed attempts, or at once when the `data` cannot be decoded. A message that is not a valid CloudEvents 1.0 event, or whose `type` is not handled, is skipped (logged, offset committed).
     The consumed `data` below lists only the fields this context relies on.
 
@@ -135,6 +135,8 @@ channels:
         $ref: '#/components/messages/FulfillmentReleasedToNode'
       FulfillmentCancelled:
         $ref: '#/components/messages/FulfillmentCancelled'
+      FulfillmentReleaseWithdrawn:
+        $ref: '#/components/messages/FulfillmentReleaseWithdrawn'
 operations:
   publishVendorConnectivityEvents:
     action: send
@@ -216,8 +218,8 @@ operations:
     action: receive
     title: Receive order-sourcing events
     summary: Receive the order-sourcing events this context relies on.
-    description: Consumes FulfillmentReleasedToNode (issues a purchase order for a VENDOR node) and FulfillmentCancelled (cancels the ISSUED purchase order of the
-      open release) (Customer/Supplier).
+    description: Consumes FulfillmentReleasedToNode (issues a purchase order for a VENDOR node), FulfillmentCancelled (cancels the ISSUED purchase order of the
+      open release) and FulfillmentReleaseWithdrawn (cancels the ISSUED purchase order of one withdrawn release, ADR 0013) (Customer/Supplier).
     tags:
     - name: vendor-connectivity
     channel:
@@ -225,6 +227,7 @@ operations:
     messages:
     - $ref: '#/channels/orderSourcingEvents/messages/FulfillmentReleasedToNode'
     - $ref: '#/channels/orderSourcingEvents/messages/FulfillmentCancelled'
+    - $ref: '#/channels/orderSourcingEvents/messages/FulfillmentReleaseWithdrawn'
 components:
   messages:
     VendorOnboarded:
@@ -905,8 +908,11 @@ components:
       name: FulfillmentReleasedToNode
       title: FulfillmentReleasedToNode
       summary: An assignment was released to a node; for a VENDOR node issues a purchase order (policy IssueOnRelease).
-      description: Consumed from order-sourcing. `type` = `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode`; subject = `assignmentId`.
-        Only the listed `data` fields are relied on; unknown fields are ignored.
+      description: >-
+        Consumed from order-sourcing. `type` = `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode`; subject = `assignmentId`.
+        Only the listed `data` fields are relied on; unknown fields are ignored. A consolidated release (ADR 0013) is one release of the carrier assignment.
+        The top-level ids are the carrier's, `lines` are the union of the members' lines (a `listingId` may repeat, each line keeps its own `ownerRef`), and the
+        optional `members` array and per-line `assignmentId` are ignored. It still issues ONE purchase order, lines numbered by position.
       contentType: application/cloudevents+json
       tags:
       - name: vendor-connectivity
@@ -936,6 +942,38 @@ components:
             - catalogItemId: item-12
               listingId: lst-77
               quantity: 2
+    FulfillmentReleaseWithdrawn:
+      name: FulfillmentReleaseWithdrawn
+      title: FulfillmentReleaseWithdrawn
+      summary: A release was withdrawn before the vendor acknowledged it; cancels the ISSUED purchase order of exactly that release (policy CancelOnReleaseWithdrawn).
+      description: >-
+        Consumed from order-sourcing. `type` = `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleaseWithdrawn`; subject and key = the carrier's
+        `assignmentId`. The order is found by (`assignmentId`, `releaseNo`), never as "the latest"; an unknown release is a no-op; an order past ISSUED stays as it is (logged).
+        The cancel reason is `release withdrawn: <reason>` (ADR 0013). Only the listed `data` fields are relied on; unknown fields are ignored.
+      contentType: application/cloudevents+json
+      tags:
+      - name: vendor-connectivity
+      payload:
+        $ref: '#/components/schemas/FulfillmentReleaseWithdrawnEvent'
+      examples:
+      - name: fulfillmentReleaseWithdrawn
+        summary: A merged release is dissolved after a promise revision; cancels the ISSUED purchase order of release 1.
+        payload:
+          specversion: '1.0'
+          id: 6a1d7c52-0e4b-4f93-b2a8-5c9e3d4f7b10
+          source: /retailnetwork/order-sourcing
+          type: com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleaseWithdrawn
+          subject: asg-41d2
+          time: '2026-10-22T14:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:retailnetwork:order-sourcing:events:FulfillmentReleaseWithdrawn:v1
+          data:
+            assignmentId: asg-41d2
+            releaseNo: 1
+            orderId: ord-9001
+            groupNo: 1
+            reason: PROMISE_REVISED
+            withdrawnAt: '2026-10-22T14:00:00Z'
     FulfillmentCancelled:
       name: FulfillmentCancelled
       title: FulfillmentCancelled
@@ -1684,6 +1722,36 @@ components:
                     ownerRef:
                       type: string
                       description: Optional. The owner of the stock to pick (the seller's ownerRef); absent means operator-owned stock (ADR 0012).
+    FulfillmentReleaseWithdrawnEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventEnvelope'
+      - type: object
+        properties:
+          data:
+            type: object
+            required:
+            - assignmentId
+            - releaseNo
+            properties:
+              assignmentId:
+                type: string
+                description: The carrier's assignment id.
+              releaseNo:
+                type: integer
+                minimum: 1
+              orderId:
+                type: string
+                description: The carrier's order id. Not relied on.
+              groupNo:
+                type: integer
+                description: The carrier's group number. Not relied on.
+              reason:
+                type: string
+                description: Today `PROMISE_REVISED` only; carried into the cancel reason as an opaque string.
+              withdrawnAt:
+                type: string
+                format: date-time
+                description: Not relied on.
     FulfillmentCancelledEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'

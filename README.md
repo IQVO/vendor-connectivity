@@ -107,7 +107,7 @@ idempotent on the CloudEvents id, dead-lettered to `<topic>.dlq`):
 | `retailnetwork.node-topology.events` | `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` |
 | `retailnetwork.offer-availability.events` | `ListingCreated` (listings consumer); `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` (packaging consumer) |
 | `retailnetwork.seller-inbound.events` | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` |
-| `retailnetwork.order-sourcing.events` | `FulfillmentReleasedToNode`, `FulfillmentCancelled` |
+| `retailnetwork.order-sourcing.events` | `FulfillmentReleasedToNode`, `FulfillmentCancelled`, `FulfillmentReleaseWithdrawn` |
 
 ## Running it
 

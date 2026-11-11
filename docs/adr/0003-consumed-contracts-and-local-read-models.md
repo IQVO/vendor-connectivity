@@ -20,7 +20,7 @@ and E4 and Gap Register items G2, G4, G12 and G32 shape the seam.
 | Neighbour | Direction | Pattern | Contract |
 | --- | --- | --- | --- |
 | network-fulfillment (fleet vendor V-WS) | calls us | Open Host Service + Published Language; downstream is Conformist + ACL | `apis/openapi.yaml`. No Kafka topic is shared, in either direction. |
-| order-sourcing | Kafka in, Kafka out | Customer/Supplier | in: `FulfillmentReleasedToNode`, `FulfillmentCancelled`; out: `PurchaseOrderAccepted`, `Rejected`, `Expired`, `VendorShipmentConfirmed` |
+| order-sourcing | Kafka in, Kafka out | Customer/Supplier | in: `FulfillmentReleasedToNode`, `FulfillmentCancelled`, `FulfillmentReleaseWithdrawn` (ADR 0013); out: `PurchaseOrderAccepted`, `Rejected`, `Expired`, `VendorShipmentConfirmed` |
 | node-topology | Kafka in, REST out | Conformist | in: `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired`; out: `POST /nodes`, `PUT /nodes/{nodeId}/operational-profile` |
 | offer-availability | Kafka in, REST out | Conformist | in: `ListingCreated`; out: `POST /inventory-feeds` |
 | shipping-and-tracking | REST out | Customer | `POST /labels` (`IssueLabel`) |
@@ -36,6 +36,7 @@ and E4 and Gap Register items G2, G4, G12 and G32 shape the seam.
 | `com.retailnetwork.commerce.offer-availability.listing.ListingCreated` | listingId, catalogItemId?, nodeId | upsert `ListingView` (A12) |
 | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | assignmentId, releaseNo, orderId, groupNo?, nodeId, requiredShipBy, tier, lines[{listingId, quantity, ownerRef?}] (`ownerRef` absent = operator-owned, ADR 0012) | policy `IssueOnRelease` -> `PurchaseOrderIssued` (A1, A3, A4) |
 | `...order-sourcing.assignment.FulfillmentCancelled` | assignmentId, orderId?, groupNo?, reason? | policy `CancelOnSourcingCancel` (A15, A16) |
+| `...order-sourcing.assignment.FulfillmentReleaseWithdrawn` | assignmentId (the carrier), releaseNo, reason?; orderId, groupNo, withdrawnAt not relied on | policy `CancelOnReleaseWithdrawn` (ADR 0013): cancels the ISSUED order of exactly that release |
 
 Consumer rules: one mandatory consumer group `VENDOR_CONNECTIVITY_CONSUMER_GROUP`; the inbox table
 `processed_events` keyed by the CloudEvents `id`, written in the same transaction as the effect; a

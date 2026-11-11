@@ -26,7 +26,7 @@ flowchart LR
     NF[["network-fulfillment<br/>warehouse-systems<br/>Supporting in the fleet<br/>external org"]]
     OS2["order-sourcing<br/>Core, commerce"]
     PM -->|"UI<br/>REST POST /vendors,<br/>/suspensions, /reinstatements"| VC
-    OS1 -->|"U/D C/S<br/>Kafka Fulfillment-<br/>ReleasedToNode,<br/>FulfillmentCancelled"| VC
+    OS1 -->|"U/D C/S<br/>Kafka Fulfillment-<br/>ReleasedToNode,<br/>FulfillmentCancelled,<br/>FulfillmentReleaseWithdrawn"| VC
     VC -->|"U: OHS + PL<br/>D: CF + ACL<br/>Vendor API REST /vendor/..."| NF
     VC -->|"U/D C/S<br/>Kafka PurchaseOrderAccepted,<br/>Rejected, Expired,<br/>VendorShipmentConfirmed"| OS2
 ```
@@ -79,7 +79,7 @@ abbreviate the full event names listed in the table. `seller-inbound` appears tw
 | --- | --- | --- | --- | --- | --- |
 | network-fulfillment (warehouse-systems, vendor `V-WS`; Supporting in the fleet, external) | VC upstream, NF downstream | **OHS + PL** here; **Conformist + ACL** downstream | Vendor API REST, `apis/vendor-connectivity/openapi.yaml` | Commands: RegisterVendorNode, DeclareNodeProfile, SubmitInventory, SubmitAcknowledgement, RequestLabel, SubmitShipmentConfirmation. Queries: PollPurchaseOrders, GetPurchaseOrder, GetTransaction, GetNode, GetScorecard | Many vendors, one contract. The network will not tailor its protocol per vendor, so it publishes one; each vendor conforms and protects its own model behind an ACL. This is the only channel between the two organizations (`meta.hard_boundary`): no topic is shared and the network never calls the fleet. |
 | Network partner managers (human) | upstream actor | UI | REST `POST /vendors` | OnboardVendor | Onboarding is a human act inside the network, not part of the vendor protocol. |
-| order-sourcing (Core) | OS upstream for releases | **Customer/Supplier** | Kafka `retailnetwork.order-sourcing.events` | FulfillmentReleasedToNode, FulfillmentCancelled | Order-sourcing decides; this context turns a release into a purchase order. Both sides are in one organization and negotiate the release payload. |
+| order-sourcing (Core) | OS upstream for releases | **Customer/Supplier** | Kafka `retailnetwork.order-sourcing.events` | FulfillmentReleasedToNode, FulfillmentCancelled, FulfillmentReleaseWithdrawn | Order-sourcing decides; this context turns a release into a purchase order. Both sides are in one organization and negotiate the release payload. |
 | order-sourcing (Core) | VC upstream for vendor answers | **Customer/Supplier** | Kafka `retailnetwork.vendor-connectivity.events` | PurchaseOrderAccepted, PurchaseOrderRejected, PurchaseOrderExpired, VendorShipmentConfirmed | Order-sourcing's lock and reassignment depend on these facts; the payload carries `assignmentId` and `releaseNo` for it. |
 | node-topology (Supporting) | NT upstream | **Conformist** | Kafka `retailnetwork.node-topology.events` | NodeRegistered, NodeActivated, NodeSuspended, NodeRetired | The node registry is master data; this context keeps a `VendorNodeView` as published. |
 | node-topology (Supporting) | NT upstream (supplier of the service) | **Customer/Supplier**, VC is the Customer | REST (in-org) `POST /nodes`, `PUT /nodes/{nodeId}/operational-profile` | RegisterNode, DeclareOperationalProfile | Vendor node and profile writes are relayed to their owner; node-topology lists this context as a Customer. |

@@ -35,7 +35,7 @@ flowchart LR
     VC["vendor-connectivity"]
     AN["analytics topic<br/>(no consumer)"]
     NF -- "Vendor API REST (built + verified)" --> VC
-    OS -- "FulfillmentReleasedToNode, FulfillmentCancelled" --> VC
+    OS -- "FulfillmentReleasedToNode, FulfillmentCancelled, FulfillmentReleaseWithdrawn" --> VC
     NT -- "5 node events" --> VC
     OA -- "ListingCreated, 2 packaging events" --> VC
     SI -- "3 shipment events" --> VC
@@ -72,6 +72,7 @@ ignored; any other type on the topic is ignored).
 | offer-availability | `retailnetwork.offer-availability.events` | `com.retailnetwork.commerce.offer-availability.listing.ListingCreated` | Upsert the listing in `listings` | `LISTING_CONSUMER_GROUP` |
 | order-sourcing | `retailnetwork.order-sourcing.events` | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | Issue a purchase order | `SOURCING_CONSUMER_GROUP` |
 | order-sourcing | same | `...assignment.FulfillmentCancelled` | Cancel the order while `ISSUED` | same |
+| order-sourcing | same | `...assignment.FulfillmentReleaseWithdrawn` | Cancel the `ISSUED` order of that exact release (a dissolved consolidation, ADR 0013) | same |
 | seller-inbound | `retailnetwork.seller-inbound.events` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` | Maintain `inbound_shipments` | `INBOUND_CONSUMER_GROUP` |
 | offer-availability | `retailnetwork.offer-availability.events` (second group) | `com.retailnetwork.partner.offer-availability.catalogitem.CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`; the `commerce` tier spelling of the same two types is accepted too | Maintain `catalog_packaging` | `PACKAGING_CONSUMER_GROUP` |
 

@@ -26,3 +26,4 @@ The *Status* column is copied from each ADR's own `## Status` section.
 | [0010](./0010-adopt-the-fleet-rest-api-guideline.md) | Adopt the fleet REST API guideline | Accepted (2026-11-01) |
 | [0011](./0011-agent-authority-levels-and-complete-mcp-surface.md) | agent authority levels and complete MCP surface | Accepted (2026-11-02) |
 | [0012](./0012-purchase-order-lines-name-the-stock-owner.md) | Purchase-order lines name the stock owner | Accepted (2026-11-08) |
+| [0013](./0013-cancel-the-purchase-order-when-a-release-is-withdrawn.md) | Cancel the purchase order when a release is withdrawn | Accepted (2026-11-10) |

@@ -29,6 +29,8 @@ const (
 	TypeListingCreated   = "com.retailnetwork.commerce.offer-availability.listing.ListingCreated"
 	TypeReleasedToNode   = "com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode"
 	TypeFulfillmentCancl = "com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled"
+	// TypeReleaseWithdrawn: a merged release is dissolved before the vendor acknowledged it (ADR 0013).
+	TypeReleaseWithdrawn = "com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleaseWithdrawn"
 )
 
 // Wire payloads (only the fields this context relies on).
@@ -78,6 +80,14 @@ type releasedData struct {
 
 type cancelledData struct {
 	AssignmentID string `json:"assignmentId"`
+	Reason       string `json:"reason"`
+}
+
+// withdrawnData is FulfillmentReleaseWithdrawn (ADR 0013); orderId, groupNo and
+// withdrawnAt are not needed: the release is found by (assignmentId, releaseNo).
+type withdrawnData struct {
+	AssignmentID string `json:"assignmentId"`
+	ReleaseNo    int    `json:"releaseNo"`
 	Reason       string `json:"reason"`
 }
 
@@ -153,6 +163,13 @@ func SourcingHandlers(svc *usecases.Service, logger *slog.Logger) map[string]Han
 				return err
 			}
 			return svc.CancelOnSourcingCancel(ctx, e.ID(), e.Type(), requests.FulfillmentCancelled{AssignmentID: d.AssignmentID, Reason: d.Reason})
+		},
+		TypeReleaseWithdrawn: func(ctx context.Context, e ce.Event) error {
+			d, err := decodeData[withdrawnData](e)
+			if err != nil {
+				return err
+			}
+			return svc.CancelOnReleaseWithdrawn(ctx, e.ID(), e.Type(), requests.ReleaseWithdrawn{AssignmentID: d.AssignmentID, ReleaseNo: d.ReleaseNo, Reason: d.Reason})
 		},
 	}
 }

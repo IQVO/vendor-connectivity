@@ -7,7 +7,7 @@ paths:
 
 # Cross-service integration events (Kafka)
 
-vendor-connectivity PUBLISHES ten events and CONSUMES eight (ADR 0003, ADR 0004). Published:
+vendor-connectivity PUBLISHES ten events and CONSUMES nine (ADR 0003, ADR 0004, ADR 0013). Published:
 `retailnetwork.vendor-connectivity.events`, plus `retailnetwork.vendor-connectivity.analytics`
 for `PurchaseOrderCancelled` ONLY. Consumed: `retailnetwork.node-topology.events`,
 `retailnetwork.offer-availability.events`, `retailnetwork.order-sourcing.events`. Never produce
@@ -80,6 +80,7 @@ Constants and tolerant payload structs: `internal/adapters/inbound/kafka/consume
 | `com.retailnetwork.commerce.offer-availability.listing.ListingCreated` | offer-availability.events | `OnListingCreated` |
 | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | order-sourcing.events | `IssueOnRelease` |
 | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled` | order-sourcing.events | `CancelOnSourcingCancel` |
+| `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleaseWithdrawn` | order-sourcing.events | `CancelOnReleaseWithdrawn` |
 
 ## Transactional outbox
 
