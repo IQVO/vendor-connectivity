@@ -41,7 +41,7 @@ func ackBody(vendor, asg, decision, reason string) string {
 
 func (w *world) submitAck(vendor, asg, decision, reason string) error {
 	if err := w.write(http.MethodPost, "/vendor/acknowledgements", ackBody(vendor, asg, decision, reason)); err != nil || w.status != http.StatusAccepted {
-		return fmt.Errorf("acknowledge: %v %d %s", err, w.status, w.body)
+		return fmt.Errorf("acknowledge: %w %d %s", err, w.status, w.body)
 	}
 	return nil
 }
@@ -66,7 +66,7 @@ func (w *world) requestLabels(vendor, asg string, n int) error {
 // requireLabels requests labels and fails unless they were issued, remembering their tracking numbers.
 func (w *world) requireLabels(vendor, asg string, n int) error {
 	if err := w.requestLabels(vendor, asg, n); err != nil || w.status != http.StatusOK {
-		return fmt.Errorf("labels: %v %d %s", err, w.status, w.body)
+		return fmt.Errorf("labels: %w %d %s", err, w.status, w.body)
 	}
 	return w.rememberTrackingNumbers()
 }
@@ -88,7 +88,7 @@ func (w *world) trackingList() string {
 func (w *world) confirmShipment(vendor, asg string) error {
 	body := fmt.Sprintf(`{"vendorId":%q,"poNumber":"{po:%s}","shippedAt":"2026-10-22T14:00:00Z","trackingNumbers":%s}`, vendor, asg, w.trackingList())
 	if err := w.write(http.MethodPost, "/vendor/shipment-confirmations", body); err != nil || w.status != http.StatusAccepted {
-		return fmt.Errorf("confirm shipment: %v %d %s", err, w.status, w.body)
+		return fmt.Errorf("confirm shipment: %w %d %s", err, w.status, w.body)
 	}
 	return nil
 }
@@ -299,6 +299,12 @@ func registerRulesWhen(sc *godog.ScenarioContext, w *world) {
 
 // registerRulesThen holds the assertions on states, counts, calls and event payloads.
 func registerRulesThen(sc *godog.ScenarioContext, w *world) {
+	registerRulesThenState(sc, w)
+	registerRulesThenCalls(sc, w)
+}
+
+// registerRulesThenState asserts on stored aggregates, the response header and the outbox payloads.
+func registerRulesThenState(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^release (\d+) of "([^"]*)" is in state "([^"]*)"$`, func(release int, asg, state string) error {
 		p, err := w.order(asg, release)
 		if err != nil {
@@ -321,6 +327,20 @@ func registerRulesThen(sc *godog.ScenarioContext, w *world) {
 		}
 		return nil
 	})
+	sc.Step(`^the "([^"]*)" event about "([^"]*)" has a "([^"]*)" of (\d+) characters$`, func(name, subject, field string, n int) error {
+		got, ok := w.eventField(name, w.expand(subject), field)
+		if !ok {
+			return fmt.Errorf("no %q event about %q carrying %q in %v", name, subject, field, w.eventNames())
+		}
+		if c := utf8.RuneCountInString(got); c != n {
+			return fmt.Errorf("%s.%s has %d characters, want %d: %q", name, field, c, n, got)
+		}
+		return nil
+	})
+}
+
+// registerRulesThenCalls asserts on the calls made to the neighbours.
+func registerRulesThenCalls(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^every call to (node-topology|offer-availability) carried the transaction id as its key$`, func(neighbour string) error {
 		keys := w.nt.Keys
 		if neighbour == "offer-availability" {
@@ -349,16 +369,6 @@ func registerRulesThen(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^the IssueLabel idempotency keys were "([^"]*)"$`, func(want string) error {
 		if got := strings.Join(w.ship.Keys, ", "); got != w.expand(want) {
 			return fmt.Errorf("IssueLabel keys = %q, want %q", got, w.expand(want))
-		}
-		return nil
-	})
-	sc.Step(`^the "([^"]*)" event about "([^"]*)" has a "([^"]*)" of (\d+) characters$`, func(name, subject, field string, n int) error {
-		got, ok := w.eventField(name, w.expand(subject), field)
-		if !ok {
-			return fmt.Errorf("no %q event about %q carrying %q in %v", name, subject, field, w.eventNames())
-		}
-		if c := utf8.RuneCountInString(got); c != n {
-			return fmt.Errorf("%s.%s has %d characters, want %d: %q", name, field, c, n, got)
 		}
 		return nil
 	})
