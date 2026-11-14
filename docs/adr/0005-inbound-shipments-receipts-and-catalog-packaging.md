@@ -127,3 +127,7 @@ blocks `Reader.Close` for up to 10 s each).
 - The service stays free of synchronous calls to seller-inbound and offer-availability.
 - Until seller-inbound is merged the consumed shapes are a contract on paper; a producer that renames a
   field changes what this view contains, not whether the service runs.
+
+## Addendum 2026-11-13: current state
+
+node-performance already consumes `InboundReceiptSubmitted`; "(later)" in the Decision no longer holds. Its Kafka handler map binds `TypeInboundReceiptSubmitted` to `intake.InboundReceiptSubmitted` (`internal/adapters/inbound/kafka/handlers.go` in node-performance, `origin/develop`), which feeds its inbound timeliness and accuracy metrics (`docs/adr/0009-inbound-timeliness-and-accuracy-metrics.md` there). The Status line and the text above are unchanged.
