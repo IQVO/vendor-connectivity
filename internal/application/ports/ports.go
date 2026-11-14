@@ -21,6 +21,7 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/network"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
+	"github.com/claudioed/vendor-connectivity/internal/domain/returns"
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
 	"github.com/claudioed/vendor-connectivity/internal/domain/submission"
 	"github.com/claudioed/vendor-connectivity/internal/domain/vendor"
@@ -99,6 +100,18 @@ type InboundShipmentViewRepository interface {
 	// ListShipped returns the SHIPPED shipments with a manifest that match the
 	// filter, ordered by (shippedAt, shipmentId) ascending.
 	ListShipped(ctx context.Context, filter repository.InboundShipmentFilter) ([]inbound.Shipment, error)
+}
+
+// ReturnAdviceViewRepository stores the ReturnAdviceView read model (upsert,
+// no version): network return authorizations as this context saw them.
+type ReturnAdviceViewRepository interface {
+	// Get returns the advice, or ErrNotFound.
+	Get(ctx context.Context, authorizationID string) (returns.Advice, error)
+	// Save inserts or replaces the advice row.
+	Save(ctx context.Context, a returns.Advice) error
+	// ListReady returns the AUTHORIZED advices that match the filter, ordered
+	// by (readyAt, authorizationId) ascending.
+	ListReady(ctx context.Context, filter repository.ReturnAdviceFilter) ([]returns.Advice, error)
 }
 
 // CatalogPackagingViewRepository stores the CatalogPackagingView read model

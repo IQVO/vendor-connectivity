@@ -74,6 +74,7 @@ ignored; any other type on the topic is ignored).
 | order-sourcing | same | `...assignment.FulfillmentCancelled` | Cancel the order while `ISSUED` | same |
 | order-sourcing | same | `...assignment.FulfillmentReleaseWithdrawn` | Cancel the `ISSUED` order of that exact release (a dissolved consolidation, ADR 0013) | same |
 | seller-inbound | `retailnetwork.seller-inbound.events` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` | Maintain `inbound_shipments` | `INBOUND_CONSUMER_GROUP` |
+| customer-returns | `retailnetwork.customer-returns.events` | `com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnAuthorized`, `ReturnLabelIssued`, `ReturnCancelled` | Maintain `vendor_return_advices` | `CUSTOMER_RETURNS_CONSUMER_GROUP` |
 | offer-availability | `retailnetwork.offer-availability.events` (second group) | `com.retailnetwork.partner.offer-availability.catalogitem.CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired`; the `commerce` tier spelling of the same two types is accepted too | Maintain `catalog_packaging` | `PACKAGING_CONSUMER_GROUP` |
 
 Failure behaviour (`internal/adapters/inbound/kafka/kafka.go`, `consumer.go`, `deadletter.go`):

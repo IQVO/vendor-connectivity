@@ -94,7 +94,8 @@ Published as CloudEvents 1.0 structured JSON, type `com.retailnetwork.partner.ve
 
 | Topic | Events |
 |---|---|
-| `retailnetwork.vendor-connectivity.events` (integration) | `VendorOnboarded`, `VendorSuspended`, `VendorReinstated`, `PurchaseOrderIssued`, `PurchaseOrderAccepted`, `PurchaseOrderRejected`, `PurchaseOrderExpired`, `VendorShipmentConfirmed`, `SubmissionProcessed`, `InboundReceiptSubmitted` (subject and key = `shipmentId`) |
+| `retailnetwork.vendor-connectivity.events` (integration) | `VendorOnboarded`, `VendorSuspended`, `VendorReinstated`, `PurchaseOrderIssued`, `PurchaseOrderAccepted`, `PurchaseOrderRejected`, `PurchaseOrderExpired`, `VendorShipmentConfirmed`, `SubmissionProcessed`, `InboundReceiptSubmitted` (subject and key = `shipmentId`),
+  `VendorReturnOutcomeSubmitted` (subject and key = `authorizationId`) |
 | `retailnetwork.vendor-connectivity.analytics` (analytics only) | `PurchaseOrderCancelled` |
 
 Delivery is at-least-once with a stable event id (transactional outbox).
@@ -107,6 +108,7 @@ idempotent on the CloudEvents id, dead-lettered to `<topic>.dlq`):
 | `retailnetwork.node-topology.events` | `NodeRegistered`, `NodeOperationalProfileDeclared`, `NodeActivated`, `NodeSuspended`, `NodeRetired` |
 | `retailnetwork.offer-availability.events` | `ListingCreated` (listings consumer); `CatalogItemPackagingDeclared`, `CatalogItemPackLevelRetired` (packaging consumer) |
 | `retailnetwork.seller-inbound.events` | `InboundShipmentLabelled`, `InboundShipmentShipped`, `InboundShipmentReceived` |
+| `retailnetwork.customer-returns.events` | `ReturnAuthorized`, `ReturnLabelIssued`, `ReturnCancelled` |
 | `retailnetwork.order-sourcing.events` | `FulfillmentReleasedToNode`, `FulfillmentCancelled`, `FulfillmentReleaseWithdrawn` |
 
 ## Running it
@@ -168,6 +170,8 @@ Contract: [`apis/openapi.yaml`](apis/openapi.yaml). No authentication; a vendor 
 | `POST /vendor/shipping-labels` | labels, answered synchronously (200) |
 | `POST /vendor/shipment-confirmations` | confirm shipment (202) |
 | `GET /vendor/inbound-shipments`, `GET /vendor/inbound-shipments/{shipmentId}` | poll the SHIPPED inbound shipments of the vendor's nodes, read one (pallet > carton > item tree) |
+| `GET /vendor/return-advices`, `GET /vendor/return-advices/{authorizationId}` | poll the AUTHORIZED return advices of the vendor's nodes, read one |
+| `POST /vendor/return-outcomes` | report graded quantities against a return advice (asynchronous) |
 | `POST /vendor/inbound-receipts` | report an inbound receipt (202, `INBOUND_RECEIPT`) |
 | `GET /vendor/transactions/{transactionId}` | outcome of a write |
 | `POST /vendors`, `GET /vendors/{vendorId}`, `POST /vendors/{vendorId}/suspensions`, `POST /vendors/{vendorId}/reinstatements` | vendor account |

@@ -23,7 +23,7 @@ type worker struct {
 	done chan struct{}
 }
 
-// startBackground starts the three consumers and the loops. They are always
+// startBackground starts the six consumers and the loops. They are always
 // on; the readers dial lazily inside Run, so a broker outage never blocks boot.
 func startBackground(ad adapters, rt runtimeEnv, svc *usecases.Service, logger *slog.Logger) ([]*worker, func()) {
 	ctx, stop := context.WithCancel(context.Background())
@@ -37,6 +37,7 @@ func startBackground(ad adapters, rt runtimeEnv, svc *usecases.Service, logger *
 		inboundkafka.NewSourcingConsumer(rt.brokers, rt.groups["SOURCING_CONSUMER_GROUP"], svc, logger),
 		inboundkafka.NewInboundConsumer(rt.brokers, rt.groups["INBOUND_CONSUMER_GROUP"], svc, logger),
 		inboundkafka.NewPackagingConsumer(rt.brokers, rt.groups["PACKAGING_CONSUMER_GROUP"], svc, logger),
+		inboundkafka.NewCustomerReturnsConsumer(rt.brokers, rt.groups["CUSTOMER_RETURNS_CONSUMER_GROUP"], svc, logger),
 	}
 	for _, c := range consumers {
 		w := &worker{name: c.Name, done: make(chan struct{})}

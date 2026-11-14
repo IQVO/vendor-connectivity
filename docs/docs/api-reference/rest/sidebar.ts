@@ -172,6 +172,44 @@ const sidebar: SidebarsConfig = {
     },
     {
       type: "category",
+      label: "Return Advices",
+      link: {
+        type: "doc",
+        id: "api-reference/rest/return-advices",
+      },
+      items: [
+        {
+          type: "doc",
+          id: "api-reference/rest/poll-return-advices",
+          label: "Poll return advices (PollReturnAdvices)",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/get-return-advice",
+          label: "Get one return advice (GetReturnAdvice)",
+          className: "api-method get",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Return Outcomes",
+      link: {
+        type: "doc",
+        id: "api-reference/rest/return-outcomes",
+      },
+      items: [
+        {
+          type: "doc",
+          id: "api-reference/rest/submit-return-outcome",
+          label: "Report a return outcome (SubmitReturnOutcome)",
+          className: "api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
       label: "Transactions",
       link: {
         type: "doc",

@@ -43,6 +43,8 @@ func decodeShipmentToken(s string) (shipmentToken, error) {
 // PollInboundShipments is query PollInboundShipments (GET /vendor/inbound-shipments):
 // the SHIPPED shipments bound for the vendor's nodes, oldest shipment first,
 // paged with nextToken.
+//
+//nolint:dupl // PollReturnAdvices (ADR 0014) mirrors this poll shape for shape by design
 func (s *Service) PollInboundShipments(ctx context.Context, q requests.InboundPollQuery) (views.InboundShipmentPage, error) {
 	page := views.InboundShipmentPage{InboundShipments: []views.InboundShipment{}}
 	if !shared.ValidID(q.VendorID) {

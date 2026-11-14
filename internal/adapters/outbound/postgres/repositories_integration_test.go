@@ -27,7 +27,8 @@ func TestRepositoryContract(t *testing.T) {
 			UoW: postgres.NewUnitOfWork(pool), Vendors: postgres.NewVendorRepo(pool), Orders: postgres.NewPurchaseOrderRepo(pool),
 			Submissions: postgres.NewSubmissionRepo(pool), Nodes: postgres.NewNodeViewRepo(pool), Listings: postgres.NewListingViewRepo(pool),
 			Shipments: postgres.NewInboundShipmentViewRepo(pool), Packaging: postgres.NewCatalogPackagingViewRepo(pool),
-			Inbox: postgres.NewProcessedEventRepo(pool), Outbox: postgres.NewEventOutbox(repo, kafka.NewEncoder()),
+			Advices: postgres.NewReturnAdviceViewRepo(pool),
+			Inbox:   postgres.NewProcessedEventRepo(pool), Outbox: postgres.NewEventOutbox(repo, kafka.NewEncoder()),
 			OutboxCount: func(ctx context.Context) (int, error) {
 				var n int
 				err := pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events`).Scan(&n)

@@ -13,6 +13,7 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/adapters/kafka/cloudevents"
 	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
+	"github.com/claudioed/vendor-connectivity/internal/domain/returns"
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
 	"github.com/claudioed/vendor-connectivity/internal/domain/submission"
 	"github.com/claudioed/vendor-connectivity/internal/domain/vendor"
@@ -45,6 +46,8 @@ func published() []shared.Event {
 		inbound.ReceiptSubmitted{Header: hdr(), TransactionID: "tx-1", VendorID: "V-1", NodeID: "n-1", ShipmentID: "SHP-1", ReceivedAt: t0.Add(-time.Hour),
 			Cartons: []inbound.ReceiptCarton{{SSCC: "006141410000000012", Status: inbound.CartonReceived, Items: []inbound.ReceiptItem{{GTIN: "00614141000036", QtyEaches: 12}}},
 				{SSCC: "006141410000000029", Status: inbound.CartonMissing, ComplianceCodes: []string{"LABEL_UNREADABLE"}}}},
+		returns.OutcomeSubmitted{Header: hdr(), TransactionID: "tx-1", VendorID: "V-1", NodeID: "n-1", AuthorizationID: "ret-1", ReceivedAt: t0,
+			Lines: []returns.OutcomeLine{{CatalogItemID: "ci-1", QtyRestockable: 1}, {CatalogItemID: "ci-2", OwnerRef: "seller-7", QtyUnsellable: 3}}},
 	}
 }
 

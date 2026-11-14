@@ -23,6 +23,9 @@ security):
 - `POST /vendor/shipping-labels` -> `RequestLabel` (the one synchronous write: 200 with labels, G31)
 - `POST /vendor/shipment-confirmations` -> `SubmitShipmentConfirmation` (202)
 - `GET /vendor/transactions/{transactionId}` -> `GetTransaction`
+- `GET /vendor/return-advices?vendorId=&readyAfter=&nodeId=&cursor=&limit=` -> `PollReturnAdvices`;
+  `GET /vendor/return-advices/{authorizationId}` -> `GetReturnAdvice`
+- `POST /vendor/return-outcomes` -> `SubmitReturnOutcome` (202)
 - `POST /vendors` -> `OnboardVendor`; `GET /vendors/{vendorId}` -> `GetVendor`;
   `POST /vendors/{vendorId}/suspensions` -> `SuspendVendor`; `POST /vendors/{vendorId}/reinstatements` -> `ReinstateVendor`
   (chi cannot route a `:verb` suffix, so both share `/vendors/{vendorAction}` and `handleVendorAction` splits it)

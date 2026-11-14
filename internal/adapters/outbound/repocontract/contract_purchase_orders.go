@@ -117,7 +117,7 @@ func orderQueries(t *testing.T, e Env) {
 	specs := []struct {
 		asg, vendorID, node string
 		at                  time.Duration
-	}{{"a1", vendorOne, nodeOne, 0}, {"a2", vendorOne, nodeOne, time.Minute}, {"a3", vendorOne, nodeOne, 2 * time.Minute}, {"a4", vendorOne, nodeTwo, 2 * time.Minute}, {"a5", "V-2", "n-9", 4 * time.Minute}}
+	}{{"a1", vendorOne, nodeOne, 0}, {"a2", vendorOne, nodeOne, time.Minute}, {"a3", vendorOne, nodeOne, 2 * time.Minute}, {"a4", vendorOne, nodeTwo, 2 * time.Minute}, {"a5", "V-2", nodeNever, 4 * time.Minute}}
 	byAsg := map[string]*purchaseorder.PurchaseOrder{}
 	for _, sp := range specs {
 		p := NewOrder(t, sp.asg, sp.vendorID, sp.node, T0.Add(sp.at))

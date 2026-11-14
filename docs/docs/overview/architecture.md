@@ -143,7 +143,8 @@ Postgres is the only store: the service refuses to boot without `DATABASE_URL`. 
 fleet's single broker; this service produces to `retailnetwork.vendor-connectivity.events`
 and `retailnetwork.vendor-connectivity.analytics`, consumes
 `retailnetwork.node-topology.events`, `retailnetwork.offer-availability.events` (two consumer
-groups), `retailnetwork.order-sourcing.events` and `retailnetwork.seller-inbound.events`, and
+groups), `retailnetwork.order-sourcing.events`, `retailnetwork.seller-inbound.events` and
+`retailnetwork.customer-returns.events`, and
 dead-letters to `<topic>.dlq`. It never creates a topic through an admin API: the broker
 auto-creates each on first write (`AllowAutoTopicCreation`), and `/readyz` does not wait for
 any topic.

@@ -28,6 +28,7 @@ The five consumers are ON, each under its stable group id:
   order-sourcing      group {{ .Values.config.sourcingConsumerGroup }}
   seller-inbound      group {{ .Values.config.inboundConsumerGroup }}
   offer-availability  group {{ .Values.config.packagingConsumerGroup }} (packaging)
+  customer-returns    group {{ .Values.config.customerReturnsConsumerGroup }} (return advices)
 
 Synchronous calls: {{ .Values.config.nodeTopologyUrl }}, {{ .Values.config.offerAvailabilityUrl }},
 {{ .Values.config.shippingAndTrackingUrl }}, {{ .Values.config.nodePerformanceUrl }}

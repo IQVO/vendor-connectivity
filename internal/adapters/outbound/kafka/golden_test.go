@@ -48,6 +48,10 @@ func TestEncoder_GoldenWireFormatOfEveryPublishedEvent(t *testing.T) {
 			`{"transactionId":"tx-1","vendorId":"V-1","nodeId":"n-1","shipmentId":"SHP-1","receivedAt":"2026-10-22T12:00:00Z","cartons":[` +
 				`{"sscc":"006141410000000012","status":"RECEIVED","items":[{"gtin":"00614141000036","qtyEaches":12}],"complianceCodes":[]},` +
 				`{"sscc":"006141410000000029","status":"MISSING","items":[],"complianceCodes":["LABEL_UNREADABLE"]}]}`},
+		{"returnoutcome", "VendorReturnOutcomeSubmitted", "ret-1", "events", TopicEvents,
+			`{"transactionId":"tx-1","vendorId":"V-1","authorizationId":"ret-1","nodeId":"n-1","receivedAt":"2026-10-22T13:00:00Z","lines":[` +
+				`{"catalogItemId":"ci-1","qtyRestockable":1,"qtyUnsellable":0},` +
+				`{"catalogItemId":"ci-2","ownerRef":"seller-7","qtyRestockable":0,"qtyUnsellable":3}]}`},
 	}
 	events := published()
 	if len(events) != len(cases) {

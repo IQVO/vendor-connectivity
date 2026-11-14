@@ -116,6 +116,53 @@ func (s *Server) handleInboundReceipt(w http.ResponseWriter, r *http.Request) {
 	accepted(w, v, err, r)
 }
 
+// adviceParams reads the query of the return-advice poll: nodeId, an RFC 3339
+// readyAfter, and the page parameters (limit 1..500, opaque cursor).
+func adviceParams(w http.ResponseWriter, r *http.Request) (nodeID, cursor string, readyAfter *time.Time, limit int, ok bool) {
+	limit, cursor, ok = pageParams(w, r, "vendorId", "readyAfter", "nodeId")
+	if !ok {
+		return "", "", nil, 0, false
+	}
+	nodeID = r.URL.Query().Get("nodeId")
+	if raw := r.URL.Query().Get("readyAfter"); raw != "" {
+		t, perr := time.Parse(time.RFC3339, raw)
+		if perr != nil {
+			writeError(w, r, fmt.Errorf("%w: readyAfter must be an RFC 3339 date-time", errMalformedRequest))
+			return "", "", nil, 0, false
+		}
+		readyAfter = &t
+	}
+	return nodeID, cursor, readyAfter, limit, true
+}
+
+func (s *Server) handlePollReturnAdvices(w http.ResponseWriter, r *http.Request) {
+	nodeID, cursor, after, limit, ok := adviceParams(w, r)
+	if !ok {
+		return
+	}
+	res, err := s.Service.PollReturnAdvices(r.Context(), requests.ReturnPollQuery{VendorID: vendorID(r), NodeID: nodeID, NextToken: cursor, ReadyAfter: after, Limit: limit})
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, page.Page[views.ReturnAdvice]{Items: res.ReturnAdvices, NextCursor: res.NextToken})
+}
+
+func (s *Server) handleGetReturnAdvice(w http.ResponseWriter, r *http.Request) {
+	a, err := s.Service.GetReturnAdvice(r.Context(), vendorID(r), chi.URLParam(r, "authorizationId"))
+	respond(w, r, a, err)
+}
+
+func (s *Server) handleReturnOutcome(w http.ResponseWriter, r *http.Request) {
+	var in requests.ReturnOutcome
+	if err := decodeJSON(r, &in); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	v, err := s.Service.SubmitReturnOutcome(r.Context(), in)
+	accepted(w, v, err, r)
+}
+
 func (s *Server) handleGetPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 	po, err := s.Service.GetPurchaseOrder(r.Context(), vendorID(r), chi.URLParam(r, "poNumber"))
 	respond(w, r, po, err)

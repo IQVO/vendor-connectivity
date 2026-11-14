@@ -38,3 +38,20 @@ type InboundShipmentFilter struct {
 	After        *ShipmentCursor
 	Limit        int
 }
+
+// AdviceCursor is the keyset position after which a return advice page
+// continues: advices are ordered by (readyAt, authorizationId) ascending.
+type AdviceCursor struct {
+	ReadyAt         time.Time
+	AuthorizationID string
+}
+
+// ReturnAdviceFilter narrows the poll of AUTHORIZED return advices. NodeIDs is
+// the set of nodes the caller may see (never empty); the other fields do not
+// filter when zero. Limit is the page size (0 = no limit).
+type ReturnAdviceFilter struct {
+	NodeIDs    []string
+	ReadyAfter *time.Time
+	After      *AdviceCursor
+	Limit      int
+}

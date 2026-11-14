@@ -214,7 +214,7 @@ func (e env) apply(t *testing.T) {
 	t.Setenv("MIGRATIONS_DATABASE_URL", "")
 	t.Setenv("KAFKA_BROKERS", strings.Join(e.brokers, ","))
 	t.Setenv("EVENT_PUBLISHER", "kafka")
-	for _, c := range []string{"NODE", "LISTING", "SOURCING", "INBOUND", "PACKAGING"} {
+	for _, c := range []string{"NODE", "LISTING", "SOURCING", "INBOUND", "PACKAGING", "CUSTOMER_RETURNS"} {
 		t.Setenv(c+"_CONSUMER_GROUP", "vendor-connectivity-"+strings.ToLower(c)+"-e2e")
 	}
 	for _, name := range []string{"NODE_TOPOLOGY_URL", "OFFER_AVAILABILITY_URL", "SHIPPING_AND_TRACKING_URL", "NODE_PERFORMANCE_URL"} {

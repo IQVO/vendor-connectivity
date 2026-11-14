@@ -19,7 +19,8 @@ func validEnv() map[string]string {
 		"DATABASE_URL": "postgres://u@h/db", "KAFKA_BROKERS": "b1:9092, b2:9092",
 		"NODE_CONSUMER_GROUP": "g-node", "LISTING_CONSUMER_GROUP": "g-listing", "SOURCING_CONSUMER_GROUP": "g-sourcing",
 		"INBOUND_CONSUMER_GROUP": "g-inbound", "PACKAGING_CONSUMER_GROUP": "g-packaging",
-		"NODE_TOPOLOGY_URL": "http://nt", "OFFER_AVAILABILITY_URL": "http://oa", "SHIPPING_AND_TRACKING_URL": "http://st", "NODE_PERFORMANCE_URL": "http://np",
+		"CUSTOMER_RETURNS_CONSUMER_GROUP": "g-returns",
+		"NODE_TOPOLOGY_URL":               "http://nt", "OFFER_AVAILABILITY_URL": "http://oa", "SHIPPING_AND_TRACKING_URL": "http://st", "NODE_PERFORMANCE_URL": "http://np",
 	}
 }
 

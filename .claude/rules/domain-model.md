@@ -19,6 +19,10 @@ left open are in `docs/adr/0002-aggregates-and-invariants.md` (assumptions A1-A2
 - **Submission / transaction** — the asynchronous record of one vendor write (`transactionId`),
   `PROCESSING` then `SUCCESS` or `FAILURE`. Every write except a label returns `202` + the id.
 - **Label** — a per-package shipping label obtained synchronously from shipping-and-tracking.
+- **ReturnAdviceView** — local read model of customer-returns' return authorizations
+  (`internal/domain/returns`, table `vendor_return_advices`, ADR 0014): the advice is
+  attributed to the operator vendor of the destination node from VendorNodeView, and the
+  vendor polls it (`GET /vendor/return-advices`) until an outcome is recorded.
 - **VendorNodeView / ListingView** — local read models fed by node-topology and
   offer-availability events (never read live).
 - **Published Language** — the Vendor API (`apis/openapi.yaml`) as an Open Host Service.

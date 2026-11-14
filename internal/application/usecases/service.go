@@ -58,6 +58,7 @@ type Deps struct {
 	Listings     ports.ListingViewRepository
 	Shipments    ports.InboundShipmentViewRepository
 	Packaging    ports.CatalogPackagingViewRepository
+	Advices      ports.ReturnAdviceViewRepository
 	Outbox       ports.EventOutbox
 	Inbox        ports.ProcessedEvents
 	Clock        ports.Clock

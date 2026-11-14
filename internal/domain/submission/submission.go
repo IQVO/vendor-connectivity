@@ -43,7 +43,7 @@ type ID string
 // Kind is the SubmissionKind.
 type Kind string
 
-// The six kinds of vendor write.
+// The seven kinds of vendor write.
 const (
 	KindAcknowledgement      Kind = "ACKNOWLEDGEMENT"
 	KindInventory            Kind = "INVENTORY"
@@ -51,6 +51,7 @@ const (
 	KindNodeProfile          Kind = "NODE_PROFILE"
 	KindShipmentConfirmation Kind = "SHIPMENT_CONFIRMATION"
 	KindInboundReceipt       Kind = "INBOUND_RECEIPT"
+	KindReturnOutcome        Kind = "RETURN_OUTCOME"
 )
 
 // Status is the processing state.
@@ -159,7 +160,7 @@ func build(sn Snapshot) (*Submission, error) {
 
 func validKind(k Kind) bool {
 	switch k {
-	case KindAcknowledgement, KindInventory, KindNodeRegistration, KindNodeProfile, KindShipmentConfirmation, KindInboundReceipt:
+	case KindAcknowledgement, KindInventory, KindNodeRegistration, KindNodeProfile, KindShipmentConfirmation, KindInboundReceipt, KindReturnOutcome:
 		return true
 	}
 	return false

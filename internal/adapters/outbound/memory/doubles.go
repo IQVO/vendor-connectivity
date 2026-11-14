@@ -21,6 +21,7 @@ var (
 	_ ports.ListingViewRepository          = (*ListingViewRepository)(nil)
 	_ ports.InboundShipmentViewRepository  = (*InboundShipmentViewRepository)(nil)
 	_ ports.CatalogPackagingViewRepository = (*CatalogPackagingViewRepository)(nil)
+	_ ports.ReturnAdviceViewRepository     = (*ReturnAdviceViewRepository)(nil)
 	_ ports.ProcessedEvents                = (*Inbox)(nil)
 	_ ports.EventOutbox                    = (*Outbox)(nil)
 	_ ports.UnitOfWork                     = (*UnitOfWork)(nil)

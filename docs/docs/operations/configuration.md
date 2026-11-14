@@ -135,7 +135,7 @@ consumer retry logs. Source: `internal/adapters/inbound/http/readiness.go`, `cmd
 | Submission attempts | a submission may end 5 passes without an outcome before it fails with `ErrUpstreamUnavailable`; page size 50 (max 200); processed submissions kept 30 days | `internal/application/usecases/service.go` |
 | `Idempotency-Key` replay window | 24 h | `internal/adapters/inbound/http/idempotency.go` (`IdempotencyTTL`) |
 | Topics produced | `retailnetwork.vendor-connectivity.events`, `retailnetwork.vendor-connectivity.analytics` | `internal/adapters/outbound/kafka/encoder.go` |
-| Topics consumed | `retailnetwork.node-topology.events`, `retailnetwork.offer-availability.events`, `retailnetwork.order-sourcing.events`, `retailnetwork.seller-inbound.events` | `internal/adapters/inbound/kafka/consumers.go`, `inbound_consumers.go` |
+| Topics consumed | `retailnetwork.node-topology.events`, `retailnetwork.offer-availability.events`, `retailnetwork.order-sourcing.events`, `retailnetwork.seller-inbound.events`, `retailnetwork.customer-returns.events` | `internal/adapters/inbound/kafka/consumers.go`, `inbound_consumers.go`, `returns_consumers.go` |
 | Dead-letter topic | `<topic>.dlq` | `internal/adapters/inbound/kafka/deadletter.go` |
 
 ## What is deliberately absent

@@ -67,10 +67,13 @@ content mode. This is a hard rule, not a preference:
 | `com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderCancelled` | analytics | poNumber |
 | `com.retailnetwork.partner.vendor-connectivity.purchaseorder.VendorShipmentConfirmed` | events | poNumber |
 | `com.retailnetwork.partner.vendor-connectivity.submission.SubmissionProcessed` | events | transactionId |
+| `com.retailnetwork.partner.vendor-connectivity.returnoutcome.VendorReturnOutcomeSubmitted` | events | authorizationId |
 
 ### Consumed types
 
-Constants and tolerant payload structs: `internal/adapters/inbound/kafka/consumers.go`.
+Constants and tolerant payload structs: `internal/adapters/inbound/kafka/consumers.go` (node-topology,
+offer-availability, order-sourcing), `inbound_consumers.go` (seller-inbound, packaging) and
+`returns_consumers.go` (customer-returns).
 
 | `type` | topic | handler (use case) |
 | --- | --- | --- |
@@ -81,6 +84,9 @@ Constants and tolerant payload structs: `internal/adapters/inbound/kafka/consume
 | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | order-sourcing.events | `IssueOnRelease` |
 | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentCancelled` | order-sourcing.events | `CancelOnSourcingCancel` |
 | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleaseWithdrawn` | order-sourcing.events | `CancelOnReleaseWithdrawn` |
+| `com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnAuthorized` | customer-returns.events | `OnReturnAuthorized` (advice attributed to the destination node's operator vendor, ADR 0014) |
+| `com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnLabelIssued` | customer-returns.events | `OnReturnLabelIssued` |
+| `com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnCancelled` | customer-returns.events | `OnReturnCancelled` |
 
 ## Transactional outbox
 

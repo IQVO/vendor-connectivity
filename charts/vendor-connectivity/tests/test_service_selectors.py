@@ -30,6 +30,7 @@ GROUPS = {
     "sourcingConsumerGroup": "vendor-connectivity-sourcing",
     "inboundConsumerGroup": "vendor-connectivity-inbound",
     "packagingConsumerGroup": "vendor-connectivity-packaging",
+    "customerReturnsConsumerGroup": "vendor-connectivity-customer-returns",
 }
 URLS = {
     "nodeTopologyUrl": "http://node-topology.example.invalid",
