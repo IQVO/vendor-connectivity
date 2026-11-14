@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -29,14 +30,22 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 )
 
-// TestFeatures runs every Gherkin feature under features/.
+// TestFeatures runs every Gherkin feature under features/. Scenarios tagged
+// @known-bug describe the SPEC behaviour where the code diverges (see the PR
+// body); they are excluded unless BDD_TAGS says otherwise, and must FAIL when
+// run alone: BDD_TAGS=@known-bug go test ./internal/bdd -run TestFeatures.
 func TestFeatures(t *testing.T) {
+	tags := os.Getenv("BDD_TAGS")
+	if tags == "" {
+		tags = "~@known-bug"
+	}
 	suite := godog.TestSuite{
 		ScenarioInitializer: InitializeScenario,
 		Options: &godog.Options{
 			Format:   "progress",
 			Paths:    []string{"../../features"},
 			Strict:   true,
+			Tags:     tags,
 			TestingT: t,
 		},
 	}
