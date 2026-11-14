@@ -1,0 +1,725 @@
+openapi: 3.0.3
+info:
+  title: Shipping & Tracking API
+  version: 0.1.0
+  contact:
+    name: shipping-and-tracking maintainers
+    url: https://github.com/IQVO/shipping-and-tracking
+  description: >-
+    REST contract of the shipping-and-tracking bounded context of the retail
+    network, derived from retail-network-docs model/model.yaml
+    (contexts[shipping-and-tracking].rest, .aggregates, .publishes,
+    conventions.errors) and the orchestrator's contracts-delta (G2, G3, G11,
+    G18). It issues shipping labels and owns each package's journey. No schema
+    of this contract carries a ship-to address or any part of it: the address
+    is read from customer-ordering at issue time (GetShipTo), kept only as an
+    encrypted snapshot (purged 30 days after the journey closes) and never
+    returned (ADR RN-0006, ADR 0002 A9). vendor-connectivity calls POST /labels
+    in-organization; the other routes are read by shoppers, customer-ordering
+    and operations tooling. No authentication, consistent with the fleet.
+    Errors are RFC 9457 problem details. The shared problem types are
+    not-found (404), illegal-transition (409), concurrent-update (409) and
+    validation-failed (422), plus one slug per model Err name. The read-only
+    analytics reports (tag reports, ADR 0012) are served by cmd/st-reports on
+    its own port (per-path server) from the separate analytical database.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Labels
+    description: Shipping labels (aggregate ShippingLabel).
+  - name: Journeys
+    description: Package journeys (aggregate PackageJourney).
+  - name: reports
+    description: >-
+      Read-only analytics reports (ADR 0012), served by cmd/st-reports from the
+      separate analytical database the projector feeds from this context's own
+      events. Days are UTC calendar days; from and to are inclusive dates.
+paths:
+  /labels:
+    post:
+      tags: [Labels]
+      operationId: issueLabel
+      summary: Issue a shipping label for one package (IssueLabel)
+      description: >-
+        In-org route called by vendor-connectivity (contracts-delta E2). Reads
+        the ship-to from customer-ordering (GET /orders/{orderId}/ship-to)
+        BEFORE the transaction opens, stores it encrypted, starts the package
+        journey (LABELLED) and publishes LabelIssued. The response never
+        contains the address. A replay of the same Idempotency-Key returns the
+        first response.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueLabelRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyRequired'
+        '201':
+          description: Label issued (or replayed for a known Idempotency-Key).
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Label'
+        '409':
+          description: label-already-issued (ErrLabelAlreadyIssued), tracking-number-taken (ErrTrackingNumberTaken), concurrent-update (ErrConcurrentUpdate) or idempotency-key-reused (the Idempotency-Key was already used with a different request).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: >-
+            validation-failed (a malformed request, or the order is unknown to customer-ordering),
+            or address-suspect (the ship-to failed the deterministic deliverability check —
+            RECIPIENT_PLACEHOLDER, STREET_PLACEHOLDER, STREET_MISSING_NUMBER, CITY_PLACEHOLDER or
+            POSTAL_CODE_TOO_SHORT; the detail carries reason tokens only, never address values,
+            and no label is stored).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: ship-to-unavailable. customer-ordering did not return the ship-to in time. No label is stored.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /labels/{labelRef}/voids:
+    post:
+      tags: [Labels]
+      operationId: voidLabel
+      summary: Void an issued label (VoidLabel)
+      description: >-
+        Moves the label ISSUED to VOIDED, closes the LABELLED journey of the
+        same tracking number as VOIDED and publishes LabelVoided (contracts-delta
+        E16). Refused once the package has been handed over
+        (void-after-handover). Voiding a VOIDED label returns it unchanged and
+        publishes nothing.
+      parameters:
+        - $ref: '#/components/parameters/LabelRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoidLabelRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyRequired'
+        '200':
+          description: Label voided (or already voided).
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Label'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: void-after-handover (ErrVoidAfterHandover), concurrent-update (ErrConcurrentUpdate) or idempotency-key-reused (the Idempotency-Key was already used with a different request).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /journeys/{trackingNumber}:
+    get:
+      tags: [Journeys]
+      operationId: getJourney
+      summary: Get the journey of one package (GetJourney)
+      description: >-
+        Open Host query for shoppers and customer-ordering. Returns the
+        customer-visible timeline: the state and every stored scan, applied or
+        not, in the order they were recorded.
+      parameters:
+        - $ref: '#/components/parameters/TrackingNumber'
+      responses:
+        '200':
+          description: The package journey and its scans.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Journey'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /journeys/{trackingNumber}/scans:
+    post:
+      tags: [Journeys]
+      operationId: recordScan
+      summary: Record one scan on a package journey (RecordScan)
+      description: >-
+        RecordScan over REST. Scans apply in time order; an older scan is
+        stored but does not move the state (409 scan-out-of-order, the scan is
+        kept with applied=false). A scan whose scanType has no edge from the
+        current state is stored with applied=false and answers 409
+        illegal-transition. A known scanId answers 409 duplicate-scan and
+        stores nothing. A closed journey answers 409 journey-closed.
+      parameters:
+        - $ref: '#/components/parameters/TrackingNumber'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordScanRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyRequired'
+        '200':
+          description: Scan applied; the journey after the scan.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Journey'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: duplicate-scan (ErrDuplicateScan), scan-out-of-order (ErrScanOutOfOrder, stored not applied), journey-closed (ErrJourneyClosed), illegal-transition (stored not applied), concurrent-update or idempotency-key-reused (the Idempotency-Key was already used with a different request).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /carrier-events:
+    post:
+      tags: [Journeys]
+      operationId: reportCarrierEvent
+      summary: Report one external carrier event (ReportCarrierEvent, ADR 0015)
+      description: >-
+        The carrier webhook of CARRIER_HANDOFF service areas. Unauthenticated by
+        the standing fleet decision, exactly like POST
+        /journeys/{trackingNumber}/scans (the per-carrier token scheme is a
+        recorded follow-up). Each report becomes one scan with scanId
+        "<carrierId>:<carrierEventId>", so a re-sent report answers 409
+        duplicate-scan. PICKED_UP is the handoff at the journey's handoff node
+        (a journey already WITH_CARRIER is a no-op that answers 200);
+        OUT_FOR_DELIVERY, DELIVERED and DELIVERY_FAILED become their scans;
+        IN_TRANSIT is accepted and counted without a scan.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CarrierEventRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyRequired'
+        '200':
+          description: The event was applied (or acknowledged without a scan); the journey after it.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Journey'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: duplicate-scan (ErrDuplicateScan), scan-out-of-order (stored not applied), journey-closed (ErrJourneyClosed), illegal-transition (stored not applied), concurrent-update or idempotency-key-reused (the Idempotency-Key was already used with a different request).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /reports/package-touches:
+    servers:
+      - url: http://localhost:8092
+    get:
+      tags: [reports]
+      operationId: getPackageTouchesReport
+      x-pagination-exempt: report
+      summary: Touches per delivered package, per day and tier
+      description: >-
+        Per UTC day of deliveredAt and per tier (UNKNOWN while the package's
+        LabelIssued is not projected): the delivered packages and the touches
+        per package (mean, p50, p90 continuous percentiles). A touch is an
+        applied journey scan of type PICKUP_DEPARTURE, DEPARTURE,
+        TRANSIT_ARRIVAL, STATION_ARRIVAL, OUT_FOR_DELIVERY or DELIVERY_FAILED
+        (SHIPMENT_CONFIRMED and DELIVERED are not touches). Days without a
+        delivery are omitted.
+      parameters:
+        - $ref: '#/components/parameters/ReportFrom'
+        - $ref: '#/components/parameters/ReportTo'
+      responses:
+        '200':
+          description: The report for the range.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageTouchesReport'
+        '400':
+          $ref: '#/components/responses/InvalidReportRange'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /reports/delivery-outcomes:
+    servers:
+      - url: http://localhost:8092
+    get:
+      tags: [reports]
+      operationId: getDeliveryOutcomesReport
+      x-pagination-exempt: report
+      summary: Delivery outcomes and first-attempt success, per day
+      description: >-
+        Per UTC day of the outcome instant (deliveredAt, returnedAt,
+        declaredAt): packages delivered, delivered at the first attempt (no
+        DELIVERY_FAILED scan), returned to the sender and lost.
+        firstAttemptSuccessRate = firstAttemptDelivered / (packagesDelivered +
+        packagesReturnedToSender + packagesLost); lostRate and
+        returnToSenderRate share that denominator;
+        meanAttemptsPerDeliveredPackage = (packagesDelivered + DELIVERY_FAILED
+        scans of the delivered packages) / packagesDelivered, null on a day
+        without deliveries. Days without an outcome are omitted.
+      parameters:
+        - $ref: '#/components/parameters/ReportFrom'
+        - $ref: '#/components/parameters/ReportTo'
+      responses:
+        '200':
+          description: The report for the range.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryOutcomesReport'
+        '400':
+          $ref: '#/components/responses/InvalidReportRange'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /reports/freshness:
+    servers:
+      - url: http://localhost:8092
+    get:
+      tags: [reports]
+      operationId: getReportFreshness
+      summary: How far the analytics projection is behind
+      description: >-
+        asOf is the CloudEvents time of the newest event the projector
+        applied; lagSeconds is now minus asOf, never negative. Both are null
+        until the first event. One endpoint for every report: they all read
+        the same projection.
+      responses:
+        '200':
+          description: The projection's freshness.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportFreshness'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated key, 1-128 printable ASCII characters, one per logical submit (a retry reuses it). The same key and the same request replays the first response (24 hours) with Idempotency-Replayed true; the same key with a different method, path or body answers 409 idempotency-key-reused.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    LabelRef:
+      name: labelRef
+      in: path
+      required: true
+      schema:
+        type: string
+    TrackingNumber:
+      name: trackingNumber
+      in: path
+      required: true
+      schema:
+        type: string
+    ReportFrom:
+      name: from
+      in: query
+      required: false
+      description: First UTC day of the range, inclusive. Omitted = 29 days before `to` (a 30-day range).
+      schema:
+        type: string
+        format: date
+    ReportTo:
+      name: to
+      in: query
+      required: false
+      description: Last UTC day of the range, inclusive. Omitted = today. At most 366 days from `from`.
+      schema:
+        type: string
+        format: date
+  headers:
+    IdempotencyReplayed:
+      description: Present, with the value true, only when the response is a replay of the answer stored for the Idempotency-Key.
+      schema:
+        type: string
+        enum: ['true']
+  responses:
+    IdempotencyKeyRequired:
+      description: idempotency-key-required (the Idempotency-Key header is missing) or idempotency-key-invalid (not 1-128 printable ASCII characters).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ValidationFailed:
+      description: validation-failed. The request is well-formed JSON but violates a value rule.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalError:
+      description: internal-error. An unmapped failure; the detail never carries the cause. Never cached by the idempotency middleware, so the same key retries the work.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: not-found. The addressed label or journey does not exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InvalidReportRange:
+      description: invalid-report-range. from or to is not a date (YYYY-MM-DD), from is after to, or the range exceeds 366 days.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    ServiceTier:
+      type: string
+      enum: [SAME_DAY, NEXT_DAY, TWO_DAY, STANDARD]
+    LabelStatus:
+      type: string
+      enum: [ISSUED, VOIDED]
+    JourneyState:
+      type: string
+      enum: [LABELLED, HANDED_OVER, IN_TRANSIT, AT_STATION, WITH_CARRIER, OUT_FOR_DELIVERY, DELIVERED, RETURNED, LOST, VOIDED]
+    ScanType:
+      type: string
+      description: >-
+        Kind of observation (ADR 0002 A5). Each type has fixed edges:
+        SHIPMENT_CONFIRMED (LABELLED stays), PICKUP_DEPARTURE (LABELLED to
+        HANDED_OVER), DEPARTURE (HANDED_OVER or IN_TRANSIT to IN_TRANSIT),
+        TRANSIT_ARRIVAL (HANDED_OVER or IN_TRANSIT to IN_TRANSIT),
+        STATION_ARRIVAL (HANDED_OVER or IN_TRANSIT to AT_STATION),
+        CARRIER_HANDOFF (AT_STATION to WITH_CARRIER, ADR 0015),
+        OUT_FOR_DELIVERY (AT_STATION or WITH_CARRIER to OUT_FOR_DELIVERY),
+        DELIVERED (OUT_FOR_DELIVERY to DELIVERED), DELIVERY_FAILED
+        (OUT_FOR_DELIVERY to AT_STATION, or to WITH_CARRIER for a journey with
+        a carrier choice: the carrier re-attempts from its own custody).
+      enum: [SHIPMENT_CONFIRMED, PICKUP_DEPARTURE, DEPARTURE, TRANSIT_ARRIVAL, STATION_ARRIVAL, CARRIER_HANDOFF, OUT_FOR_DELIVERY, DELIVERED, DELIVERY_FAILED]
+    IssueLabelRequest:
+      type: object
+      description: In-org request (contracts-delta E2). orderId is needed for GetShipTo and for PackageDelivered.
+      required: [poNumber, packageNo, assignmentId, orderId, tier]
+      additionalProperties: false
+      properties:
+        poNumber:
+          type: string
+          minLength: 1
+          maxLength: 64
+        packageNo:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        assignmentId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        orderId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        tier:
+          $ref: '#/components/schemas/ServiceTier'
+    Label:
+      type: object
+      description: Label metadata. Never contains the ship-to address. labelRef, trackingNumber and carrier are what vendor-connectivity returns to the vendor.
+      required: [labelRef, trackingNumber, carrier, poNumber, packageNo, assignmentId, orderId, tier, status, issuedAt]
+      properties:
+        labelRef:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+        poNumber:
+          type: string
+        packageNo:
+          type: integer
+        assignmentId:
+          type: string
+        orderId:
+          type: string
+        tier:
+          $ref: '#/components/schemas/ServiceTier'
+        status:
+          $ref: '#/components/schemas/LabelStatus'
+        issuedAt:
+          type: string
+          format: date-time
+        voidReason:
+          type: string
+        voidedAt:
+          type: string
+          format: date-time
+    VoidLabelRequest:
+      type: object
+      required: [reason]
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+    Scan:
+      type: object
+      required: [scanId, nodeId, scanType, at, applied]
+      properties:
+        scanId:
+          type: string
+        nodeId:
+          type: string
+        scanType:
+          $ref: '#/components/schemas/ScanType'
+        at:
+          type: string
+          format: date-time
+        applied:
+          type: boolean
+          description: False for a scan stored out of order or without an edge from the state it met.
+    RecordScanRequest:
+      type: object
+      required: [scanId, nodeId, scanType, at]
+      additionalProperties: false
+      properties:
+        scanId:
+          type: string
+          minLength: 1
+          maxLength: 256
+        nodeId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        scanType:
+          $ref: '#/components/schemas/ScanType'
+        at:
+          type: string
+          format: date-time
+    CarrierEventRequest:
+      type: object
+      description: "One external carrier progress report (ADR 0015). No authentication - the route is exactly as privileged as the scans route."
+      required: [carrierId, carrierEventId, trackingNumber, status, at]
+      additionalProperties: false
+      properties:
+        carrierId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        carrierEventId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: The carrier's own event id; with carrierId it forms the scanId, so a re-sent report is a duplicate scan.
+        trackingNumber:
+          type: string
+          minLength: 1
+          maxLength: 64
+        status:
+          type: string
+          enum: [PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, DELIVERY_FAILED]
+        at:
+          type: string
+          format: date-time
+          description: The observation instant; at most five minutes into the future (clock-skew allowance).
+        proofCode:
+          type: string
+          maxLength: 128
+        locationCode:
+          type: string
+          maxLength: 128
+    Journey:
+      type: object
+      required: [trackingNumber, state, poNumber, assignmentId, orderId, tier, scans]
+      properties:
+        trackingNumber:
+          type: string
+        state:
+          $ref: '#/components/schemas/JourneyState'
+        poNumber:
+          type: string
+        assignmentId:
+          type: string
+        orderId:
+          type: string
+        tier:
+          $ref: '#/components/schemas/ServiceTier'
+        handedOverAt:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+        etaStart:
+          type: string
+          format: date-time
+          description: Start of the day-of ETA window (ADR 0013). Present, with etaEnd, only while the state is OUT_FOR_DELIVERY and the window is not older than the last applied scan; omitted otherwise. The window is shown as received and is never clipped to the promised delivery window.
+        etaEnd:
+          type: string
+          format: date-time
+          description: End of the day-of ETA window. Present exactly when etaStart is.
+        destinationKind:
+          type: string
+          enum: [SHIP_TO, PICKUP_POINT]
+          description: Present only on a pickup journey (ADR 0016).
+        pickupPointId:
+          type: string
+          description: The point of a pickup journey (ADR 0016).
+        readyForCollectionAt:
+          type: string
+          format: date-time
+          description: When the package reached its point (ADR 0016).
+        holdUntil:
+          type: string
+          format: date-time
+          description: The retention deadline of an uncollected package (ADR 0016).
+        scans:
+          type: array
+          items:
+            $ref: '#/components/schemas/Scan'
+    PackageTouchesReport:
+      type: object
+      required: [from, to, days]
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/PackageTouchesDay'
+    PackageTouchesDay:
+      type: object
+      required: [day, tier, packagesDelivered, meanTouchesPerPackage, p50TouchesPerPackage, p90TouchesPerPackage]
+      properties:
+        day:
+          type: string
+          format: date
+        tier:
+          type: string
+          description: The package's service tier, or UNKNOWN while its LabelIssued is not projected.
+        packagesDelivered:
+          type: integer
+          minimum: 1
+        meanTouchesPerPackage:
+          type: number
+        p50TouchesPerPackage:
+          type: number
+        p90TouchesPerPackage:
+          type: number
+    DeliveryOutcomesReport:
+      type: object
+      required: [from, to, days]
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryOutcomesDay'
+    DeliveryOutcomesDay:
+      type: object
+      required: [day, packagesDelivered, firstAttemptDelivered, packagesReturnedToSender, packagesLost, firstAttemptSuccessRate, meanAttemptsPerDeliveredPackage, lostRate, returnToSenderRate]
+      properties:
+        day:
+          type: string
+          format: date
+        packagesDelivered:
+          type: integer
+          minimum: 0
+        firstAttemptDelivered:
+          type: integer
+          minimum: 0
+        packagesReturnedToSender:
+          type: integer
+          minimum: 0
+        packagesLost:
+          type: integer
+          minimum: 0
+        firstAttemptSuccessRate:
+          type: number
+          minimum: 0
+          maximum: 1
+        meanAttemptsPerDeliveredPackage:
+          type: number
+          minimum: 1
+          nullable: true
+        lostRate:
+          type: number
+          minimum: 0
+          maximum: 1
+        returnToSenderRate:
+          type: number
+          minimum: 0
+          maximum: 1
+    ReportFreshness:
+      type: object
+      required: [asOf, lagSeconds]
+      properties:
+        asOf:
+          type: string
+          format: date-time
+          nullable: true
+        lagSeconds:
+          type: number
+          minimum: 0
+          nullable: true
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status, detail, instance]
+      properties:
+        type:
+          type: string
+          description: Problem type slug, for example label-already-issued.
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          description: The escaped request path.

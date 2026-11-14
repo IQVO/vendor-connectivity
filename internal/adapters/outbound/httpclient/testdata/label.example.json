@@ -1,0 +1,12 @@
+{
+  "labelRef": "lbl-1",
+  "trackingNumber": "TRK-1",
+  "carrier": "carrier-a",
+  "poNumber": "PO-1",
+  "packageNo": 2,
+  "assignmentId": "asg-1",
+  "orderId": "ord-1",
+  "tier": "NEXT_DAY",
+  "status": "ISSUED",
+  "issuedAt": "2026-11-14T12:05:00Z"
+}
