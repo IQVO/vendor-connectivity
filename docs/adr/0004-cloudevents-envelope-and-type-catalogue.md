@@ -20,7 +20,7 @@ ADR 0003.
 - `specversion` `1.0`; `id` a UUID persisted with the outbox row (stable across
   relay retries; consumers dedupe on it); `source`
   `/retailnetwork/vendor-connectivity`; `subject` the aggregate root id
-  (`vendorId`, `poNumber` or `transactionId`); `time` the instant of the fact, in
+  (`vendorId`, `poNumber`, `transactionId`, `shipmentId` or `authorizationId`); `time` the instant of the fact, in
   UTC; `datacontenttype` `application/json`; `dataschema`
   `urn:retailnetwork:vendor-connectivity:<stream>:<EventName>:v1` with stream
   `events` or `analytics`.
@@ -31,11 +31,11 @@ ADR 0003.
   arrays are always present; timestamps are RFC 3339 UTC.
 - Built and decoded only through `internal/adapters/kafka/cloudevents`.
 - `<entity>` is the raising aggregate, lowercase, no separators: `vendoraccount`,
-  `purchaseorder`, `submission`, `inboundreceipt`. Tier is `partner`.
+  `purchaseorder`, `submission`, `inboundreceipt`, `returnoutcome`. Tier is `partner`.
 
 ### Published types
 
-Ten types go to the topic `retailnetwork.vendor-connectivity.events`.
+Eleven types go to the topic `retailnetwork.vendor-connectivity.events`.
 `PurchaseOrderCancelled` is the one analytics-only event of the model ("analytics
 only" consumers) and goes ONLY to `retailnetwork.vendor-connectivity.analytics`.
 
@@ -51,6 +51,7 @@ type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.PurchaseOrderC
 type: com.retailnetwork.partner.vendor-connectivity.purchaseorder.VendorShipmentConfirmed stream: events
 type: com.retailnetwork.partner.vendor-connectivity.submission.SubmissionProcessed stream: events
 type: com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceiptSubmitted stream: events
+type: com.retailnetwork.partner.vendor-connectivity.returnoutcome.VendorReturnOutcomeSubmitted stream: events
 ```
 
 | Event | Subject / key | Raised when | `data` | Consumers |
@@ -66,6 +67,7 @@ type: com.retailnetwork.partner.vendor-connectivity.inboundreceipt.InboundReceip
 | `VendorShipmentConfirmed` | `poNumber` | the shipment confirmation transaction succeeded | `{poNumber, assignmentId, nodeId, trackingNumbers[], shippedAt, requiredShipBy}` | order-sourcing, shipping-and-tracking, node-performance |
 | `SubmissionProcessed` | `transactionId` | a submission left PROCESSING (SUCCESS or FAILURE) | `{transactionId, vendorId, kind, status, errorCount}` | node-performance |
 | `InboundReceiptSubmitted` | `shipmentId` | SubmitInboundReceipt accepted a receipt (ADR 0005) | `{transactionId, vendorId, nodeId, shipmentId, receivedAt, cartons[{sscc, status, items[{gtin, qtyEaches}], complianceCodes[]}]}` | seller-inbound, node-performance |
+| `VendorReturnOutcomeSubmitted` | `authorizationId` | SubmitReturnOutcome accepted an outcome (ADR 0014) | `{transactionId, vendorId, authorizationId, nodeId, receivedAt, lines[{catalogItemId, ownerRef?, qtyRestockable, qtyUnsellable}]}` | customer-returns |
 
 Payload rules:
 
@@ -87,9 +89,15 @@ types, never published by this service):
 | Type | Stream | Policy | ADR |
 |---|---|---|---|
 | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleaseWithdrawn` | events | `CancelOnReleaseWithdrawn` | 0013 |
+| `com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnAuthorized` | events | `OnReturnAuthorized` | 0014 |
+| `com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnLabelIssued` | events | `OnReturnLabelIssued` | 0014 |
+| `com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnCancelled` | events | `OnReturnCancelled` | 0014 |
 
 ```text
 type: com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleaseWithdrawn stream: events
+type: com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnAuthorized stream: events
+type: com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnLabelIssued stream: events
+type: com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnCancelled stream: events
 ```
 
 ## Consequences
