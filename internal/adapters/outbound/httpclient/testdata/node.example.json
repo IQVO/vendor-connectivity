@@ -1,0 +1,12 @@
+{
+  "nodeId": "n-9",
+  "nodeType": "FULFILLMENT_CENTER",
+  "subtype": "XL",
+  "operator": "VENDOR",
+  "vendorRef": { "vendorId": "V-1", "vendorNodeCode": "SITE-1" },
+  "regionId": "r-1",
+  "timezone": "America/Sao_Paulo",
+  "location": { "postalCode": "07750-000", "countryCode": "BR", "lat": -23.5, "lon": -46.6 },
+  "capabilities": { "outbound": true, "inbound": true, "returns": true, "sort": true, "lastMile": false, "air": false, "collection": false },
+  "status": "PROPOSED"
+}

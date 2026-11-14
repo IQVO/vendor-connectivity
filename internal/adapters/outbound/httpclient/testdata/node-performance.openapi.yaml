@@ -1,0 +1,362 @@
+openapi: 3.0.3
+info:
+  title: Node Performance API
+  version: 0.1.0
+  contact:
+    name: node-performance maintainers
+    url: https://github.com/IQVO/node-performance
+  description: >-
+    REST contract of the node-performance bounded context of the retail
+    network, derived from retail-network-docs model/model.yaml
+    (contexts[node-performance].rest, .aggregates, conventions.errors) and
+    adjusted by the cross-context decisions (G20, G33, E18). Node Performance
+    grades every node from observed facts only (purchase orders issued,
+    accepted, rejected and expired, packages handed over against requiredShipBy,
+    promises kept or broken, inventory feeds applied) over a 7-day and a
+    30-day window. A scorecard below the observation minimum (50) is
+    PROVISIONAL. Both routes are read-only, so none takes an Idempotency-Key.
+    vendor-connectivity calls GET /scorecards/{nodeId} in-organization to serve
+    a vendor's scorecard read; delivery-promise and order-sourcing do not call
+    this API, they consume NodeScorecardUpdated. No authentication, consistent
+    with the rest of the retail network. Errors are RFC 9457 problem details
+    (application/problem+json); the problem types are the 400 request ones
+    (malformed-request-query, invalid-limit, invalid-cursor,
+    unknown-query-parameter), not-found (404), validation-failed (422) and
+    internal-error (500, a panic answered by the recoverer or an error no
+    problem maps to; the detail never leaks internals).
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Scorecards
+    description: A node's measured performance over a rolling window, with a grade (aggregate NodeScorecard).
+paths:
+  /scorecards/{nodeId}:
+    get:
+      tags: [Scorecards]
+      operationId: getScorecard
+      summary: Get both scorecards (7-day and 30-day) of one node (GetScorecard)
+      description: >-
+        Returns the 7d and the 30d scorecard of the node, in that order. A
+        scorecard exists from the first observation recorded for the node, so a
+        node nothing was observed about answers not-found.
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+      responses:
+        '200':
+          description: The node's scorecards.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeScorecards'
+        '404':
+          description: "not-found (ErrNotFound): no observation has been recorded for this node yet."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: not-found
+                title: Not found
+                status: 404
+                detail: "not found: no scorecard for node N-0042"
+        '422':
+          description: "validation-failed (ErrValidation): the nodeId is not 1 to 64 characters from A-Z a-z 0-9 . _ - starting with a letter or digit (a ':' is refused too)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: validation-failed
+                title: Validation failed
+                status: 422
+                detail: "validation failed: nodeId must be 1 to 64 characters from A-Z a-z 0-9 . _ -"
+        '400':
+          description: "malformed-request-query: the query string carries a NUL character (U+0000), rejected by the NUL middleware before the handler."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: malformed-request-query
+                title: Malformed query string
+                status: 400
+                detail: a NUL character (U+0000) is not allowed in the query string
+        '500':
+          description: "internal-error: the handler panicked (the recoverer middleware answers) or the use case returned an error no problem maps to. The detail never leaks internals; the real error is logged."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: internal-error
+                title: Internal server error
+                status: 500
+                detail: an unexpected error occurred
+  /scorecards:
+    get:
+      tags: [Scorecards]
+      operationId: listScorecardsByGrade
+      summary: List the scorecards whose current grade matches (ListScorecardsByGrade)
+      description: >-
+        Lists every scorecard whose current grade is the one given, ordered by
+        scorecardId ascending, one page at a time. The model names no window
+        filter and no caller; the optional window filter and the keyset
+        pagination (limit, cursor) are additive (ADR 0002, A18; ADR 0012).
+      parameters:
+        - name: grade
+          in: query
+          required: true
+          description: A, B, C, D, or PROVISIONAL below the observation minimum.
+          schema:
+            $ref: '#/components/schemas/GradeValue'
+        - name: window
+          in: query
+          required: false
+          description: Restrict the list to one window.
+          schema:
+            $ref: '#/components/schemas/Window'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: The matching scorecards.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScorecardList'
+        '400':
+          description: "invalid-limit, invalid-cursor, unknown-query-parameter or malformed-request-query."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: invalid-cursor
+                title: Invalid cursor
+                status: 400
+                detail: cursor is not a valid page token.
+        '422':
+          description: "validation-failed (ErrValidation): grade or window is not an accepted value, or the cursor payload is longer than 80 characters."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: validation-failed
+                title: Validation failed
+                status: 422
+                detail: "validation failed: grade must be one of A, B, C, D, PROVISIONAL"
+        '500':
+          description: "internal-error: the handler panicked (the recoverer middleware answers) or the use case returned an error no problem maps to. The detail never leaks internals; the real error is logged."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: internal-error
+                title: Internal server error
+                status: 500
+                detail: an unexpected error occurred
+components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size, 1 to 500; 100 when absent.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque nextCursor of the previous page; filters are repeated on every page request.
+      schema:
+        type: string
+    NodeId:
+      name: nodeId
+      in: path
+      required: true
+      description: The node id minted by node-topology.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+        example: N-0042
+  schemas:
+    GradeValue:
+      type: string
+      description: A, B, C or D; PROVISIONAL below the observation minimum.
+      enum: [A, B, C, D, PROVISIONAL]
+    Window:
+      type: string
+      description: The rolling window, 7 or 30 days.
+      enum: [7d, 30d]
+    ScorecardState:
+      type: string
+      enum: [PROVISIONAL, GRADED]
+    Metrics:
+      type: object
+      description: >-
+        The metrics of the window (ADR 0002, A5-A10). A metric whose
+        denominator is empty reports its best value.
+      required:
+        - onTimeHandoverRate
+        - lateAckRate
+        - rejectRate
+        - expiryRate
+        - promiseKeptRate
+        - feedFreshnessP95Minutes
+        - observations
+      properties:
+        onTimeHandoverRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Packages handed over on or before requiredShipBy, over packages handed over. Higher is better.
+        lateAckRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Purchase orders acknowledged in the last 10% of their ack window or expired, over purchase orders acknowledged or expired. Lower is better.
+        rejectRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Purchase orders rejected over purchase orders acknowledged or expired. Lower is better.
+        expiryRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Purchase orders expired over purchase orders acknowledged or expired. Lower is better.
+        promiseKeptRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Promises kept over promises kept plus promises broken by a node-attributable cause. Higher is better.
+        feedFreshnessP95Minutes:
+          type: integer
+          minimum: 0
+          description: 95th percentile (nearest rank) of the whole minutes between consecutive applied inventory feeds of the node. Lower is better.
+        observations:
+          type: integer
+          minimum: 0
+          description: Observations counted in the window.
+        inboundTimelinessP95Minutes:
+          type: integer
+          minimum: 0
+          description: >-
+            Informational, never graded (ADR 0009). 95th percentile (nearest rank) of the whole minutes between a
+            shipment's InboundShipmentShipped.shippedAt and the receivedAt of its InboundReceiptSubmitted, over the
+            receipts received inside the window; a receipt stamped before its shipment counts as 0. Omitted when no
+            receipt joined to its shipment falls in the window. Lower is better.
+        inboundAccuracyRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: >-
+            Informational, never graded (ADR 0009). Cartons reported RECEIVED over all cartons reported by the receipts
+            received inside the window (joined to their shipment). Omitted when the window holds no such carton.
+            Higher is better.
+    Scorecard:
+      type: object
+      required: [scorecardId, nodeId, window, state, grade, metrics]
+      properties:
+        scorecardId:
+          type: string
+          description: nodeId + ':' + window.
+          example: N-0042:30d
+        nodeId:
+          type: string
+          example: N-0042
+        window:
+          $ref: '#/components/schemas/Window'
+        state:
+          $ref: '#/components/schemas/ScorecardState'
+        grade:
+          $ref: '#/components/schemas/GradeValue'
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+        computedAt:
+          type: string
+          format: date-time
+          description: When the last recompute ran; omitted before the first one.
+    NodeScorecards:
+      type: object
+      required: [nodeId, scorecards]
+      properties:
+        nodeId:
+          type: string
+          example: N-0042
+        scorecards:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/Scorecard'
+      example:
+        nodeId: N-0042
+        scorecards:
+          - scorecardId: N-0042:7d
+            nodeId: N-0042
+            window: 7d
+            state: GRADED
+            grade: C
+            metrics:
+              onTimeHandoverRate: 0.93
+              lateAckRate: 0.04
+              rejectRate: 0.02
+              expiryRate: 0.01
+              promiseKeptRate: 0.92
+              feedFreshnessP95Minutes: 55
+              observations: 412
+              inboundTimelinessP95Minutes: 2880
+              inboundAccuracyRate: 0.97
+            computedAt: '2026-10-22T14:03:00Z'
+          - scorecardId: N-0042:30d
+            nodeId: N-0042
+            window: 30d
+            state: GRADED
+            grade: B
+            metrics:
+              onTimeHandoverRate: 0.962
+              lateAckRate: 0.021
+              rejectRate: 0.012
+              expiryRate: 0.004
+              promiseKeptRate: 0.951
+              feedFreshnessP95Minutes: 38
+              observations: 1874
+            computedAt: '2026-10-22T14:03:00Z'
+    ScorecardList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Scorecard'
+        nextCursor:
+          type: string
+          description: Opaque cursor of the next page; omitted on the last page.
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          description: Problem type slug, e.g. not-found, validation-failed, invalid-cursor or internal-error.
+          example: not-found
+        title:
+          type: string
+        status:
+          type: integer
+          example: 404
+        detail:
+          type: string
+        instance:
+          type: string
