@@ -250,7 +250,7 @@ flowchart TB
 
 Source: `internal/application/usecases/vendors.go`, `submissions.go` and `internal/domain/vendor/events.go`.
 
-Omitted: the three account events have no consumer yet (`VendorOnboarded` was drawn to node-performance in the aggregator's model; the code only publishes it); `SubmissionProcessed`
+Omitted: `VendorSuspended` and `VendorReinstated` have no consumer yet; node-performance binds `VendorOnboarded` to a handler that acknowledges it without effect (`noEffect` in its `internal/adapters/inbound/kafka/handlers.go`: only the inbox row is written); `SubmissionProcessed`
 goes out for every processed write (board 2).
 
 ## Sticky inventory

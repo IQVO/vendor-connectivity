@@ -259,12 +259,15 @@ docker build --build-context uikit=../../warehouse-ui-kit -t warehouse/vendor-co
 
 ## Architecture Decision Records
 
-Index: [`docs/adr/index.md`](docs/adr/index.md) — 9 ADRs (0001–0009): the
+Index: [`docs/adr/index.md`](docs/adr/index.md) — 13 ADRs (0001–0013): the
 bounded context (0001), aggregates and invariants (0002), consumed contracts
 and local read models (0003), the CloudEvents catalogue (0004), inbound
 shipments, receipts and catalog packaging (0005), the MCP server (0006), the
 console remote (0007), the fleet observability standard (0008), the A2A
-inbound adapter (0009).
+inbound adapter (0009), the fleet REST API guideline (0010), agent authority
+levels and the complete MCP surface (0011), purchase-order lines naming the
+stock owner (0012), cancelling the purchase order when a release is withdrawn
+(0013).
 
 ## License
 

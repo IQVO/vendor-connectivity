@@ -235,7 +235,7 @@ components:
       title: VendorOnboarded
       summary: A vendor account was onboarded (ACTIVE).
       description: '`type` = `com.retailnetwork.partner.vendor-connectivity.vendoraccount.VendorOnboarded`; subject and key = `vendorId`; stream `events`. Raised
-        by OnboardVendor. Consumers: node-performance.'
+        by OnboardVendor. Consumers: node-performance (acknowledged without effect).'
       contentType: application/cloudevents+json
       tags:
       - name: vendoraccount

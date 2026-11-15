@@ -1,0 +1,13 @@
+{
+  "feedId": "feed-042",
+  "nodeId": "n-9",
+  "fullUpdate": false,
+  "asOf": "2026-11-14T12:00:00Z",
+  "state": "APPLIED",
+  "lineCount": 2,
+  "appliedCount": 2,
+  "staleCount": 0,
+  "zeroedCount": 0,
+  "receivedAt": "2026-11-14T12:00:01Z",
+  "appliedAt": "2026-11-14T12:00:01Z"
+}

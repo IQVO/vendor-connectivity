@@ -103,7 +103,7 @@ The full catalogue is on [Events](/docs/api-reference/events).
 | Consumer | Types read | Status |
 | --- | --- | --- |
 | order-sourcing | the `purchaseorder.` types (`PurchaseOrderAccepted`, `PurchaseOrderRejected`, `PurchaseOrderExpired`, `VendorShipmentConfirmed`) via its `VENDOR_CONNECTIVITY_CONSUMER_GROUP` consumer | Built + verified |
-| node-performance | every type under the context's type prefix: `VendorOnboarded`, `PurchaseOrderIssued`, `Accepted`, `Rejected`, `Expired`, `VendorShipmentConfirmed`, `SubmissionProcessed` and `InboundReceiptSubmitted` | Built + verified |
+| node-performance | every type under the context's type prefix: `VendorOnboarded`, `PurchaseOrderIssued`, `Accepted`, `Rejected`, `Expired`, `VendorShipmentConfirmed`, `SubmissionProcessed` and `InboundReceiptSubmitted`; `VendorOnboarded` and `SubmissionProcessed` are bound to a handler that acknowledges them without effect (`noEffect` in its `handlers.go`) | Built + verified |
 | shipping-and-tracking | `VendorShipmentConfirmed` | Built + verified |
 | seller-inbound | `InboundReceiptSubmitted` (subject: the shipment id) | Built + verified |
 | any consumer of `retailnetwork.vendor-connectivity.analytics` | `PurchaseOrderCancelled` | **Absent**: no repository on local `origin/develop` reads that topic (only the ecosystem catalogue lists it). |

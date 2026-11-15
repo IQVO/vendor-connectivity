@@ -1,0 +1,1292 @@
+openapi: 3.0.3
+info:
+  title: Node Topology API
+  version: 0.1.0
+  contact:
+    name: node-topology maintainers
+    url: https://github.com/IQVO/node-topology
+  description: >-
+    REST contract of the node-topology bounded context of the retail
+    network, derived from retail-network-docs model/model.yaml
+    (contexts[node-topology].rest, .aggregates, .publishes,
+    conventions.errors). Node Topology is the
+    authoritative registry of nodes, their declared operational profiles,
+    lanes, regions and service areas. vendor-connectivity calls POST /nodes and
+    PUT /nodes/{nodeId}/operational-profile in-organization while it processes
+    vendor submissions; the network-ops planner calls the other write routes
+    and may also declare a network node's profile (declaredBy NETWORK_OPS);
+    any context may call the read routes. No authentication, consistent with
+    the fleet. Errors are RFC 9457 problem details. The shared problem types
+    are not-found (404), illegal-transition (409), concurrent-update (409) and
+    validation-failed (422).
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Nodes
+    description: Nodes, their lifecycle and their declared operational profile (aggregate Node).
+  - name: Lanes
+    description: Directed, mode-specific connections between nodes (aggregate Lane).
+  - name: Service Areas
+    description: Which delivery station serves a postal prefix (aggregate ServiceArea).
+  - name: Regions
+    description: Partitions of the network (aggregate Region).
+paths:
+  /nodes:
+    post:
+      tags: [Nodes]
+      operationId: registerNode
+      summary: Register a node (RegisterNode)
+      description: >-
+        Creates a node in state PROPOSED and publishes NodeRegistered.
+        Capabilities are derived from the node type (DefaultCapabilitiesByType).
+        Parcel nodes (SORTATION_CENTER, DELIVERY_STATION, AIR_HUB) must have
+        operator NETWORK.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterNodeRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '201':
+          description: Node registered.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '409':
+          description: "vendor-node-code-taken (ErrVendorNodeCodeTaken), or concurrent-update (ErrConcurrentUpdate); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: "operator-not-allowed-for-node-type (ErrOperatorNotAllowedForNodeType), unknown-region (ErrUnknownRegion), subtype-not-allowed (ErrSubtypeNotAllowed), or validation-failed."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags: [Nodes]
+      operationId: listNodes
+      summary: List nodes by type, region and status (ListNodes)
+      description: Open Host Service read, keyset-paginated by nodeId ascending. Each filter is optional and filters combine with AND; an empty result is 200 with an empty items list.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/NodeType'
+        - name: region
+          in: query
+          required: false
+          description: A regionId.
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/NodeStatus'
+      responses:
+        '200':
+          description: One page of matching nodes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodePage'
+        '400':
+          $ref: '#/components/responses/ListBadRequest'
+        '422':
+          description: validation-failed (a type or status that is not an enumeration value).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /nodes/{nodeId}:
+    get:
+      tags: [Nodes]
+      operationId: getNode
+      summary: Get one node with its current operational profile (GetNode)
+      description: Open Host Service read of one node with its capabilities and current operational profile revision. An unknown nodeId is 404 not-found.
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+      responses:
+        '200':
+          description: The node.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          $ref: '#/components/responses/NodeNotFound'
+  /nodes/{nodeId}/operational-profile:
+    put:
+      tags: [Nodes]
+      operationId: declareOperationalProfile
+      summary: Declare a new operational profile revision (DeclareOperationalProfile)
+      description: >-
+        Appends a profile revision; earlier revisions are never edited.
+        Called by vendor-connectivity (declaredBy VENDOR) and by the
+        network-ops planner (declaredBy NETWORK_OPS). Every day of a cutoff
+        must fall inside the operating hours of that day, and a revision of an
+        ACTIVE FULFILLMENT_CENTER keeps at least one cutoff and a handlingTime
+        above zero. sortDwellMinutes is accepted only for SORTATION_CENTER and
+        AIR_HUB nodes. The optional inbound limits (maxCartonWeightG,
+        maxCartonDimsMm, acceptsPallets, requiresSscc) are declared per
+        revision; a revision without inbound declares none, and consumers
+        then treat inbound limits as unchecked. Only node types with the
+        INBOUND capability (FULFILLMENT_CENTER, INBOUND_CROSS_DOCK) declare
+        inbound limits; any other type is 422 inbound-limits-not-allowed.
+        Publishes NodeOperationalProfileDeclared.
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperationalProfileDeclaration'
+            examples:
+              withInboundLimits:
+                summary: A revision that declares inbound limits (all optional).
+                value:
+                  profileRevision: 4
+                  timezone: America/Sao_Paulo
+                  operatingHoursByDay:
+                    monday: { start: '06:00', end: '22:00' }
+                  holidays: []
+                  handlingTimeMinutes: 240
+                  cutoffs:
+                    - { localTime: '11:00' }
+                  throughputCap: { value: 400, timeUnit: HOUR, unit: ORDER }
+                  inbound:
+                    maxCartonWeightG: 25000
+                    maxCartonDimsMm: { l: 600, w: 400, h: 300 }
+                    acceptsPallets: true
+                    requiresSscc: false
+                    monthlyVolumeDm3: 400000
+                  declaredBy: VENDOR
+              withoutInboundLimits:
+                summary: No inbound key at all means no inbound limits are declared.
+                value:
+                  profileRevision: 5
+                  timezone: America/Sao_Paulo
+                  operatingHoursByDay:
+                    monday: { start: '06:00', end: '22:00' }
+                  handlingTimeMinutes: 240
+                  cutoffs:
+                    - { localTime: '11:00' }
+                  throughputCap: { value: 400, timeUnit: HOUR, unit: ORDER }
+                  declaredBy: VENDOR
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '200':
+          description: Profile revision stored; the node with its current profile.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          $ref: '#/components/responses/NodeNotFound'
+        '409':
+          description: "stale-profile-revision (ErrStaleProfileRevision), incomplete-operational-profile (ErrIncompleteOperationalProfile), node-retired (ErrNodeRetired), or concurrent-update (ErrConcurrentUpdate); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: "cutoff-outside-operating-hours (ErrCutoffOutsideOperatingHours), sort-dwell-not-allowed (ErrSortDwellNotAllowed), inbound-limits-not-allowed (ErrInboundLimitsNotAllowed: inbound limits on a node type without the INBOUND capability), or validation-failed."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /nodes/{nodeId}/activations:
+    post:
+      tags: [Nodes]
+      operationId: activateNode
+      summary: Activate a node (ActivateNode)
+      description: PROPOSED or SUSPENDED to ACTIVE. Publishes NodeActivated.
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '200':
+          description: Node is ACTIVE.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          $ref: '#/components/responses/NodeNotFound'
+        '409':
+          description: "incomplete-operational-profile (ErrIncompleteOperationalProfile), node-retired (ErrNodeRetired), illegal-transition (ErrIllegalTransition), or concurrent-update (ErrConcurrentUpdate); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /nodes/{nodeId}/suspensions:
+    post:
+      tags: [Nodes]
+      operationId: suspendNode
+      summary: Suspend a node (SuspendNode)
+      description: ACTIVE to SUSPENDED. Publishes NodeSuspended.
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuspendNodeRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '200':
+          description: Node is SUSPENDED.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          $ref: '#/components/responses/NodeNotFound'
+        '409':
+          description: "node-retired (ErrNodeRetired), illegal-transition (ErrIllegalTransition), or concurrent-update (ErrConcurrentUpdate); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /nodes/{nodeId}/retirements:
+    post:
+      tags: [Nodes]
+      operationId: retireNode
+      summary: Retire a node (RetireNode)
+      description: ACTIVE or SUSPENDED to RETIRED, which is terminal. Publishes NodeRetired.
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '200':
+          description: Node is RETIRED.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          $ref: '#/components/responses/NodeNotFound'
+        '409':
+          description: "node-retired (ErrNodeRetired), illegal-transition (ErrIllegalTransition), or concurrent-update (ErrConcurrentUpdate); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /lanes:
+    post:
+      tags: [Lanes]
+      operationId: openLane
+      summary: Open a lane between two nodes (OpenLane)
+      description: Both ends must be ACTIVE and the type pair allowed. Publishes LaneOpened.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenLaneRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '201':
+          description: Lane OPEN.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lane'
+        '404':
+          $ref: '#/components/responses/NodeNotFound'
+        '409':
+          description: "lane-endpoint-not-active (ErrLaneEndpointNotActive), duplicate-lane (ErrDuplicateLane), or concurrent-update (ErrConcurrentUpdate); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: "lane-loop (ErrLaneLoop), lane-type-pair-not-allowed (ErrLaneTypePairNotAllowed), or validation-failed."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags: [Lanes]
+      operationId: listLanes
+      summary: List lanes by origin and destination (ListLanes)
+      description: Open Host Service read, keyset-paginated by laneId ascending. Both filters are optional and combine with AND; open and closed lanes are listed, distinguished by status.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: origin
+          in: query
+          required: false
+          description: Origin nodeId.
+          schema:
+            type: string
+        - name: destination
+          in: query
+          required: false
+          description: Destination nodeId.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of matching lanes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LanePage'
+        '400':
+          $ref: '#/components/responses/ListBadRequest'
+  /lanes/{laneId}/closures:
+    post:
+      tags: [Lanes]
+      operationId: closeLane
+      summary: Close a lane (CloseLane)
+      description: OPEN to CLOSED. Publishes LaneClosed.
+      parameters:
+        - name: laneId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '200':
+          description: Lane CLOSED.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lane'
+        '404':
+          description: not-found (ErrNotFound).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: "illegal-transition (ErrIllegalTransition): the lane is already CLOSED; or concurrent-update (ErrConcurrentUpdate); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /lanes/{laneId}/cost-declarations:
+    post:
+      tags: [Lanes]
+      operationId: declareLaneCost
+      summary: Declare the cost per package-unit of a lane (DeclareLaneCost)
+      description: >-
+        Records the planner's declared marginal cost of moving ONE
+        package-unit across the lane on one departure, integer cents
+        (0..10000000). Valid on an OPEN lane only; every declaration
+        supersedes the previous value and publishes LaneCostDeclared.
+      parameters:
+        - name: laneId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeclareLaneCostRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '201':
+          description: Lane with the declared cost.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lane'
+        '404':
+          description: not-found (ErrNotFound).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: "illegal-transition (ErrIllegalTransition): the lane is CLOSED; or concurrent-update (ErrConcurrentUpdate); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: validation-failed (costPerUnitCents outside 0..10000000).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /lanes/{laneId}/emission-declarations:
+    post:
+      tags: [Lanes]
+      operationId: declareLaneEmission
+      summary: Declare the carbon emission per package-unit of a lane (DeclareLaneEmission)
+      description: >-
+        Records the planner's declared carbon emission of moving ONE
+        package-unit across the lane on one departure, grams of
+        CO2-equivalent (0..10000000). Valid on an OPEN lane only; every
+        declaration supersedes the previous value and publishes
+        LaneEmissionDeclared.
+      parameters:
+        - name: laneId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeclareLaneEmissionRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '201':
+          description: Lane with the declared emission.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lane'
+        '404':
+          description: not-found (ErrNotFound).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: "illegal-transition (ErrIllegalTransition): the lane is CLOSED; or concurrent-update (ErrConcurrentUpdate); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: validation-failed (gCo2ePerUnit outside 0..10000000).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /service-areas/{postalPrefix}:
+    parameters:
+      - $ref: '#/components/parameters/PostalPrefix'
+    put:
+      tags: [Service Areas]
+      operationId: assignServiceArea
+      summary: Assign a postal prefix to a delivery station (AssignServiceArea)
+      description: >-
+        Creates or reassigns the prefix under a strictly higher
+        assignmentVersion (ASSIGNED to ASSIGNED). The region is taken from the
+        station and must be a defined Region. Publishes ServiceAreaAssigned.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignServiceAreaRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '200':
+          description: Assignment stored.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceArea'
+        '404':
+          $ref: '#/components/responses/NodeNotFound'
+        '409':
+          description: "not-a-delivery-station (ErrNotADeliveryStation), stale-assignment-version (ErrStaleAssignmentVersion), handoff-node-not-usable (ErrHandoffNodeNotUsable), or concurrent-update (ErrConcurrentUpdate); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: "unknown-region (ErrUnknownRegion), carrier-options-invalid (ErrCarrierOptionsInvalid), or validation-failed."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags: [Service Areas]
+      operationId: resolveServiceArea
+      summary: Resolve which delivery station serves a postal prefix (ResolveServiceArea)
+      description: Open Host Service read of the current assignment of a postal prefix. An unassigned prefix is 404 not-found.
+      responses:
+        '200':
+          description: The current assignment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceArea'
+        '404':
+          description: not-found (ErrNotFound).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /regions:
+    post:
+      tags: [Regions]
+      operationId: defineRegion
+      summary: Define a region (DefineRegion)
+      description: Publishes RegionDefined.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefineRegionRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '201':
+          description: Region defined.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region'
+        '409':
+          description: "region-code-taken (ErrRegionCodeTaken); or idempotency-key-reused (the Idempotency-Key was already used with a different request)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: validation-failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags: [Regions]
+      operationId: listRegions
+      summary: List regions (ListRegions)
+      description: Keyset-paginated, ordered by regionId.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: One page of regions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegionPage'
+        '400':
+          $ref: '#/components/responses/ListBadRequest'
+  /regions/{regionId}:
+    get:
+      tags: [Regions]
+      operationId: getRegion
+      summary: Get a region (GetRegion)
+      description: Returns one region by its id, or the problem type not-found when it does not exist.
+      parameters:
+        - name: regionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The region.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region'
+        '404':
+          description: "not-found (ErrNotFound)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Client-generated key (1-128 printable ASCII characters), one per
+        logical submit; a retry reuses it. A repeat of the same request
+        replays the first response with the header Idempotency-Replayed: true;
+        the same key with another method, path or body is 409
+        idempotency-key-reused. A missing key is 400 idempotency-key-required,
+        a malformed one 400 idempotency-key-invalid. Keys are kept for 24
+        hours. vendor-connectivity sends its transactionId.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size, 1 to 500 (default 100). An invalid value is 400 invalid-limit.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: >-
+        Opaque keyset cursor taken from nextCursor of the previous page; repeat
+        the filters on every page. An undecodable value is 400 invalid-cursor.
+        Any other undeclared query parameter is 400 unknown-query-parameter.
+      schema:
+        type: string
+    NodeId:
+      name: nodeId
+      in: path
+      required: true
+      schema:
+        type: string
+    PostalPrefix:
+      name: postalPrefix
+      in: path
+      required: true
+      schema:
+        type: string
+  headers:
+    IdempotencyReplayed:
+      description: Present, with the value true, only when the response replays the first answer stored for the Idempotency-Key (a stored 2xx or 4xx outcome; a 5xx is never stored).
+      schema:
+        type: string
+        enum: ['true']
+  responses:
+    BadRequest:
+      description: >-
+        idempotency-key-required (no Idempotency-Key header), idempotency-key-invalid
+        (not 1-128 printable ASCII characters), malformed-request-body (invalid
+        JSON, an empty body, trailing data, an unknown field, a wrongly typed
+        field or a NUL character), or malformed-request-query (a NUL character
+        in the query string).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ListBadRequest:
+      description: >-
+        invalid-limit, invalid-cursor, unknown-query-parameter (a query parameter
+        the collection does not declare, including the retired after, from, offset
+        and nextToken), or malformed-request-query.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PayloadTooLarge:
+      description: request-body-too-large (the request body is larger than 64 KiB).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NodeNotFound:
+      description: "not-found (ErrNotFound): an unknown nodeId in the path or body."
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          description: >-
+            Problem type slug: the shared not-found, illegal-transition,
+            concurrent-update and validation-failed, or one of this context's,
+            e.g. stale-profile-revision or inbound-limits-not-allowed.
+          example: stale-profile-revision
+        title:
+          type: string
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+        instance:
+          type: string
+    NodePage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Node'
+        nextCursor:
+          type: string
+          description: Opaque cursor of the next page; absent on the last page.
+    LanePage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Lane'
+        nextCursor:
+          type: string
+          description: Opaque cursor of the next page; absent on the last page.
+    RegionPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Region'
+        nextCursor:
+          type: string
+          description: Opaque cursor of the next page; absent on the last page.
+    NodeType:
+      type: string
+      enum: [FULFILLMENT_CENTER, INBOUND_CROSS_DOCK, RETURNS_CENTER, SORTATION_CENTER, DELIVERY_STATION, AIR_HUB, PICKUP_POINT]
+    NodeSubtype:
+      type: string
+      description: Only for FULFILLMENT_CENTER.
+      enum: [SORTABLE, NON_SORTABLE, XL, SOFT_LINES, SUB_SAME_DAY, FRESH, MICRO]
+    NodeOperator:
+      type: string
+      description: PARTNER is allowed only on a PICKUP_POINT (ADR 0017).
+      enum: [NETWORK, VENDOR, PARTNER]
+    NodeStatus:
+      type: string
+      enum: [PROPOSED, ACTIVE, SUSPENDED, RETIRED]
+    VendorRef:
+      type: object
+      required: [vendorId, vendorNodeCode]
+      properties:
+        vendorId:
+          type: string
+        vendorNodeCode:
+          type: string
+          description: The vendor's own code for the node, unique per vendor.
+    GeoLocation:
+      type: object
+      required: [postalCode, countryCode]
+      properties:
+        postalCode:
+          type: string
+        countryCode:
+          type: string
+          description: ISO 3166-1 alpha-2.
+          example: BR
+        lat:
+          type: number
+        lon:
+          type: number
+    NodeCapabilities:
+      type: object
+      description: >-
+        Derived from the node type (DefaultCapabilitiesByType), never set by a
+        caller. FULFILLMENT_CENTER is outbound and inbound; INBOUND_CROSS_DOCK
+        is inbound only.
+      properties:
+        outbound:
+          type: boolean
+        inbound:
+          type: boolean
+        returns:
+          type: boolean
+        sort:
+          type: boolean
+        lastMile:
+          type: boolean
+        air:
+          type: boolean
+        collection:
+          type: boolean
+          description: A PICKUP_POINT collects packages (ADR 0017).
+    RegisterNodeRequest:
+      type: object
+      required: [nodeType, operator, regionId, timezone, location]
+      properties:
+        nodeType:
+          $ref: '#/components/schemas/NodeType'
+        subtype:
+          $ref: '#/components/schemas/NodeSubtype'
+        operator:
+          $ref: '#/components/schemas/NodeOperator'
+        vendorRef:
+          $ref: '#/components/schemas/VendorRef'
+        servingStationNodeId:
+          type: string
+          description: Required when nodeType is PICKUP_POINT; refused for every other type (ADR 0017).
+        regionId:
+          type: string
+        timezone:
+          type: string
+          description: IANA time zone.
+          example: America/Sao_Paulo
+        location:
+          $ref: '#/components/schemas/GeoLocation'
+    DayHours:
+      type: object
+      required: [start, end]
+      properties:
+        start:
+          type: string
+          description: Local opening time, HH:mm.
+          example: '06:00'
+        end:
+          type: string
+          description: Local closing time, HH:mm.
+          example: '22:00'
+    Weekday:
+      type: string
+      enum: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+    OperatingHoursByDay:
+      type: object
+      description: Per day of week, the local opening hours. A missing day is closed.
+      properties:
+        monday:
+          $ref: '#/components/schemas/DayHours'
+        tuesday:
+          $ref: '#/components/schemas/DayHours'
+        wednesday:
+          $ref: '#/components/schemas/DayHours'
+        thursday:
+          $ref: '#/components/schemas/DayHours'
+        friday:
+          $ref: '#/components/schemas/DayHours'
+        saturday:
+          $ref: '#/components/schemas/DayHours'
+        sunday:
+          $ref: '#/components/schemas/DayHours'
+    CutoffSlot:
+      type: object
+      required: [localTime]
+      properties:
+        localTime:
+          type: string
+          description: Local time, HH:mm, inside the operating hours of every day of the cutoff.
+          example: '18:00'
+        days:
+          type: array
+          description: The weekdays the cutoff applies to. Default, when absent, is every operating day.
+          items:
+            $ref: '#/components/schemas/Weekday'
+          minItems: 1
+          uniqueItems: true
+        maxOrders:
+          type: integer
+          minimum: 1
+    ThroughputCap:
+      type: object
+      required: [value, timeUnit, unit]
+      properties:
+        value:
+          type: integer
+          minimum: 1
+        timeUnit:
+          type: string
+          description: The time unit of the cap.
+          enum: [HOUR, DAY]
+          example: HOUR
+        unit:
+          type: string
+          enum: [ORDER]
+    CartonDimsMm:
+      type: object
+      description: The largest carton a node accepts, in millimetres. The three edges are declared together.
+      required: [l, w, h]
+      additionalProperties: false
+      properties:
+        l:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          example: 600
+        w:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          example: 400
+        h:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          example: 300
+    InboundLimits:
+      type: object
+      description: >-
+        What the node declares about the inbound goods it receives. Every field
+        is optional and an absent field means "not declared", which a consumer
+        treats as unchecked; at least one field is set. Weight is in grams and
+        dimensions in millimetres, both integers. Declared only by node types
+        with the INBOUND capability (inbound-limits-not-allowed otherwise).
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        maxCartonWeightG:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: The heaviest carton the node accepts, in grams.
+          example: 25000
+        maxCartonDimsMm:
+          $ref: '#/components/schemas/CartonDimsMm'
+        acceptsPallets:
+          type: boolean
+          description: Whether the node receives pallets.
+          example: true
+        requiresSscc:
+          type: boolean
+          description: Whether every inbound carton must carry an SSCC.
+          example: false
+        monthlyVolumeDm3:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: >-
+            The inbound volume the node accepts per calendar month, in cubic
+            decimetres (ADR 0019). Absent means not declared.
+          example: 400000
+    OperationalProfileDeclaration:
+      type: object
+      required: [profileRevision, timezone, operatingHoursByDay, handlingTimeMinutes, cutoffs, throughputCap, declaredBy]
+      properties:
+        profileRevision:
+          type: integer
+          minimum: 1
+          description: Must be strictly greater than the node's current revision.
+        timezone:
+          type: string
+          example: America/Sao_Paulo
+        operatingHoursByDay:
+          $ref: '#/components/schemas/OperatingHoursByDay'
+        holidays:
+          type: array
+          description: ISO dates on which the node is closed all day.
+          items:
+            type: string
+            format: date
+        handlingTimeMinutes:
+          type: integer
+          minimum: 0
+        cutoffs:
+          type: array
+          items:
+            $ref: '#/components/schemas/CutoffSlot'
+        throughputCap:
+          $ref: '#/components/schemas/ThroughputCap'
+        sortDwellMinutes:
+          type: integer
+          minimum: 0
+          description: Declared only by SORTATION_CENTER and AIR_HUB nodes.
+        inbound:
+          $ref: '#/components/schemas/InboundLimits'
+        declaredBy:
+          type: string
+          enum: [VENDOR, NETWORK_OPS]
+    OperationalProfile:
+      allOf:
+        - $ref: '#/components/schemas/OperationalProfileDeclaration'
+        - type: object
+          required: [holidays, declaredAt]
+          properties:
+            declaredAt:
+              type: string
+              format: date-time
+    Node:
+      type: object
+      required: [nodeId, nodeType, operator, regionId, timezone, location, capabilities, status]
+      properties:
+        nodeId:
+          type: string
+        nodeType:
+          $ref: '#/components/schemas/NodeType'
+        subtype:
+          $ref: '#/components/schemas/NodeSubtype'
+        operator:
+          $ref: '#/components/schemas/NodeOperator'
+        vendorRef:
+          $ref: '#/components/schemas/VendorRef'
+        servingStationNodeId:
+          type: string
+          description: The serving delivery station; present only on a PICKUP_POINT (ADR 0017).
+        regionId:
+          type: string
+        timezone:
+          type: string
+        location:
+          $ref: '#/components/schemas/GeoLocation'
+        capabilities:
+          $ref: '#/components/schemas/NodeCapabilities'
+        status:
+          $ref: '#/components/schemas/NodeStatus'
+        operationalProfile:
+          $ref: '#/components/schemas/OperationalProfile'
+        activatedAt:
+          type: string
+          format: date-time
+        suspendedAt:
+          type: string
+          format: date-time
+        suspendReason:
+          type: string
+        retiredAt:
+          type: string
+          format: date-time
+    SuspendNodeRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+    DeclareLaneCostRequest:
+      type: object
+      required: [costPerUnitCents]
+      properties:
+        costPerUnitCents:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000000
+          description: The planner's declared marginal cost of moving ONE package-unit across the lane on one departure, integer cents (no currency; single-currency study).
+    DeclareLaneEmissionRequest:
+      type: object
+      required: [gCo2ePerUnit]
+      properties:
+        gCo2ePerUnit:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000000
+          description: The planner's declared carbon emission of moving ONE package-unit across the lane on one departure, grams of CO2-equivalent.
+    LaneMode:
+      type: string
+      enum: [GROUND, AIR]
+    OpenLaneRequest:
+      type: object
+      required: [originNodeId, destinationNodeId, mode, nominalTransitMinutes]
+      properties:
+        originNodeId:
+          type: string
+        destinationNodeId:
+          type: string
+        mode:
+          $ref: '#/components/schemas/LaneMode'
+        nominalTransitMinutes:
+          type: integer
+          minimum: 1
+    Lane:
+      type: object
+      required: [laneId, originNodeId, destinationNodeId, mode, nominalTransitMinutes, status, costPerUnitCents, emissionPerUnitG]
+      properties:
+        laneId:
+          type: string
+        originNodeId:
+          type: string
+        destinationNodeId:
+          type: string
+        mode:
+          $ref: '#/components/schemas/LaneMode'
+        nominalTransitMinutes:
+          type: integer
+        status:
+          type: string
+          enum: [OPEN, CLOSED]
+        costPerUnitCents:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000000
+          description: The declared cost of moving one package-unit across the lane on one departure, integer cents; 0 when never declared.
+        emissionPerUnitG:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000000
+          description: The declared carbon emission of moving one package-unit across the lane on one departure, grams of CO2-equivalent; 0 when never declared.
+        closedAt:
+          type: string
+          format: date-time
+    DeliveryMode:
+      type: string
+      description: >-
+        How the area's last mile is served (ADR 0016): the network's own
+        route, or a handoff to an external carrier at a network node. An
+        absent mode is NETWORK_ROUTE, the behaviour every area had before
+        the mode existed.
+      enum: [NETWORK_ROUTE, CARRIER_HANDOFF]
+    CarrierOption:
+      type: object
+      description: >-
+        One declared external carrier of a CARRIER_HANDOFF area: where the
+        network hands packages over and what the carrier declares the trip
+        costs (integer cents per package) and takes (minutes). The
+        per-package choice is computed downstream from the declared options,
+        never chosen by an operator at handoff.
+      required: [carrierId, handoffNodeId, costPerPackageCents, transitMinutes]
+      additionalProperties: false
+      properties:
+        carrierId:
+          type: string
+          description: The carrier's own identifier, unique within the area.
+        handoffNodeId:
+          type: string
+          description: Must be an ACTIVE DELIVERY_STATION or SORTATION_CENTER.
+        costPerPackageCents:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000000
+          description: The carrier's declared cost of delivering one package, integer cents (no currency; single-currency study).
+        transitMinutes:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: The carrier's declared transit from the handoff node to the doorstep, in minutes.
+    AssignServiceAreaRequest:
+      type: object
+      required: [deliveryStationNodeId, assignmentVersion]
+      properties:
+        deliveryStationNodeId:
+          type: string
+          description: Must be an ACTIVE DELIVERY_STATION.
+        assignmentVersion:
+          type: integer
+          minimum: 1
+          description: Must be strictly greater than the prefix's current version.
+        deliveryMode:
+          $ref: '#/components/schemas/DeliveryMode'
+        carriers:
+          type: array
+          description: >-
+            The declared carrier options of a CARRIER_HANDOFF area: 1 to 4
+            options with distinct carrierIds, and none on a NETWORK_ROUTE
+            area (carrier-options-invalid otherwise).
+          minItems: 1
+          maxItems: 4
+          items:
+            $ref: '#/components/schemas/CarrierOption'
+    ServiceArea:
+      type: object
+      required: [postalPrefix, deliveryStationNodeId, regionId, assignmentVersion]
+      properties:
+        postalPrefix:
+          type: string
+        deliveryStationNodeId:
+          type: string
+        regionId:
+          type: string
+        assignmentVersion:
+          type: integer
+        deliveryMode:
+          $ref: '#/components/schemas/DeliveryMode'
+        carriers:
+          type: array
+          description: The declared carrier options; omitted when the area is a NETWORK_ROUTE area.
+          items:
+            $ref: '#/components/schemas/CarrierOption'
+    DefineRegionRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+    Region:
+      type: object
+      required: [regionId, code, name]
+      properties:
+        regionId:
+          type: string
+        code:
+          type: string
+        name:
+          type: string

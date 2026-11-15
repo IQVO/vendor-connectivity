@@ -1,0 +1,41 @@
+{
+  "nodeId": "N-0042",
+  "scorecards": [
+    {
+      "scorecardId": "N-0042:7d",
+      "nodeId": "N-0042",
+      "window": "7d",
+      "state": "GRADED",
+      "grade": "C",
+      "metrics": {
+        "onTimeHandoverRate": 0.93,
+        "lateAckRate": 0.04,
+        "rejectRate": 0.02,
+        "expiryRate": 0.01,
+        "promiseKeptRate": 0.92,
+        "feedFreshnessP95Minutes": 55,
+        "observations": 412,
+        "inboundTimelinessP95Minutes": 2880,
+        "inboundAccuracyRate": 0.97
+      },
+      "computedAt": "2026-10-22T14:03:00Z"
+    },
+    {
+      "scorecardId": "N-0042:30d",
+      "nodeId": "N-0042",
+      "window": "30d",
+      "state": "GRADED",
+      "grade": "B",
+      "metrics": {
+        "onTimeHandoverRate": 0.962,
+        "lateAckRate": 0.021,
+        "rejectRate": 0.012,
+        "expiryRate": 0.004,
+        "promiseKeptRate": 0.951,
+        "feedFreshnessP95Minutes": 38,
+        "observations": 1874
+      },
+      "computedAt": "2026-10-22T14:03:00Z"
+    }
+  ]
+}

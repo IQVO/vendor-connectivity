@@ -1,0 +1,854 @@
+openapi: 3.0.3
+info:
+  title: Offer & Availability API
+  version: 0.1.0
+  contact:
+    name: offer-availability maintainers
+    url: https://github.com/IQVO/offer-availability
+  description: >-
+    REST contract of the offer-availability bounded context of the retail
+    network, derived from retail-network-docs model/model.yaml
+    (contexts[offer-availability].rest, .aggregates, .publishes,
+    conventions.errors) and adjusted by the final cross-context decisions
+    (Gap Register G23 and G24). The context owns the catalogue items, one
+    listing per (catalogue item, node) and the vendor-declared available
+    quantity of each listing with its basis. POST /inventory-feeds is an
+    in-organization call made by vendor-connectivity while it processes a
+    vendor's inventory submission; vendors never call this API directly.
+    Network merchandising calls the catalogue and listing writes; the
+    storefront reads GET /catalog (Open Host Service). No authentication,
+    consistent with the fleet. Errors are RFC 9457 problem details. The shared
+    problem types are not-found (404), illegal-transition (409),
+    concurrent-update (409) and validation-failed (422); the others are this
+    context's invariants, one slug per model Err name.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Catalog items
+    description: The network's own item master (merchandising writes, aggregate CatalogItem).
+  - name: Catalog
+    description: Storefront catalogue browse (Open Host Service reads).
+  - name: Listings
+    description: One listing per (catalogue item, node) and its availability (aggregate Listing).
+  - name: Inventory feeds
+    description: Vendor inventory feeds for one node, applied in one transaction (aggregate InventoryFeed, in-org call from vendor-connectivity).
+paths:
+  /catalog-items:
+    post:
+      tags: [Catalog items]
+      operationId: createCatalogItem
+      summary: Create a catalogue item (CreateCatalogItem)
+      description: >-
+        Creates an ACTIVE catalogue item under a new catalogItemId and
+        publishes CatalogItemCreated (with identifiers.gtin when given).
+        Dimensions and weight must be positive. identifiers.gtin is optional and
+        checked (GS1 mod-10); a GTIN another item or pack level holds is 409
+        gtin-already-assigned.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCatalogItemRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '201':
+          description: Created.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogItem'
+        '422':
+          description: "invalid-item-dimensions (ErrInvalidItemDimensions), invalid-gtin, or validation-failed (a malformed title)."
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: gtin-already-assigned (identifiers.gtin belongs to another item or pack level), or idempotency-key-reused.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /catalog-items/{catalogItemId}/discontinuations:
+    post:
+      tags: [Catalog items]
+      operationId: discontinueCatalogItem
+      summary: Discontinue a catalogue item (DiscontinueItem)
+      description: >-
+        Moves the item from ACTIVE to DISCONTINUED, publishes
+        CatalogItemDiscontinued and, in the same transaction, suppresses every
+        LIVE or node-suppressed listing of the item with reason DISCONTINUED
+        (one ListingSuppressed each; Gap Register G24). Discontinuing a
+        DISCONTINUED item returns it unchanged and publishes nothing.
+      parameters:
+        - $ref: '#/components/parameters/CatalogItemId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '200':
+          description: The item, now DISCONTINUED.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: concurrent-update (ErrConcurrentUpdate) after one automatic retry, or idempotency-key-reused.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /catalog-items/{catalogItemId}/packaging/{level}:
+    put:
+      tags: [Catalog items]
+      operationId: declarePackLevel
+      summary: Declare a pack level of a catalogue item (DeclarePackLevel)
+      description: >-
+        Declares the pack level (EACH, INNER, CASE or PALLET) identified by a
+        GS1 GTIN and publishes CatalogItemPackagingDeclared (ADR 0006).
+        unitsPerPack is in eaches: 1 for EACH, at least 2 above it and at least
+        twice the child's. A level above EACH names the childGtin of an active
+        lower level of the same item. The unitsPerPack of a GTIN is immutable:
+        re-declaring an active GTIN with another count is 409
+        pack-quantity-immutable (a new count is a new GTIN). Declaring a NEW
+        GTIN at a level that has an active one retires the old level
+        (CatalogItemPackLevelRetired, then CatalogItemPackagingDeclared, one
+        aggregate version). The identical declaration changes nothing and
+        publishes nothing; new dimsMm or grossWeightG on an active GTIN are
+        updated in place. A GTIN identifies one item or pack level, forever
+        (409 gtin-already-assigned). A DISCONTINUED item takes no packaging
+        change (409 illegal-transition).
+      parameters:
+        - $ref: '#/components/parameters/CatalogItemId'
+        - $ref: '#/components/parameters/PackLevelPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeclarePackLevelRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '200':
+          description: The item with its packaging.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: >-
+            gtin-already-assigned, pack-quantity-immutable, illegal-transition
+            (the item is DISCONTINUED) or concurrent-update after one automatic retry.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: >-
+            invalid-gtin, invalid-pack-level, invalid-pack-quantity,
+            pack-level-order, invalid-pack-dimensions or validation-failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /catalog-items/{catalogItemId}/packaging/{level}/retirements:
+    post:
+      tags: [Catalog items]
+      operationId: retirePackLevel
+      summary: Retire the active pack level of a catalogue item (RetirePackLevel)
+      description: >-
+        Retires the active definition at the level and publishes
+        CatalogItemPackLevelRetired. The definition is kept (active false), its
+        GTIN is never reusable. A level that only has retired history is
+        returned unchanged and publishes nothing; a level never declared is 404
+        pack-level-not-found. Takes no body.
+      parameters:
+        - $ref: '#/components/parameters/CatalogItemId'
+        - $ref: '#/components/parameters/PackLevelPath'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '200':
+          description: The item with its packaging.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogItem'
+        '404':
+          description: not-found (unknown catalogItemId) or pack-level-not-found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: concurrent-update (ErrConcurrentUpdate) after one automatic retry, or idempotency-key-reused.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: invalid-pack-level.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /catalog:
+    get:
+      tags: [Catalog]
+      operationId: browseCatalog
+      summary: Browse the catalogue (BrowseCatalog)
+      description: >-
+        Open Host Service read. Items ordered by catalogItemId ascending, keyset
+        paginated: pass the previous page's nextCursor as `cursor`. An empty
+        result is 200 with an empty list.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: One page of catalogue items.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /catalog/{catalogItemId}:
+    get:
+      tags: [Catalog]
+      operationId: getCatalogItem
+      summary: Get one catalogue item (BrowseCatalog)
+      description: Open Host Service read of one item. An unknown catalogItemId is 404 not-found.
+      parameters:
+        - $ref: '#/components/parameters/CatalogItemId'
+      responses:
+        '200':
+          description: The item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /listings:
+    post:
+      tags: [Listings]
+      operationId: createListing
+      summary: Create a listing (CreateListing)
+      description: >-
+        Creates the listing of one catalogue item on one node and publishes
+        ListingCreated. The listing starts LIVE when the node is ACTIVE in the
+        local node status view. Otherwise (node proposed, suspended, retired or
+        not yet known) it starts SUPPRESSED with reason NODE_NOT_SELLABLE; for a
+        DISCONTINUED item it starts SUPPRESSED with reason DISCONTINUED (Gap
+        Register G24); for an ownerRef whose seller the local seller status view
+        says is SUSPENDED it starts SUPPRESSED with reason OWNER_SUSPENDED (ADR
+        0013). The highest cause wins: DISCONTINUED, then NODE_NOT_SELLABLE, then
+        OWNER_SUSPENDED. Its availability starts at 0, basis UNKNOWN, with no asOf.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateListingRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '201':
+          description: Created.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: duplicate-listing (ErrDuplicateListing), concurrent-update (ErrConcurrentUpdate), or idempotency-key-reused.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+    get:
+      tags: [Listings]
+      operationId: listListings
+      summary: List listings by node and/or catalogue item
+      description: >-
+        Both filters are optional and combine with AND. Ordered by listingId
+        ascending, keyset paginated like GET /catalog. An empty result is 200
+        with an empty list.
+      parameters:
+        - name: nodeId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: catalogItemId
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: One page of matching listings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /inventory-feeds:
+    post:
+      tags: [Inventory feeds]
+      operationId: applyInventoryFeed
+      summary: Apply an inventory feed for one node (ApplyInventoryFeed)
+      description: >-
+        In-org call from vendor-connectivity. The feed is applied in ONE
+        transaction (at most 10000 lines per node; larger feeds are split by the
+        vendor). Outcomes (Gap Register G23): APPLIED when every line names a
+        listing of the node and no quantity is negative (a line whose asOf is not
+        after the listing's current asOf is skipped and counted as stale, it does
+        not fail the feed; one ListingAvailabilityChanged per applied line and
+        one InventoryFeedApplied); SUPERSEDED when the feed's asOf is older than
+        the last applied feed of that node (nothing applied, no event); FAILED
+        when a line breaks an invariant (listing-not-on-node or
+        negative-availability: nothing applied, no event, the feed row is kept
+        and the request is answered 422). A full feed (fullUpdate true) sets
+        availableQty 0, keeping the basis and stamping the feed's asOf, on every
+        listing of the node it omits. A FAILED feedId may be sent again; an
+        APPLIED or SUPERSEDED feedId is refused with feed-already-applied.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyInventoryFeedRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '201':
+          description: The feed, APPLIED or SUPERSEDED.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryFeed'
+        '409':
+          description: feed-already-applied (ErrFeedAlreadyApplied), concurrent-update (ErrConcurrentUpdate) after one automatic retry, or idempotency-key-reused.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: >-
+            The feed is FAILED, instance /inventory-feeds/{feedId}:
+            listing-not-on-node (ErrListingNotOnNode) or negative-availability
+            (ErrNegativeAvailability). Or validation-failed for a malformed or
+            request that breaks a value rule, such as more than 10000 lines
+            (nothing is recorded). A body over 64 KiB is 413.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /inventory-feeds/{feedId}:
+    get:
+      tags: [Inventory feeds]
+      operationId: getInventoryFeed
+      summary: Get one inventory feed and its outcome
+      description: The feed with its state, counters and failure code. An unknown feedId is 404 not-found.
+      parameters:
+        - name: feedId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The feed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryFeed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Client-generated key, 1 to 128 printable ASCII characters, one per
+        logical submit (a retry reuses it). The key is global: a repeat with the
+        same method, path and body replays the first response (header
+        Idempotency-Replayed: true); the same key with any other request is
+        409 idempotency-key-reused. A missing key is 400 idempotency-key-required,
+        a malformed one 400 idempotency-key-invalid. Keys are kept for 24 hours.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    CatalogItemId:
+      name: catalogItemId
+      in: path
+      required: true
+      schema:
+        type: string
+    PackLevelPath:
+      name: level
+      in: path
+      required: true
+      description: The packaging level, lowest first EACH < INNER < CASE < PALLET.
+      schema:
+        $ref: '#/components/schemas/PackLevelName'
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size, 1 to 500 (default 100).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Keyset cursor, the nextCursor of the previous page.
+      schema:
+        type: string
+  headers:
+    IdempotencyReplayed:
+      description: '"true" when the response replays the first answer of the same Idempotency-Key.'
+      schema:
+        type: string
+        enum: ['true']
+  responses:
+    BadRequest:
+      description: >-
+        idempotency-key-required or idempotency-key-invalid (state-changing
+        routes); invalid-limit, invalid-cursor or unknown-query-parameter (list
+        reads); malformed-request-body (bad JSON, an unknown field, a wrong
+        type, an empty body, trailing data or a NUL character) or
+        malformed-request-query (a NUL character).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: "not-found (ErrNotFound): an unknown catalogItemId or feedId."
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PayloadTooLarge:
+      description: "request-body-too-large: the request body is over 64 KiB."
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalError:
+      description: "internal-error: an unmapped failure; the detail never leaks the internal message."
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ValidationFailed:
+      description: "validation-failed (ErrValidation): a well-formed request that breaks a value rule."
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          description: >-
+            Problem type slug: the shared not-found, illegal-transition,
+            concurrent-update and validation-failed, or one of this context's
+            (invalid-item-dimensions, invalid-gtin, gtin-already-assigned,
+            pack-quantity-immutable, pack-level-order, invalid-pack-quantity,
+            invalid-pack-dimensions, invalid-pack-level, pack-level-not-found,
+            negative-availability, stale-availability, node-not-sellable,
+            duplicate-listing, listing-not-on-node, feed-already-applied), or
+            a transport one (see the BadRequest, PayloadTooLarge and
+            InternalError responses; an unrouted method is 405
+            method-not-allowed).
+          example: duplicate-listing
+        title:
+          type: string
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+        instance:
+          type: string
+    CreateCatalogItemRequest:
+      type: object
+      required: [title, lengthMm, widthMm, heightMm, weightG, hazmat, fragile]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        lengthMm:
+          type: integer
+          description: Length in millimetres, 1 to 2147483647.
+        widthMm:
+          type: integer
+          description: Width in millimetres, 1 to 2147483647.
+        heightMm:
+          type: integer
+          description: Height in millimetres, 1 to 2147483647.
+        weightG:
+          type: integer
+          description: Weight in grams, 1 to 2147483647.
+        hazmat:
+          type: boolean
+        fragile:
+          type: boolean
+        identifiers:
+          $ref: '#/components/schemas/CatalogItemIdentifiers'
+    CatalogItemIdentifiers:
+      type: object
+      description: Optional identifiers of the item.
+      properties:
+        gtin:
+          type: string
+          pattern: '^[0-9]{8}$|^[0-9]{12,14}$'
+          description: >-
+            GS1 GTIN (8, 12, 13 or 14 digits) with a valid mod-10 check digit;
+            variable measure GTINs (indicator digit 9) are refused. Answered
+            normalised to 14 digits. One GTIN identifies one item or pack level.
+          example: '06141410000120'
+    CatalogItemState:
+      type: string
+      enum: [ACTIVE, DISCONTINUED]
+    CatalogItem:
+      type: object
+      required: [catalogItemId, title, lengthMm, widthMm, heightMm, weightG, hazmat, fragile, state]
+      properties:
+        catalogItemId:
+          type: string
+        title:
+          type: string
+        lengthMm:
+          type: integer
+        widthMm:
+          type: integer
+        heightMm:
+          type: integer
+        weightG:
+          type: integer
+        hazmat:
+          type: boolean
+        fragile:
+          type: boolean
+        state:
+          $ref: '#/components/schemas/CatalogItemState'
+        identifiers:
+          $ref: '#/components/schemas/CatalogItemIdentifiers'
+        packaging:
+          type: array
+          description: >-
+            Every pack level ever declared, lowest level first (retired ones
+            have active false). Omitted when the item has none.
+          items:
+            $ref: '#/components/schemas/PackLevel'
+    PackLevelName:
+      type: string
+      enum: [EACH, INNER, CASE, PALLET]
+    PackDimensions:
+      type: object
+      required: [lengthMm, widthMm, heightMm]
+      properties:
+        lengthMm:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        widthMm:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        heightMm:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+    DeclarePackLevelRequest:
+      type: object
+      required: [gtin, unitsPerPack]
+      properties:
+        gtin:
+          type: string
+          pattern: '^[0-9]{8}$|^[0-9]{12,14}$'
+          description: The GS1 GTIN identifying this level.
+          example: '06141410000298'
+        childGtin:
+          type: string
+          pattern: '^[0-9]{8}$|^[0-9]{12,14}$'
+          description: The GTIN of the active lower level of this item; required above EACH, absent for EACH.
+          example: '06141410000120'
+        unitsPerPack:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+          description: Eaches in one pack. 1 for EACH; at least 2 above it and a multiple (at least twice) of the child's.
+          example: 6
+        dimsMm:
+          $ref: '#/components/schemas/PackDimensions'
+        grossWeightG:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Gross weight in grams; at least the weight of the contents when the child's is known.
+    PackLevel:
+      type: object
+      required: [level, gtin, unitsPerPack, active]
+      properties:
+        level:
+          $ref: '#/components/schemas/PackLevelName'
+        gtin:
+          type: string
+          description: The 14-digit GTIN of the level.
+          example: '06141410000298'
+        childGtin:
+          type: string
+          example: '06141410000120'
+        unitsPerPack:
+          type: integer
+          description: Eaches in one pack.
+          example: 6
+        dimsMm:
+          $ref: '#/components/schemas/PackDimensions'
+        grossWeightG:
+          type: integer
+        active:
+          type: boolean
+    CatalogPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogItem'
+        nextCursor:
+          type: string
+          description: Present when more items follow; pass it as `cursor`.
+    CreateListingRequest:
+      type: object
+      required: [catalogItemId, nodeId]
+      properties:
+        catalogItemId:
+          type: string
+        nodeId:
+          type: string
+        ownerRef:
+          type: string
+          description: >-
+            Optional sellerId that owns the stock. Absent = operator-owned. One
+            listing per (catalogItemId, nodeId, ownerRef).
+    Basis:
+      type: string
+      description: Why the node gave the number; kept as the vendor declared it, never re-derived.
+      enum: [PHYSICAL, THROUGHPUT_CONSTRAINED, UNKNOWN]
+    ListingState:
+      type: string
+      enum: [LIVE, SUPPRESSED]
+    SuppressionReason:
+      type: string
+      description: >-
+        The highest active cause, by precedence DISCONTINUED > NODE_NOT_SELLABLE >
+        OWNER_SUSPENDED: DISCONTINUED once the item is discontinued (final);
+        NODE_NOT_SELLABLE while the node is not ACTIVE; OWNER_SUSPENDED while the
+        seller that owns the listing (ownerRef) is suspended (ADR 0013).
+      enum: [NODE_NOT_SELLABLE, DISCONTINUED, OWNER_SUSPENDED]
+    Availability:
+      type: object
+      required: [availableQty, basis]
+      properties:
+        availableQty:
+          type: integer
+          minimum: 0
+        basis:
+          $ref: '#/components/schemas/Basis'
+        asOf:
+          type: string
+          format: date-time
+          description: Strictly increasing per listing; omitted before the first feed.
+        feedId:
+          type: string
+          description: The feed that carried the number; omitted before the first feed.
+    Listing:
+      type: object
+      required: [listingId, catalogItemId, nodeId, state, availability]
+      properties:
+        listingId:
+          type: string
+        catalogItemId:
+          type: string
+        nodeId:
+          type: string
+        ownerRef:
+          type: string
+          description: The owning seller; omitted for an operator-owned listing.
+        state:
+          $ref: '#/components/schemas/ListingState'
+        suppressionReason:
+          $ref: '#/components/schemas/SuppressionReason'
+        availability:
+          $ref: '#/components/schemas/Availability'
+    ListingPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Listing'
+        nextCursor:
+          type: string
+          description: Present when more listings follow; pass it as `cursor`.
+    FeedLine:
+      type: object
+      description: One listing's declared availability. The model names lines but does not define them (ADR 0002, A12).
+      required: [listingId, availableQty, basis]
+      properties:
+        listingId:
+          type: string
+        availableQty:
+          type: integer
+          description: Must be >= 0, else the feed FAILS with negative-availability.
+        basis:
+          $ref: '#/components/schemas/Basis'
+    ApplyInventoryFeedRequest:
+      type: object
+      required: [feedId, nodeId, fullUpdate, asOf, lines]
+      properties:
+        feedId:
+          type: string
+          description: "Chosen by the caller, 1 to 64 characters of A-Z a-z 0-9 . _ : -. An APPLIED or SUPERSEDED feed is never applied twice."
+        nodeId:
+          type: string
+        fullUpdate:
+          type: boolean
+          description: True for a full feed, the complete truth for its node.
+        asOf:
+          type: string
+          format: date-time
+          description: The instant the numbers are true for (feed level, ADR 0002, A12).
+        lines:
+          type: array
+          maxItems: 10000
+          description: At most 10000 lines, at most one per listingId; empty only on a full feed.
+          items:
+            $ref: '#/components/schemas/FeedLine'
+    FeedState:
+      type: string
+      enum: [RECEIVED, APPLIED, FAILED, SUPERSEDED]
+    InventoryFeed:
+      type: object
+      required: [feedId, nodeId, fullUpdate, asOf, state, lineCount, appliedCount, staleCount, zeroedCount, receivedAt]
+      properties:
+        feedId:
+          type: string
+        nodeId:
+          type: string
+        fullUpdate:
+          type: boolean
+        asOf:
+          type: string
+          format: date-time
+        state:
+          $ref: '#/components/schemas/FeedState'
+        lineCount:
+          type: integer
+          description: Lines as received.
+        appliedCount:
+          type: integer
+          description: Lines that replaced a listing's availability.
+        staleCount:
+          type: integer
+          description: Lines skipped because their asOf was not after the listing's asOf.
+        zeroedCount:
+          type: integer
+          description: Listings set to 0 by FullFeedZeroing.
+        receivedAt:
+          type: string
+          format: date-time
+        appliedAt:
+          type: string
+          format: date-time
+          description: When the feed reached APPLIED; omitted otherwise.
+        failureCode:
+          type: string
+          description: The Err identifier of a FAILED feed, for example ErrListingNotOnNode; omitted otherwise.

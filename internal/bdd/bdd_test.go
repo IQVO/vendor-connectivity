@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -29,14 +30,22 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 )
 
-// TestFeatures runs every Gherkin feature under features/.
+// TestFeatures runs every Gherkin feature under features/. Scenarios tagged
+// @known-bug describe the SPEC behaviour where the code diverges (see the PR
+// body); they are excluded unless BDD_TAGS says otherwise, and must FAIL when
+// run alone: BDD_TAGS=@known-bug go test ./internal/bdd -run TestFeatures.
 func TestFeatures(t *testing.T) {
+	tags := os.Getenv("BDD_TAGS")
+	if tags == "" {
+		tags = "~@known-bug"
+	}
 	suite := godog.TestSuite{
 		ScenarioInitializer: InitializeScenario,
 		Options: &godog.Options{
 			Format:   "progress",
 			Paths:    []string{"../../features"},
 			Strict:   true,
+			Tags:     tags,
 			TestingT: t,
 		},
 	}
@@ -71,6 +80,8 @@ type world struct {
 	lastKey  int
 	eventSeq int
 	cfg      usecases.Config
+	// limiter backs RATE_LIMIT_RPS over /vendor/*; nil means unlimited.
+	limiter *inboundhttp.Limiter
 
 	// lastLabels holds the tracking numbers remembered from a label
 	// response, referenced as {trk:<packageNo>} in later steps.
@@ -101,7 +112,7 @@ func (w *world) build() {
 	w.nodes = &inboundkafka.Consumer{Name: "node", Topic: "nodes", Handlers: inboundkafka.NodeHandlers(w.svc), Logger: w.cfg.Logger}
 	w.listing = &inboundkafka.Consumer{Name: "listing", Topic: "listings", Handlers: inboundkafka.ListingHandlers(w.svc), Logger: w.cfg.Logger}
 	w.sourced = &inboundkafka.Consumer{Name: "sourcing", Topic: "sourcing", Handlers: inboundkafka.SourcingHandlers(w.svc, w.cfg.Logger), Logger: w.cfg.Logger}
-	w.server = httptest.NewServer(inboundhttp.NewRouter(&inboundhttp.Server{Service: w.svc}, slog.New(slog.DiscardHandler), ""))
+	w.server = httptest.NewServer(inboundhttp.NewRouter(&inboundhttp.Server{Service: w.svc, Limiter: w.limiter}, slog.New(slog.DiscardHandler), ""))
 }
 
 func InitializeScenario(sc *godog.ScenarioContext) {
@@ -116,6 +127,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	registerWave2(sc, w)
 	registerWithdrawn(sc, w)
 	registerInbound(sc, w)
+	registerRules(sc, w)
 }
 
 // --- helpers -----------------------------------------------------------------

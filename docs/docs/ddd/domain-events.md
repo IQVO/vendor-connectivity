@@ -41,7 +41,7 @@ transaction as the aggregate change.
 | Type | `com.retailnetwork.partner.vendor-connectivity.vendoraccount.VendorOnboarded` |
 | Subject / key | `vendorId` |
 | Produced by | `OnboardVendor` (REST `POST /vendors`) |
-| Consumers | node-performance |
+| Consumers | node-performance (acknowledged without effect) |
 
 | Field | Type | Meaning |
 | --- | --- | --- |
