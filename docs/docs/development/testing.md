@@ -18,7 +18,7 @@ against real Postgres and Kafka, architecture fitness tests, spec linting and ch
 | Unit, application | 60 in `internal/application/{usecases,requests,gateway}` (53 + 5 + 2) | `make test` |
 | Unit and `httptest`, adapters and `cmd/*` | `inbound/kafka` 40, `inbound/http` 32, `inbound/mcp` 25, `inbound/a2a` 16, `outbound/kafka` 18, `outbound/outbox` 12, `outbound/telemetry` 11, `outbound/httpclient` 8, `outbound/memory` 8, `kafka/cloudevents` 6, `outbound/postgres` 3, `requestlog` 4, `ids` 2, `clock` 1, `cmd/a2a` 15, `cmd/api` 14, `cmd/mcp` 12, `bootretry` 6 | `make test` |
 | Coverage gate | 90 % over `./internal/domain/...,./internal/application/...` (`COVERAGE_THRESHOLD` in the `Makefile`) | `make coverage` |
-| BDD (godog / Gherkin) | 8 feature files, **54 scenarios** (`Scenario` and `Scenario Outline` blocks) and 371 step lines | `make bdd` |
+| BDD (godog / Gherkin) | 20 feature files, **152 scenario definitions** (`Scenario` and `Scenario Outline` blocks), **230 executed** with the `Examples` rows, 1841 executed steps | `make bdd` |
 | Integration (testcontainers) | 20 top-level tests behind `//go:build integration`: `cmd/api` 2, `cmd/mcp` 2, `cmd/a2a` 2, `inbound/kafka` 1, `outbound/kafka` 1, `outbound/outbox` 5, `outbound/postgres` 7 | `make integration` |
 | Architecture fitness | 32 top-level test functions in `internal/architecture` | `make arch-test` |
 | Mutation (gremlins) | efficacy 99, mutant coverage 99 (`.gremlins.yaml`, pinned v0.6.0); the file records 100 % / 100 % measured for `network`, `purchaseorder`, `shared`, `submission` and `vendor` on 2026-10-23 | `make mutation`, `make mutation-full` |
@@ -87,24 +87,51 @@ go test ./internal/adapters/inbound/kafka -run TestConsumeLoop -v
 
 ## BDD (godog)
 
-`features/*.feature` holds eight files; the runner is `internal/bdd/bdd_test.go`
+`features/*.feature` holds twenty files; the runner is `internal/bdd/bdd_test.go`
 (`TestFeatures`, `Strict: true`, path `../../features`). It drives the real chi router
 over HTTP and feeds the local copies and the releases through the real consumers'
 `HandleMessage` with raw CloudEvents, on the in-memory doubles wired the way `cmd/api`
-wires the real adapters.
+wires the real adapters. `BDD_TAGS` selects scenarios; the default is `~@known-bug`
+(a scenario tagged `@known-bug` states a spec behaviour the code does not meet and must
+fail when run alone; none is tagged today).
 
-| Feature file | Scenarios |
-| --- | --- |
-| `purchase_order_lifecycle.feature` | 12 |
-| `node_and_inventory_transactions.feature` | 9 |
-| `inbound_shipments_and_receipts.feature` | 8 |
-| `vendor_accounts.feature` | 8 |
-| `node_profile_and_scorecard.feature` | 7 |
-| `labels_and_shipment.feature` | 5 |
-| `polling_pagination.feature` | 3 |
-| `simulation_knobs.feature` | 2 |
+Definitions are the `Scenario` and `Scenario Outline` lines
+(`git grep -c -E "^[[:space:]]*Scenario" -- features`, an Outline counts once); executed
+adds one run per `Examples` row and is the `N scenarios` line of `make bdd`.
 
-Step files: `steps_test.go`, `steps_inbound_test.go`, `steps_wave2_test.go`.
+| Feature file | Definitions | Executed |
+| --- | --- | --- |
+| `purchase_order_lifecycle.feature` | 12 | 12 |
+| `node_and_inventory_transactions.feature` | 9 | 9 |
+| `inbound_shipments_and_receipts.feature` | 8 | 8 |
+| `vendor_accounts.feature` | 8 | 8 |
+| `node_profile_and_scorecard.feature` | 7 | 7 |
+| `labels_and_shipment.feature` | 5 | 5 |
+| `polling_pagination.feature` | 3 | 3 |
+| `release_withdrawn.feature` | 3 | 3 |
+| `simulation_knobs.feature` | 2 | 2 |
+| `release_policy_rules.feature` | 17 | 35 |
+| `submission_rules.feature` | 14 | 23 |
+| `label_shipment_rules.feature` | 12 | 29 |
+| `acknowledgement_rules.feature` | 11 | 26 |
+| `vendor_account_rules.feature` | 9 | 18 |
+| `acknowledgement_window_rules.feature` | 8 | 8 |
+| `poll_rules.feature` | 8 | 11 |
+| `read_model_rules.feature` | 5 | 5 |
+| `inbound_rules.feature` | 4 | 11 |
+| `transaction_outcome_rules.feature` | 4 | 4 |
+| `rate_limit_rules.feature` | 3 | 3 |
+| **Total** | **152** | **230** |
+
+The first nine files are the original suite (57), written from the OpenAPI contract and
+coverage gaps; the eleven `*_rules` files pin the documented rules: the acknowledgement
+window and its sweep, transaction outcomes, fill-or-kill acknowledgement, labels and
+shipment confirmation, vendor accounts and suspension, the release policies, submission
+retries and retention, polling, the node and packaging read models, inbound receipts
+and the rate limit.
+
+Step files: `steps_test.go`, `steps_inbound_test.go`, `steps_wave2_test.go`,
+`steps_withdrawn_test.go`, `steps_rules_test.go`.
 
 ## Integration tests
 
