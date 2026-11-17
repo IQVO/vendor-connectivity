@@ -92,6 +92,68 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           $ref: '#/components/responses/InternalError'
+  /return-labels:
+    post:
+      tags: [Labels]
+      operationId: issueReturnLabel
+      summary: Issue the reverse label of one package of a return (IssueReturnLabel)
+      description: >-
+        In-org route called by customer-returns (ADR 0017), the reverse twin
+        of POST /labels. Reads the ship-to of orderId from customer-ordering
+        BEFORE the transaction opens and derives the stopKey exactly like the
+        outbound label of the same order (same secret over the same
+        normalized address), so a return pickup stop groups with the outbound
+        delivery stop by construction; destinationPostalPrefix is the RETURN
+        DESTINATION's prefix (the returns centre), which only the caller
+        knows. The label rides the ground carrier (RN-GROUND), starts NO
+        package journey and seals NO ship-to snapshot; scans of the reverse
+        package are counted-and-acknowledged unknowns, and shopper-facing
+        return tracking is customer-returns' authorization view. The response
+        is a ReturnLabel: no poNumber, no assignmentId, purpose RETURN and the
+        returnAuthorizationId. One label per (returnAuthorizationId,
+        packageNo). A replay of the same Idempotency-Key returns the first
+        response.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueReturnLabelRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/IdempotencyKeyRequired'
+        '201':
+          description: Reverse label issued (or replayed for a known Idempotency-Key).
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnLabel'
+        '409':
+          description: label-already-issued (a label already covers this (returnAuthorizationId, packageNo)), tracking-number-taken (ErrTrackingNumberTaken), concurrent-update (ErrConcurrentUpdate) or idempotency-key-reused (the Idempotency-Key was already used with a different request).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: >-
+            validation-failed (a malformed request, or the order is unknown to customer-ordering).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: ship-to-unavailable. customer-ordering did not return the ship-to in time. No label is stored.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /labels/{labelRef}/voids:
     post:
       tags: [Labels]
@@ -102,7 +164,9 @@ paths:
         same tracking number as VOIDED and publishes LabelVoided (contracts-delta
         E16). Refused once the package has been handed over
         (void-after-handover). Voiding a VOIDED label returns it unchanged and
-        publishes nothing.
+        publishes nothing. A reverse label (ADR 0017) has no journey: voiding
+        it moves the label to VOIDED and publishes LabelVoided, nothing else,
+        and the response is then a ReturnLabel.
       parameters:
         - $ref: '#/components/parameters/LabelRef'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -123,7 +187,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Label'
+                description: >-
+                  Exactly one of the two label kinds, never a mix. An outbound
+                  label answers Label (poNumber and assignmentId always
+                  present, no purpose); a reverse label (ADR 0017) answers
+                  ReturnLabel (purpose RETURN and returnAuthorizationId always
+                  present, no poNumber, no assignmentId). The required
+                  properties tell the two apart.
+                oneOf:
+                  - $ref: '#/components/schemas/Label'
+                  - $ref: '#/components/schemas/ReturnLabel'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -457,6 +530,33 @@ components:
           maxLength: 64
         tier:
           $ref: '#/components/schemas/ServiceTier'
+    IssueReturnLabelRequest:
+      type: object
+      description: >-
+        In-org request of customer-returns (ADR 0017). orderId names the
+        outbound order whose ship-to is the return's pickup address;
+        destinationPostalPrefix is the return destination's (the returns
+        centre's) prefix.
+      required: [returnAuthorizationId, orderId, packageNo, destinationPostalPrefix]
+      additionalProperties: false
+      properties:
+        returnAuthorizationId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        orderId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        packageNo:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        destinationPostalPrefix:
+          type: string
+          minLength: 1
+          maxLength: 16
+          pattern: '^[A-Z0-9]+$'
     Label:
       type: object
       description: Label metadata. Never contains the ship-to address. labelRef, trackingNumber and carrier are what vendor-connectivity returns to the vendor.
@@ -488,6 +588,46 @@ components:
         voidedAt:
           type: string
           format: date-time
+    ReturnLabel:
+      type: object
+      description: >-
+        Metadata of a reverse label, the label of one package of a customer
+        return (ADR 0017). Never contains the ship-to address. A reverse label
+        has no purchase order and no fulfillment assignment, so it carries
+        neither poNumber nor assignmentId; it always carries purpose RETURN
+        and the returnAuthorizationId it belongs to. orderId is the outbound
+        order whose ship-to is the return's pickup address.
+      required: [labelRef, trackingNumber, carrier, packageNo, orderId, tier, status, issuedAt, purpose, returnAuthorizationId]
+      properties:
+        labelRef:
+          type: string
+        trackingNumber:
+          type: string
+        carrier:
+          type: string
+        packageNo:
+          type: integer
+        orderId:
+          type: string
+        tier:
+          $ref: '#/components/schemas/ServiceTier'
+        status:
+          $ref: '#/components/schemas/LabelStatus'
+        issuedAt:
+          type: string
+          format: date-time
+        voidReason:
+          type: string
+        voidedAt:
+          type: string
+          format: date-time
+        purpose:
+          type: string
+          enum: [RETURN]
+          description: Always RETURN. An outbound label (the Label schema) has no purpose property.
+        returnAuthorizationId:
+          type: string
+          description: The return authorization the reverse label belongs to.
     VoidLabelRequest:
       type: object
       required: [reason]
