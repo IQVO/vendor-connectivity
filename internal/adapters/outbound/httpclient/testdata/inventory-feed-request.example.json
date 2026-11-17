@@ -1,0 +1,10 @@
+{
+  "feedId": "feed-042",
+  "nodeId": "n-9",
+  "fullUpdate": false,
+  "asOf": "2026-11-14T12:00:00Z",
+  "lines": [
+    { "listingId": "lst-1", "availableQty": 4, "basis": "PHYSICAL" },
+    { "listingId": "lst-2", "availableQty": 0, "basis": "THROUGHPUT_CONSTRAINED" }
+  ]
+}
