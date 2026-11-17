@@ -16,7 +16,7 @@ import (
 
 // latestMigration is the ceiling of the embedded migrations; bump it with
 // every new migration file.
-const latestMigration = 4
+const latestMigration = 5
 
 // ownerRefMigration is 0004_po_line_owner_ref (ADR 0012).
 const ownerRefMigration = 4
@@ -120,7 +120,9 @@ func TestMigrationOwnerRefDownAndUpAgain(t *testing.T) {
 	if err := postgres.RunMigrations(url); err != nil {
 		t.Fatal(err)
 	}
-	if err := postgres.StepMigrations(url, -1); err != nil {
+	// Step down to exactly the version before 0004: with later migrations
+	// stacked on top (0005 today), that is more than one step.
+	if err := postgres.StepMigrations(url, int(ownerRefMigration-1-latestMigration)); err != nil {
 		t.Fatal(err)
 	}
 	wantVersion(t, url, ownerRefMigration-1)

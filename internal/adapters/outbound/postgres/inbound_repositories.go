@@ -134,6 +134,8 @@ func (r *InboundShipmentViewRepo) Save(ctx context.Context, s inbound.Shipment) 
 
 // ListShipped returns the SHIPPED shipments with a manifest in the filter's
 // nodes, oldest shipment first (keyset on shipped_at, shipment_id).
+//
+//nolint:dupl // ReturnAdviceViewRepo.ListReady (ADR 0014) mirrors this poll query by design
 func (r *InboundShipmentViewRepo) ListShipped(ctx context.Context, f repository.InboundShipmentFilter) ([]inbound.Shipment, error) {
 	sql := `SELECT ` + shipmentColumns + ` FROM inbound_shipments
 		WHERE status = 'SHIPPED' AND shipped_at IS NOT NULL AND jsonb_array_length(cartons) > 0 AND node_id = ANY($1)`

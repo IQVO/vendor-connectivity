@@ -21,7 +21,7 @@ var (
 )
 
 // consumerGroups are the mandatory consumer group variables.
-var consumerGroups = []string{"NODE_CONSUMER_GROUP", "LISTING_CONSUMER_GROUP", "SOURCING_CONSUMER_GROUP", "INBOUND_CONSUMER_GROUP", "PACKAGING_CONSUMER_GROUP"}
+var consumerGroups = []string{"NODE_CONSUMER_GROUP", "LISTING_CONSUMER_GROUP", "SOURCING_CONSUMER_GROUP", "INBOUND_CONSUMER_GROUP", "PACKAGING_CONSUMER_GROUP", "CUSTOMER_RETURNS_CONSUMER_GROUP"}
 
 // neighbourURLs are the mandatory base URLs of the four sync calls (A24).
 var neighbourURLs = []string{"NODE_TOPOLOGY_URL", "OFFER_AVAILABILITY_URL", "SHIPPING_AND_TRACKING_URL", "NODE_PERFORMANCE_URL"}

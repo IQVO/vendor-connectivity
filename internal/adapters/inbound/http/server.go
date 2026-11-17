@@ -91,6 +91,9 @@ func NewRouter(s *Server, logger *slog.Logger, serviceName string) http.Handler 
 		r.Get("/vendor/inbound-shipments", s.handlePollInbound)
 		r.Get("/vendor/inbound-shipments/{shipmentId}", s.handleGetInboundShipment)
 		r.Method(http.MethodPost, "/vendor/inbound-receipts", write(s.handleInboundReceipt))
+		r.Get("/vendor/return-advices", s.handlePollReturnAdvices)
+		r.Get("/vendor/return-advices/{authorizationId}", s.handleGetReturnAdvice)
+		r.Method(http.MethodPost, "/vendor/return-outcomes", write(s.handleReturnOutcome))
 	})
 
 	r.Method(http.MethodPost, "/vendors", write(s.handleOnboard))

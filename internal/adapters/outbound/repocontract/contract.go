@@ -23,6 +23,8 @@ const (
 	vendorOne = "V-1"
 	nodeOne   = "n-1"
 	nodeTwo   = "n-2"
+	nodeNever = "n-9"
+	sellerOne = "s-1"
 )
 
 // Env is one fresh, empty implementation under test.
@@ -35,6 +37,7 @@ type Env struct {
 	Listings    ports.ListingViewRepository
 	Shipments   ports.InboundShipmentViewRepository
 	Packaging   ports.CatalogPackagingViewRepository
+	Advices     ports.ReturnAdviceViewRepository
 	Inbox       ports.ProcessedEvents
 	Outbox      ports.EventOutbox
 	// OutboxCount returns how many outbox rows are committed.
@@ -49,7 +52,8 @@ func Run(t *testing.T, newEnv func(t *testing.T) Env) {
 	t.Helper()
 	groups := map[string]func(*testing.T, Env){
 		"Vendors": vendors, "PurchaseOrders": purchaseOrders, "OrderQueries": orderQueries, "Submissions": submissions,
-		"Nodes": nodes, "Listings": listings, "InboundShipments": inboundShipments, "CatalogPackaging": catalogPackaging, "Inbox": inbox, "UnitOfWork": unitOfWork,
+		"Nodes": nodes, "Listings": listings, "InboundShipments": inboundShipments, "CatalogPackaging": catalogPackaging,
+		"ReturnAdvices": returnAdvices, "Inbox": inbox, "UnitOfWork": unitOfWork,
 	}
 	for name, fn := range groups {
 		t.Run(name, func(t *testing.T) { fn(t, newEnv(t)) })

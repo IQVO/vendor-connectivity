@@ -74,7 +74,8 @@ func postgresAdapters(pool *pgxpool.Pool) adapters {
 			UoW: postgres.NewUnitOfWork(pool), Vendors: postgres.NewVendorRepo(pool), Orders: postgres.NewPurchaseOrderRepo(pool),
 			Submissions: postgres.NewSubmissionRepo(pool), Nodes: postgres.NewNodeViewRepo(pool), Listings: postgres.NewListingViewRepo(pool),
 			Shipments: postgres.NewInboundShipmentViewRepo(pool), Packaging: postgres.NewCatalogPackagingViewRepo(pool),
-			Outbox: postgres.NewEventOutbox(ob, outboundkafka.NewEncoder()), Inbox: postgres.NewProcessedEventRepo(pool),
+			Advices: postgres.NewReturnAdviceViewRepo(pool),
+			Outbox:  postgres.NewEventOutbox(ob, outboundkafka.NewEncoder()), Inbox: postgres.NewProcessedEventRepo(pool),
 			Clock: clock.System{}, IDs: ids.UUID{}, Random: ids.Random{},
 		},
 	}

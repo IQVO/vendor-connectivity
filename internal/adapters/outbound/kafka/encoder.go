@@ -10,6 +10,7 @@ import (
 	"github.com/claudioed/vendor-connectivity/internal/application/outbox"
 	"github.com/claudioed/vendor-connectivity/internal/domain/inbound"
 	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
+	"github.com/claudioed/vendor-connectivity/internal/domain/returns"
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
 	"github.com/claudioed/vendor-connectivity/internal/domain/submission"
 	"github.com/claudioed/vendor-connectivity/internal/domain/vendor"
@@ -150,6 +151,31 @@ func receiptPayload(e inbound.ReceiptSubmitted) receiptSubmittedData {
 		ReceivedAt: ts(e.ReceivedAt), Cartons: cartons}
 }
 
+type outcomeLineData struct {
+	CatalogItemID  string `json:"catalogItemId"`
+	OwnerRef       string `json:"ownerRef,omitempty"`
+	QtyRestockable int    `json:"qtyRestockable"`
+	QtyUnsellable  int    `json:"qtyUnsellable"`
+}
+
+type outcomeSubmittedData struct {
+	TransactionID   string            `json:"transactionId"`
+	VendorID        string            `json:"vendorId"`
+	AuthorizationID string            `json:"authorizationId"`
+	NodeID          string            `json:"nodeId"`
+	ReceivedAt      string            `json:"receivedAt"`
+	Lines           []outcomeLineData `json:"lines"`
+}
+
+func outcomePayload(e returns.OutcomeSubmitted) outcomeSubmittedData {
+	lines := make([]outcomeLineData, len(e.Lines))
+	for i, l := range e.Lines {
+		lines[i] = outcomeLineData{CatalogItemID: l.CatalogItemID, OwnerRef: l.OwnerRef, QtyRestockable: l.QtyRestockable, QtyUnsellable: l.QtyUnsellable}
+	}
+	return outcomeSubmittedData{TransactionID: e.TransactionID, VendorID: e.VendorID, AuthorizationID: e.AuthorizationID,
+		NodeID: e.NodeID, ReceivedAt: ts(e.ReceivedAt), Lines: lines}
+}
+
 // Encoder implements outbox.Encoder: each domain event becomes one
 // outbox.Message holding the CloudEvents bytes, the Kafka key (the aggregate
 // root id) and the content-type header. The CloudEvents `id` is minted HERE,
@@ -226,6 +252,8 @@ func payloadFor(ev shared.Event) (any, error) {
 		return processedData{TransactionID: string(e.TransactionID), VendorID: e.VendorID, Kind: string(e.Kind), Status: string(e.Status), ErrorCount: e.ErrorCount}, nil
 	case inbound.ReceiptSubmitted:
 		return receiptPayload(e), nil
+	case returns.OutcomeSubmitted:
+		return outcomePayload(e), nil
 	default:
 		return purchaseOrderPayload(ev)
 	}

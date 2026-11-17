@@ -12,7 +12,8 @@
 //	MIGRATIONS_DATABASE_URL      direct DSN for the boot migrations (default DATABASE_URL)
 //	KAFKA_BROKERS                comma-separated brokers (REQUIRED: relay, consumers, /readyz)
 //	EVENT_PUBLISHER              kafka (default kafka); log is a boot error
-//	NODE_CONSUMER_GROUP, LISTING_CONSUMER_GROUP, SOURCING_CONSUMER_GROUP
+//	NODE_CONSUMER_GROUP, LISTING_CONSUMER_GROUP, SOURCING_CONSUMER_GROUP, INBOUND_CONSUMER_GROUP,
+//	PACKAGING_CONSUMER_GROUP, CUSTOMER_RETURNS_CONSUMER_GROUP
 //	                             stable group ids (ALL REQUIRED, boot error naming the variable)
 //	NODE_TOPOLOGY_URL, OFFER_AVAILABILITY_URL, SHIPPING_AND_TRACKING_URL, NODE_PERFORMANCE_URL
 //	                             base URLs of the four in-organization sync calls (ALL REQUIRED)

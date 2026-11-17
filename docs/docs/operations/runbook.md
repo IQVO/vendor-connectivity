@@ -41,7 +41,8 @@ which runs `cmd/api`. Inside that process (`cmd/api/main.go`, `background.go`, `
 - Five Kafka consumers: node (`retailnetwork.node-topology.events`), listing
   (`retailnetwork.offer-availability.events`), sourcing
   (`retailnetwork.order-sourcing.events`) — `internal/adapters/inbound/kafka/consumers.go` —
-  plus inbound shipments (`retailnetwork.seller-inbound.events`) and catalogue packaging
+  plus inbound shipments (`retailnetwork.seller-inbound.events`), catalogue packaging and return advices
+  (`retailnetwork.customer-returns.events`)
   (`retailnetwork.offer-availability.events`, second group) —
   `internal/adapters/inbound/kafka/inbound_consumers.go`.
 - Three loops: submission processor (due async writes), expiry sweeper (orders past
