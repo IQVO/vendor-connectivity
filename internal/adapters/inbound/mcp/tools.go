@@ -336,10 +336,10 @@ func (d Deps) registerAccountTools(server *mcp.Server) {
 	addTool(server, &mcp.Tool{
 		Name: "get_transaction",
 		Description: "Follow one asynchronous write of a vendor by the transactionId its 202 answer returned: kind " +
-			"(ACKNOWLEDGEMENT, INVENTORY, NODE_REGISTRATION, NODE_PROFILE or SHIPMENT_CONFIRMATION), status (PROCESSING, " +
-			"SUCCESS or FAILURE), receivedAt and processedAt, the node and poNumber it concerns and, when it failed, " +
-			"every error (code, message, path). Read-only; a transaction of another vendor is not-found, an unknown one " +
-			"not-found, a malformed vendorId validation-failed.",
+			"(ACKNOWLEDGEMENT, INVENTORY, NODE_REGISTRATION, NODE_PROFILE, SHIPMENT_CONFIRMATION, INBOUND_RECEIPT or " +
+			"RETURN_OUTCOME), status (PROCESSING, SUCCESS or FAILURE), receivedAt and processedAt, the node and poNumber " +
+			"it concerns and, when it failed, every error (code, message, path). Read-only; a transaction of another " +
+			"vendor is not-found, an unknown one not-found, a malformed vendorId validation-failed.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),
 	}, d.getTransaction)
