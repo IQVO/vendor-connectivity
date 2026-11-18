@@ -1982,11 +1982,11 @@ components:
         qtyRestockable:
           type: integer
           minimum: 0
-          description: Graded units that may be restocked.
+          description: Graded units that may be restocked, 0 to 2147483647 (a larger value is `422 validation-failed`).
         qtyUnsellable:
           type: integer
           minimum: 0
-          description: Graded units that may not.
+          description: Graded units that may not, 0 to 2147483647 (a larger value is `422 validation-failed`).
     ReturnOutcomeRequest:
       type: object
       required:
@@ -2008,6 +2008,7 @@ components:
         lines:
           type: array
           minItems: 1
+          description: Between 1 and 50 lines; an outcome with more is `422 validation-failed`.
           items:
             $ref: '#/components/schemas/ReturnOutcomeLine'
     InboundReceiptItem:
