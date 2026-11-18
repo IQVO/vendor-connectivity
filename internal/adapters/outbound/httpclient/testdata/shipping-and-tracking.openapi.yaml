@@ -98,14 +98,25 @@ paths:
       operationId: issueReturnLabel
       summary: Issue the reverse label of one package of a return (IssueReturnLabel)
       description: >-
-        In-org route called by customer-returns (ADR 0017), the reverse twin
-        of POST /labels. Reads the ship-to of orderId from customer-ordering
-        BEFORE the transaction opens and derives the stopKey exactly like the
-        outbound label of the same order (same secret over the same
-        normalized address), so a return pickup stop groups with the outbound
-        delivery stop by construction; destinationPostalPrefix is the RETURN
-        DESTINATION's prefix (the returns centre), which only the caller
-        knows. The label rides the ground carrier (RN-GROUND), starts NO
+        In-org route called by customer-returns (ADR 0017, ADR 0018), the
+        reverse twin of POST /labels. Reads the ship-to of orderId from
+        customer-ordering BEFORE the transaction opens and derives the stopKey
+        exactly like the outbound label of the same order (same secret over
+        the same normalized address), so a return pickup stop groups with the
+        outbound delivery stop by construction. The RETURN DESTINATION is
+        named in exactly one of two ways. destinationNodeId names the returns
+        node, and this context derives the label's destination prefix itself,
+        from its own view of node-topology's registered nodes (ADR 0018): the
+        caller holds no address data. destinationPostalPrefix, deprecated, is
+        a prefix the caller supplies. Sending both, or neither, is
+        validation-failed. A destinationNodeId this context holds no usable
+        prefix for (the node's registration has not been consumed yet, or its
+        registered postal code has no letter or digit from A-Z 0-9) is refused
+        with 409 destination-prefix-unavailable and no label is stored, nor is
+        the refusal kept under the Idempotency-Key, so the same request with
+        the same key is executed again and served once the node is known; this
+        context does not judge whether the node is the right one or whether
+        it is active. The label rides the ground carrier (RN-GROUND), starts NO
         package journey and seals NO ship-to snapshot; scans of the reverse
         package are counted-and-acknowledged unknowns, and shopper-facing
         return tracking is customer-returns' authorization view. The response
@@ -134,7 +145,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReturnLabel'
         '409':
-          description: label-already-issued (a label already covers this (returnAuthorizationId, packageNo)), tracking-number-taken (ErrTrackingNumberTaken), concurrent-update (ErrConcurrentUpdate) or idempotency-key-reused (the Idempotency-Key was already used with a different request).
+          description: label-already-issued (a label already covers this (returnAuthorizationId, packageNo)), destination-prefix-unavailable (this context holds no usable destination prefix for destinationNodeId; it may hold one later, once the node's registration has been consumed. Like concurrent-update, this refusal is NOT stored under the Idempotency-Key, so a retry of the same request with the same key is executed again and is served once the node is known; ADR 0018), tracking-number-taken (ErrTrackingNumberTaken), concurrent-update (ErrConcurrentUpdate) or idempotency-key-reused (the Idempotency-Key was already used with a different request).
           content:
             application/problem+json:
               schema:
@@ -533,12 +544,19 @@ components:
     IssueReturnLabelRequest:
       type: object
       description: >-
-        In-org request of customer-returns (ADR 0017). orderId names the
-        outbound order whose ship-to is the return's pickup address;
-        destinationPostalPrefix is the return destination's (the returns
-        centre's) prefix.
-      required: [returnAuthorizationId, orderId, packageNo, destinationPostalPrefix]
+        In-org request of customer-returns (ADR 0017, ADR 0018). orderId names
+        the outbound order whose ship-to is the return's pickup address. The
+        return destination is named by EXACTLY ONE of destinationNodeId (the
+        returns node; this context derives the label's destination prefix
+        from its own node view) and the deprecated destinationPostalPrefix (a
+        prefix the caller supplies). Both, or neither, is validation-failed.
+      required: [returnAuthorizationId, orderId, packageNo]
       additionalProperties: false
+      oneOf:
+        - title: Destination named by its node
+          required: [destinationNodeId]
+        - title: Destination named by a caller-supplied prefix (deprecated)
+          required: [destinationPostalPrefix]
       properties:
         returnAuthorizationId:
           type: string
@@ -552,11 +570,29 @@ components:
           type: integer
           minimum: 1
           maximum: 2147483647
+        destinationNodeId:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: >-
+            The node the return goes to (node-topology's nodeId, any node
+            type). The label's destination prefix is derived by this context
+            from the node's registered postal code: its first 5 characters
+            from A-Z 0-9 after upper-casing, the whole run when shorter
+            (ADR 0002 A10, ADR 0018). Not to be sent together with
+            destinationPostalPrefix.
         destinationPostalPrefix:
           type: string
+          deprecated: true
           minLength: 1
           maxLength: 16
           pattern: '^[A-Z0-9]+$'
+          description: >-
+            Deprecated (ADR 0018): the return destination's prefix as the
+            caller knows it, taken as sent. Send destinationNodeId instead;
+            this property is removed in a later, separately coordinated
+            change once no caller sends it. Not to be sent together with
+            destinationNodeId.
     Label:
       type: object
       description: Label metadata. Never contains the ship-to address. labelRef, trackingNumber and carrier are what vendor-connectivity returns to the vendor.
