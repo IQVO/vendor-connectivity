@@ -204,6 +204,7 @@ classDiagram
         NODE_PROFILE
         SHIPMENT_CONFIRMATION
         INBOUND_RECEIPT
+        RETURN_OUTCOME
     }
     class Status {
         <<Enumeration>>

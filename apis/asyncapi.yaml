@@ -1237,6 +1237,7 @@ components:
       - NODE_PROFILE
       - SHIPMENT_CONFIRMATION
       - INBOUND_RECEIPT
+      - RETURN_OUTCOME
     VendorOnboardedEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'
