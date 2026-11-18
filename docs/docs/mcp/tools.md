@@ -90,10 +90,10 @@ The A2A agent exposes two of the same reads as skills (`get_purchase_order` and
 
 ## Known discrepancy
 
-The `get_transaction` tool description lists five transaction kinds
-(`ACKNOWLEDGEMENT`, `INVENTORY`, `NODE_REGISTRATION`, `NODE_PROFILE`, `SHIPMENT_CONFIRMATION`);
-the submission aggregate has a sixth, `INBOUND_RECEIPT` (ADR 0005), which the tool returns like
-any other (`internal/adapters/inbound/mcp/tools.go`, `registerAccountTools` against
-`internal/domain/submission/submission.go`). Likewise `poll_inbound_shipments` describes
+The `get_transaction` tool description lists the seven transaction kinds of the submission
+aggregate (`ACKNOWLEDGEMENT`, `INVENTORY`, `NODE_REGISTRATION`, `NODE_PROFILE`,
+`SHIPMENT_CONFIRMATION`, `INBOUND_RECEIPT` from ADR 0005 and `RETURN_OUTCOME` from ADR 0014), so
+that list agrees with the code (`internal/adapters/inbound/mcp/tools.go`, `registerAccountTools` against
+`internal/domain/submission/submission.go`). One discrepancy remains: `poll_inbound_shipments` describes
 statuses `SHIPPED` or `RECEIVED` while the view's statuses are `LABELLED`, `SHIPPED`, `CLOSED`
 and `CLOSED_WITH_DISCREPANCY`; the poll itself only returns `SHIPPED` rows.

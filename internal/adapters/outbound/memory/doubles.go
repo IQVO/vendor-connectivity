@@ -21,6 +21,7 @@ var (
 	_ ports.ListingViewRepository          = (*ListingViewRepository)(nil)
 	_ ports.InboundShipmentViewRepository  = (*InboundShipmentViewRepository)(nil)
 	_ ports.CatalogPackagingViewRepository = (*CatalogPackagingViewRepository)(nil)
+	_ ports.ReturnAdviceViewRepository     = (*ReturnAdviceViewRepository)(nil)
 	_ ports.ProcessedEvents                = (*Inbox)(nil)
 	_ ports.EventOutbox                    = (*Outbox)(nil)
 	_ ports.UnitOfWork                     = (*UnitOfWork)(nil)
@@ -172,14 +173,20 @@ func (s *ShippingTracking) IssueLabel(_ context.Context, key string, call gatewa
 		TrackingNumber: fmt.Sprintf("TRK-%s-%d", call.PONumber, call.PackageNo), Carrier: "carrier-a"}, nil
 }
 
-// NodePerformance is a scripted ports.NodePerformance.
+// NodePerformance is a scripted ports.NodePerformance. NodeIDs records the
+// node of every call, in order.
 type NodePerformance struct {
+	mu        sync.Mutex
 	Err       error
 	Scorecard views.Scorecard
+	NodeIDs   []string
 }
 
-// GetScorecard answers the scripted scorecard.
+// GetScorecard records the call and answers the scripted scorecard.
 func (p *NodePerformance) GetScorecard(_ context.Context, nodeID string) (views.Scorecard, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.NodeIDs = append(p.NodeIDs, nodeID)
 	if p.Err != nil {
 		return views.Scorecard{}, p.Err
 	}

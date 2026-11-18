@@ -195,9 +195,9 @@ accepted and shipped, or rejected, expired or cancelled).
 ### 2. Description
 
 One asynchronous vendor write (acknowledgement, inventory feed, node
-registration, profile declaration, shipment confirmation, inbound receipt) and its
+registration, profile declaration, shipment confirmation, inbound receipt, return outcome) and its
 processing outcome. Value objects: `Kind` (`ACKNOWLEDGEMENT`, `INVENTORY`,
-`NODE_REGISTRATION`, `NODE_PROFILE`, `SHIPMENT_CONFIRMATION`, `INBOUND_RECEIPT`) and
+`NODE_REGISTRATION`, `NODE_PROFILE`, `SHIPMENT_CONFIRMATION`, `INBOUND_RECEIPT`, `RETURN_OUTCOME`) and
 `Error{Code, Message, Path}`. It is what
 `GET /vendor/transactions/{transactionId}` returns.
 

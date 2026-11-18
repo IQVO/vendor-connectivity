@@ -76,7 +76,7 @@ erDiagram
     submissions {
         TEXT transaction_id PK
         TEXT vendor_id "by value"
-        TEXT kind "CHECK the 6 kinds"
+        TEXT kind "CHECK the 7 kinds"
         TEXT status "CHECK PROCESSING, SUCCESS, FAILURE"
         BYTEA payload "the vendor body verbatim"
         TEXT po_number "default empty, by value"
@@ -91,7 +91,7 @@ erDiagram
     }
 ```
 
-Source: `internal/adapters/outbound/postgres/migrations/0001_vendor_connectivity_schema.up.sql` (`submissions`), widened by `0002_inbound_shipments_and_packaging.up.sql` to allow the `INBOUND_RECEIPT` kind.
+Source: `internal/adapters/outbound/postgres/migrations/0001_vendor_connectivity_schema.up.sql` (`submissions`), widened by `0002_inbound_shipments_and_packaging.up.sql` to allow the `INBOUND_RECEIPT` kind and by `0005_return_advices.up.sql` to allow the `RETURN_OUTCOME` kind.
 
 Indexes (all partial or keyset-friendly): `purchase_orders (vendor_id, issued_at, po_number)` for the
 poll, `(node_id, issued_at, po_number)` per node, `(ack_by, po_number) WHERE state = 'ISSUED'` for

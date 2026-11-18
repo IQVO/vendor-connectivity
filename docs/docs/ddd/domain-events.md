@@ -197,7 +197,7 @@ transaction as the aggregate change.
 | --- | --- | --- |
 | `transactionId` | string | The submission |
 | `vendorId` | string | The vendor that wrote |
-| `kind` | enum | `ACKNOWLEDGEMENT`, `INVENTORY`, `NODE_REGISTRATION`, `NODE_PROFILE`, `SHIPMENT_CONFIRMATION`, `INBOUND_RECEIPT` |
+| `kind` | enum | `ACKNOWLEDGEMENT`, `INVENTORY`, `NODE_REGISTRATION`, `NODE_PROFILE`, `SHIPMENT_CONFIRMATION`, `INBOUND_RECEIPT`, `RETURN_OUTCOME` |
 | `status` | enum | `SUCCESS` or `FAILURE` |
 | `errorCount` | integer | Number of `SubmissionError`s |
 

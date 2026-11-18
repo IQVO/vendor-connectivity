@@ -134,7 +134,7 @@ Source: `internal/application/usecases/submissions.go` (`ProcessDueSubmissions`,
 
 Omitted: node-performance also consumes `PurchaseOrderAccepted`,
 `PurchaseOrderRejected` and `VendorShipmentConfirmed`; the relay kinds
-(`INVENTORY`, `NODE_REGISTRATION`, `NODE_PROFILE`) are on board 5, and inbound receipts (a sixth kind, ADR 0005) are not drawn here.
+(`INVENTORY`, `NODE_REGISTRATION`, `NODE_PROFILE`) are on board 5, and inbound receipts (a sixth kind, ADR 0005) and return outcomes (a seventh kind, ADR 0014) are not drawn here.
 
 ## 3. The clock and cancellation
 

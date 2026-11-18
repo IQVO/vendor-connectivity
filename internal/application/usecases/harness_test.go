@@ -41,7 +41,7 @@ func newHarnessMetrics(t *testing.T, cfg usecases.Config, m ports.SubmissionMetr
 	h := &harness{t: t, ctx: context.Background(), store: s, clock: memory.NewClock(t0), nt: &memory.NodeTopology{}, offers: &memory.OfferAvailability{},
 		ship: &memory.ShippingTracking{}, perf: &memory.NodePerformance{}, rand: memory.NewScriptedRandom()}
 	h.svc = usecases.New(usecases.Deps{
-		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(), Shipments: s.Shipments(), Packaging: s.Packaging(),
+		UoW: s.UnitOfWork(), Vendors: s.Vendors(), Orders: s.Orders(), Submissions: s.Submissions(), Nodes: s.Nodes(), Listings: s.Listings(), Shipments: s.Shipments(), Packaging: s.Packaging(), Advices: s.Advices(),
 		Outbox: s.Outbox(), Inbox: s.Inbox(), Clock: h.clock, IDs: &memory.SequentialIDs{}, Random: h.rand,
 		NodeTopology: h.nt, Offers: h.offers, Shipping: h.ship, Performance: h.perf, Metrics: m,
 	}, cfg)
@@ -129,6 +129,17 @@ func (h *harness) tx(vendorID, id string) views.Transaction {
 	v, err := h.svc.GetTransaction(h.ctx, vendorID, id)
 	h.must(err)
 	return v
+}
+
+// neighbourCalls counts the synchronous calls the neighbour doubles recorded,
+// one field per method of the four neighbour ports.
+type neighbourCalls struct {
+	registers, profiles, feeds, labels, scorecards int
+}
+
+func (h *harness) neighbourCalls() neighbourCalls {
+	return neighbourCalls{registers: len(h.nt.Registers), profiles: len(h.nt.Profiles), feeds: len(h.offers.Feeds),
+		labels: len(h.ship.Calls), scorecards: len(h.perf.NodeIDs)}
 }
 
 // eventNames lists the outbox events by name.

@@ -193,3 +193,33 @@ type Packaging struct {
 	ChildGTIN    string `json:"childGtin,omitempty"`
 	UnitsPerPack int    `json:"unitsPerPack"`
 }
+
+// ReturnAdviceLine is one authorization line of a return advice.
+type ReturnAdviceLine struct {
+	LineNo        int    `json:"lineNo"`
+	CatalogItemID string `json:"catalogItemId"`
+	Quantity      int    `json:"quantity"`
+	OwnerRef      string `json:"ownerRef,omitempty"`
+}
+
+// ReturnAdvice is one network return authorization as the vendor's work item.
+type ReturnAdvice struct {
+	AuthorizationID string             `json:"authorizationId"`
+	OrderID         string             `json:"orderId,omitempty"`
+	GroupNo         int                `json:"groupNo"`
+	VendorID        string             `json:"vendorId"`
+	NodeID          string             `json:"nodeId"`
+	Disposition     string             `json:"disposition"`
+	Method          string             `json:"method"`
+	State           string             `json:"state"`
+	ExpiresAt       *time.Time         `json:"expiresAt,omitempty"`
+	Lines           []ReturnAdviceLine `json:"lines"`
+	TrackingNumbers []string           `json:"trackingNumbers"`
+	ReadyAt         time.Time          `json:"readyAt"`
+}
+
+// ReturnAdvicePage is one page of the return advice poll.
+type ReturnAdvicePage struct {
+	ReturnAdvices []ReturnAdvice `json:"returnAdvices"`
+	NextToken     string         `json:"nextToken,omitempty"`
+}

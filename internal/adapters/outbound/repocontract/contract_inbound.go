@@ -84,7 +84,7 @@ func listShipped(t *testing.T, e Env) {
 	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{nodeOne, nodeTwo}, Limit: 2}); got != "SHP-2 SHP-3 " {
 		t.Errorf("limit = %q", got)
 	}
-	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{"n-9"}}); got != "" {
+	if got := ids(repository.InboundShipmentFilter{NodeIDs: []string{nodeNever}}); got != "" {
 		t.Errorf("unknown node = %q", got)
 	}
 }

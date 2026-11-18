@@ -51,6 +51,7 @@ go to `retailnetwork.vendor-connectivity.events`; `PurchaseOrderCancelled` goes 
 | `purchaseorder.PurchaseOrderCancelled` (**analytics topic only**) | `poNumber` | `FulfillmentCancelled` cancelled an `ISSUED` order | `poNumber`, `assignmentId`, `reason` |
 | `submission.SubmissionProcessed` | `transactionId` | any asynchronous write reached `SUCCESS` or `FAILURE` | `transactionId`, `vendorId`, `kind`, `status`, `errorCount` |
 | `inboundreceipt.InboundReceiptSubmitted` | `shipmentId` | an inbound receipt was accepted (same transaction as the submission) | `transactionId`, `vendorId`, `nodeId`, `shipmentId`, `receivedAt`, `cartons[{sscc, status, items[{gtin, qtyEaches}], complianceCodes[]}]` |
+| `returnoutcome.VendorReturnOutcomeSubmitted` | `authorizationId` | a return outcome was accepted and the advice left the poll (ADR 0014) | `transactionId`, `vendorId`, `authorizationId`, `nodeId`, `receivedAt`, `lines[{catalogItemId, ownerRef?, qtyRestockable, qtyUnsellable}]` |
 
 Consumers read on the neighbours' `origin/develop`: order-sourcing (the `purchaseorder.` types),
 node-performance (all of them, including `InboundReceiptSubmitted`), shipping-and-tracking
@@ -75,6 +76,7 @@ and dead-lettered to `<topic>.dlq` when they cannot be applied. Source:
 | order-sourcing, `retailnetwork.order-sourcing.events` | `com.retailnetwork.commerce.order-sourcing.assignment.FulfillmentReleasedToNode` | `assignmentId`, `releaseNo`, `orderId`, `groupNo`, `nodeId`, `requiredShipBy`, `tier`, `lines[{listingId, quantity}]` |
 | same | `...assignment.FulfillmentCancelled` | `assignmentId`, `reason` |
 | same | `...assignment.FulfillmentReleaseWithdrawn` | `assignmentId` (the carrier), `releaseNo`, `reason` |
+| customer-returns, `retailnetwork.customer-returns.events` | `com.retailnetwork.commerce.customer-returns.returnauthorization.ReturnAuthorized` | `authorizationId`, `orderId`, `groupNo`, `disposition`, `method`, `lines[]`, `destinationNodeId?`, `originNodeId?`, `authorizedAt`, `expiresAt` |
 | seller-inbound, `retailnetwork.seller-inbound.events` | `com.retailnetwork.partner.seller-inbound.inboundshipment.InboundShipmentLabelled` | `shipmentId`, `planId`, `sellerId`, `nodeId`, `cartons[]` (SSCC, parent, kind, contents, weight, dimensions), `labelledAt` |
 | same | `...inboundshipment.InboundShipmentShipped` | `shipmentId`, `planId`, `sellerId`, `nodeId`, `shippedAt` |
 | same | `...inboundshipment.InboundShipmentReceived` | `shipmentId`, `sellerId`, `nodeId`, `status`, `receivedAt` |
