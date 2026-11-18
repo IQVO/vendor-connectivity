@@ -29,7 +29,7 @@ The terms of the aggregates (`internal/domain/vendor`, `purchaseorder`, `submiss
 | **Expired** | A PO still `ISSUED` past `ackBy`; never answered late. | `purchaseorder.Expired`, `PurchaseOrder.Expire`, use case `ExpireUnacknowledged` | **Rejected**, which is the vendor's own answer |
 | **Cancelled** | A PO withdrawn by the network while still `ISSUED`. | `purchaseorder.Cancelled`, `PurchaseOrder.Cancel`, policy `CancelOnSourcingCancel` | **Rejected** or **Expired** |
 | **Submission / Transaction** | An asynchronous vendor write and its outcome, reconciled by `transactionId`. | `submission.Submission` | The PO's own state; a submission is the write, not the order |
-| **Submission Kind** | `ACKNOWLEDGEMENT`, `INVENTORY`, `NODE_REGISTRATION`, `NODE_PROFILE`, `SHIPMENT_CONFIRMATION`, `INBOUND_RECEIPT` (the sixth, from ADR 0005). | `submission.Kind` | — |
+| **Submission Kind** | `ACKNOWLEDGEMENT`, `INVENTORY`, `NODE_REGISTRATION`, `NODE_PROFILE`, `SHIPMENT_CONFIRMATION`, `INBOUND_RECEIPT` (the sixth, from ADR 0005), `RETURN_OUTCOME` (the seventh, from ADR 0014). | `submission.Kind` | — |
 | **Submission Error** | One reason a transaction failed: `code`, `message`, `path`. | `submission.Error{Code, Message, Path}` | An HTTP problem: a synchronous refusal never creates a transaction |
 | **notBefore** | `receivedAt + TX_PROCESSING_DELAY`; a submission is never processed earlier. | `submission.Submission` field `notBefore`, `Due(now)` | — |
 | **Label** | `labelRef + trackingNumber + carrier`; never the address. | `purchaseorder.Label` | **Shipping Label** in shipping-and-tracking, the aggregate that also holds the encrypted ship-to snapshot |

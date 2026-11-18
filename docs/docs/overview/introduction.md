@@ -40,7 +40,7 @@ everywhere in the fleet.
 | --- | --- | --- |
 | **VendorAccount** | `internal/domain/vendor` | A vendor's standing (`ACTIVE` or `SUSPENDED`) and its acknowledgement window, 1 h to 24 h. A suspended vendor's writes are refused. |
 | **PurchaseOrder** | `internal/domain/purchaseorder` | One order per `assignmentId` and `releaseNo`, issued from an order-sourcing release. States `ISSUED`, `ACK_PROCESSING`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `SHIPMENT_PROCESSING`, `SHIPPED`, `CANCELLED`. Acknowledge in full, once, before `ackBy`. |
-| **Submission** | `internal/domain/submission` | One asynchronous vendor write (six kinds) and its outcome, set once: `PROCESSING`, `SUCCESS`, `FAILURE`. |
+| **Submission** | `internal/domain/submission` | One asynchronous vendor write (seven kinds) and its outcome, set once: `PROCESSING`, `SUCCESS`, `FAILURE`. |
 | **Local copies** | `vendor_nodes`, `listings`, `inbound_shipments`, `catalog_packaging` | Event-fed read models of other contexts' facts, not aggregate state ([ADR 0003](/docs/adr/0003-consumed-contracts-and-local-read-models), [ADR 0005](/docs/adr/0005-inbound-shipments-receipts-and-catalog-packaging)). |
 | **Inbound shipments and receipts** | `internal/domain/inbound` | A seller's cartons announced by seller-inbound, polled by the vendor and answered with a carton-level receipt. |
 

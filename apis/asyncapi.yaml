@@ -1237,6 +1237,7 @@ components:
       - NODE_PROFILE
       - SHIPMENT_CONFIRMATION
       - INBOUND_RECEIPT
+      - RETURN_OUTCOME
     VendorOnboardedEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'
@@ -1686,6 +1687,7 @@ components:
               lines:
                 type: array
                 minItems: 1
+                description: Between 1 and 50 lines; the service never accepts an outcome with more.
                 items:
                   type: object
                   required:
@@ -1700,9 +1702,11 @@ components:
                     qtyRestockable:
                       type: integer
                       minimum: 0
+                      description: 0 to 2147483647.
                     qtyUnsellable:
                       type: integer
                       minimum: 0
+                      description: 0 to 2147483647.
     ReturnAuthorizedEvent:
       allOf:
       - $ref: '#/components/schemas/CloudEventEnvelope'
