@@ -22,6 +22,7 @@ const (
 	CodeSimulatedFailure   = "ErrSimulatedFailure"
 	CodeUpstreamUnavail    = "ErrUpstreamUnavailable"
 	CodeMalformedPayload   = "ErrMalformedPayload"
+	CodeUnsupportedKind    = "ErrUnsupportedSubmissionKind"
 	codeFeedAlreadyApplied = "ErrFeedAlreadyApplied"
 )
 
@@ -148,8 +149,21 @@ func (s *Service) execute(ctx context.Context, sub *submission.Submission) resul
 	if s.d.Random.Float64() < s.cfg.Knobs.TxFailureRate {
 		return failure(CodeSimulatedFailure, "the write failed on purpose (TX_FAILURE_RATE)", "")
 	}
-	switch sub.Kind() {
-	case submission.KindAcknowledgement, submission.KindShipmentConfirmation, submission.KindInboundReceipt:
+	return s.executeKind(ctx, sub.Kind(), sub)
+}
+
+// executeKind is the processing path of each SubmissionKind, one explicit case
+// per kind. An ACKNOWLEDGEMENT and a SHIPMENT_CONFIRMATION are applied to their
+// order by finish; an INBOUND_RECEIPT (ADR 0005) and a RETURN_OUTCOME (ADR 0014)
+// published their fact in the unit that received them and need no neighbour:
+// the four succeed locally. The other three are relayed to a neighbour. A kind
+// with no case fails the submission, it is never relayed as another kind. The
+// kind is a parameter because the domain builds no submission of an unknown
+// kind (the tests reach the default branch through it).
+func (s *Service) executeKind(ctx context.Context, kind submission.Kind, sub *submission.Submission) result {
+	switch kind {
+	case submission.KindAcknowledgement, submission.KindShipmentConfirmation,
+		submission.KindInboundReceipt, submission.KindReturnOutcome:
 		return success()
 	case submission.KindNodeRegistration:
 		return s.executeRegistration(ctx, sub)
@@ -159,8 +173,10 @@ func (s *Service) execute(ctx context.Context, sub *submission.Submission) resul
 			return failure(CodeMalformedPayload, err.Error(), "")
 		}
 		return classify(s.d.NodeTopology.DeclareOperationalProfile(ctx, string(sub.ID()), sub.NodeID(), req))
-	default:
+	case submission.KindInventory:
 		return s.executeInventory(ctx, sub)
+	default:
+		return failure(CodeUnsupportedKind, fmt.Sprintf("no processing is defined for submission kind %q", kind), "")
 	}
 }
 

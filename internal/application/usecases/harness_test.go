@@ -131,6 +131,17 @@ func (h *harness) tx(vendorID, id string) views.Transaction {
 	return v
 }
 
+// neighbourCalls counts the synchronous calls the neighbour doubles recorded,
+// one field per method of the four neighbour ports.
+type neighbourCalls struct {
+	registers, profiles, feeds, labels, scorecards int
+}
+
+func (h *harness) neighbourCalls() neighbourCalls {
+	return neighbourCalls{registers: len(h.nt.Registers), profiles: len(h.nt.Profiles), feeds: len(h.offers.Feeds),
+		labels: len(h.ship.Calls), scorecards: len(h.perf.NodeIDs)}
+}
+
 // eventNames lists the outbox events by name.
 func (h *harness) eventNames() []string {
 	var out []string
