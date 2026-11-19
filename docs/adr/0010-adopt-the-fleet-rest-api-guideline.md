@@ -44,3 +44,9 @@ collection GET. The Vendor API predated it.
 Breaking for every Vendor API client: it must deploy together with the REST cutover set. Callers known
 outside this repository: network-fulfillment (suspension and reinstatement routes, purchase-order poll).
 The domain, the events and the Kafka contracts do not change.
+
+## Addendum 2026-11-18: replay classes
+
+The replay of refusals is now decided by ADR 0015: a 2xx and a FINAL or OUTCOME refusal are stored and
+replayed, a RETRYABLE refusal and a 5xx are not and release the key. The text above is the decision as it
+was taken.
