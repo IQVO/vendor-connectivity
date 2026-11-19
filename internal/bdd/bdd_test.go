@@ -256,3 +256,9 @@ func (w *world) eventNames() []string {
 }
 
 func refusal(code string) error { return &gateway.RefusalError{Status: 409, Code: code, Message: code} }
+
+// releasedRefusal is a refusal the callee releases under its Idempotency-Key (replay
+// class RETRYABLE): the outbound adapter marks it Retryable, so the worker retries it.
+func releasedRefusal(code string) error {
+	return &gateway.RefusalError{Status: 409, Code: code, Message: code, Retryable: true}
+}

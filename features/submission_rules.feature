@@ -1,9 +1,12 @@
 Feature: Asynchronous transactions, neighbour outages and retention
   A submission is processed at or after notBefore = receivedAt +
   TX_PROCESSING_DELAY. A neighbour refusal (4xx) ends it in FAILURE with the
-  neighbour's Err code; an outage (5xx, timeout) leaves it PROCESSING for the
-  next pass, and after SUBMISSION_MAX_ATTEMPTS (5) it ends FAILURE with
-  ErrUpstreamUnavailable. The relayed call carries the transaction id as its
+  neighbour's Err code, except a refusal the neighbour releases under the
+  Idempotency-Key (replay class RETRYABLE, ADR 0016), which leaves it PROCESSING
+  like an outage and is retried under the same key; an outage (5xx, timeout)
+  leaves it PROCESSING for the next pass, and after SUBMISSION_MAX_ATTEMPTS (5)
+  it ends FAILURE with ErrUpstreamUnavailable (a released refusal that never
+  clears ends FAILURE with the neighbour's own code). The relayed call carries the transaction id as its
   idempotency key; a refused write at receipt creates no transaction;
   processed submissions are kept 30 days (use-cases ProcessSubmission, canvas
   Submission, ADR 0002 A10, A11, A12, A22). No Background: the knobs and the
@@ -99,10 +102,10 @@ Feature: Asynchronous transactions, neighbour outages and retention
     And I send GET "/vendor/transactions/{tx}?vendorId=V-1"
     Then the response field "status" is "SUCCESS"
 
-  Scenario: A refusal of offer-availability fails the inventory transaction once, with its code
+  Scenario: A refusal of offer-availability that is final fails the inventory transaction once, with its code
     Given vendor "V-1" is onboarded with an acknowledgement window of 120 minutes
     And node "N-1" of vendor "V-1" has a handling time of 45 minutes
-    And offer-availability refuses with "ErrListingNotOnNode"
+    And offer-availability refuses with "ErrNegativeAvailability"
     When I send POST "/vendor/inventory" with:
       """
       {"vendorId":"V-1","nodeId":"N-1","fullUpdate":false,"asOf":"2026-10-22T12:55:00Z","lines":[{"listingId":"lst-9","availableQty":7,"basis":"PHYSICAL"}]}
@@ -110,9 +113,72 @@ Feature: Asynchronous transactions, neighbour outages and retention
     And the submission queue is processed 2 times
     And I send GET "/vendor/transactions/{tx}?vendorId=V-1"
     Then the response field "status" is "FAILURE"
-    And the response field "errors.0.code" is "ErrListingNotOnNode"
+    And the response field "errors.0.code" is "ErrNegativeAvailability"
     And offer-availability received 1 inventory feed
     And the "SubmissionProcessed" event about "{tx}" carries "errorCount" "1"
+
+  Scenario: A refusal node-topology releases keeps the registration processing and the same key succeeds later
+    Given vendor "V-1" is onboarded with an acknowledgement window of 120 minutes
+    And node-topology releases the refusal "ErrUnknownRegion"
+    When I send POST "/vendor/nodes" with:
+      """
+      {"vendorId":"V-1","vendorNodeCode":"SITE-2","nodeType":"FULFILLMENT_CENTER","regionId":"r-1","timezone":"America/Sao_Paulo","postalCode":"01000-000","countryCode":"BR"}
+      """
+    Then the response status is 202
+    When the submission queue is processed 2 times
+    And I send GET "/vendor/transactions/{tx}?vendorId=V-1"
+    Then the response field "status" is "PROCESSING"
+    And the response lists 0 items in "errors"
+    And node-topology received 2 RegisterNode calls
+    And 0 "SubmissionProcessed" events were published
+    Given node-topology answers RegisterNode with node "N-9" for vendor "V-1"
+    And node-topology accepts again
+    When the submission queue is processed
+    And I send GET "/vendor/transactions/{tx}?vendorId=V-1"
+    Then the response field "status" is "SUCCESS"
+    And the response field "nodeId" is "N-9"
+    And node-topology received 3 RegisterNode calls
+    And every call to node-topology carried the transaction id as its key
+    And 1 "SubmissionProcessed" events were published
+
+  Scenario: A feed refused because the listing is not on the node yet is applied once the listing exists
+    Given vendor "V-1" is onboarded with an acknowledgement window of 120 minutes
+    And node "N-1" of vendor "V-1" has a handling time of 45 minutes
+    And offer-availability releases the refusal "ErrListingNotOnNode"
+    When I send POST "/vendor/inventory" with:
+      """
+      {"vendorId":"V-1","nodeId":"N-1","fullUpdate":false,"asOf":"2026-10-22T12:55:00Z","lines":[{"listingId":"lst-9","availableQty":7,"basis":"PHYSICAL"}]}
+      """
+    And the submission queue is processed 2 times
+    And I send GET "/vendor/transactions/{tx}?vendorId=V-1"
+    Then the response field "status" is "PROCESSING"
+    And offer-availability received 2 inventory feeds
+    Given offer-availability accepts again
+    When the submission queue is processed
+    And I send GET "/vendor/transactions/{tx}?vendorId=V-1"
+    Then the response field "status" is "SUCCESS"
+    And offer-availability received 3 inventory feeds
+    And every call to offer-availability carried the transaction id as its key
+
+  Scenario: A released refusal that never clears fails at the fifth pass with the callee's own code
+    Given vendor "V-1" is onboarded with an acknowledgement window of 120 minutes
+    And node "N-1" of vendor "V-1" has a handling time of 45 minutes
+    And offer-availability releases the refusal "ErrConcurrentUpdate"
+    When I send POST "/vendor/inventory" with:
+      """
+      {"vendorId":"V-1","nodeId":"N-1","fullUpdate":false,"asOf":"2026-10-22T12:55:00Z","lines":[]}
+      """
+    And the submission queue is processed 4 times
+    And I send GET "/vendor/transactions/{tx}?vendorId=V-1"
+    Then the response field "status" is "PROCESSING"
+    When the submission queue is processed
+    And I send GET "/vendor/transactions/{tx}?vendorId=V-1"
+    Then the response field "status" is "FAILURE"
+    And the response field "errors.0.code" is "ErrConcurrentUpdate"
+    And offer-availability received 5 inventory feeds
+    And the "SubmissionProcessed" event about "{tx}" carries "status" "FAILURE"
+    When the submission queue is processed
+    Then offer-availability received 5 inventory feeds
 
   Scenario: A transaction that fails on purpose never reaches the neighbour
     Given every transaction fails on purpose

@@ -46,6 +46,11 @@ type RefusalError struct {
 	Code    string
 	Message string
 	Path    string
+	// Slug is the neighbour's problem type slug ("" when it sent none).
+	Slug string
+	// Retryable is the outbound adapter's verdict: the neighbour releases this refusal
+	// under the Idempotency-Key, so the same request may pass later.
+	Retryable bool
 }
 
 // Error implements error.

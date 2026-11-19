@@ -67,6 +67,20 @@ Feature: Labels and shipment confirmation rules
     Then the response status is 502
     And the problem type is "upstream-refused"
 
+  Scenario: A refusal shipping-and-tracking releases leaves the label retryable under the same key
+    Given vendor "V-1" has accepted the purchase order of "asg-1"
+    And shipping-and-tracking releases the refusal "ErrAddressSuspect" for package 2
+    When I request labels for packages 1 to 2 of the purchase order of "asg-1" for vendor "V-1"
+    Then the response status is 502
+    And the problem type is "upstream-refused"
+    When I send GET "/vendor/purchase-orders/{po:asg-1}?vendorId=V-1"
+    Then the response lists 1 items in "labels"
+    Given shipping-and-tracking is reachable again
+    When I request labels for packages 1 to 2 of the purchase order of "asg-1" for vendor "V-1"
+    Then the response status is 200
+    And the response lists 2 items in "labels"
+    And shipping-and-tracking was asked for packages "1, 2, 2"
+
   Scenario Outline: A label request names 1 to 100 distinct packages numbered from 1
     Given vendor "V-1" has accepted the purchase order of "asg-1"
     When I send POST "/vendor/shipping-labels" with:

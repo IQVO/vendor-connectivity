@@ -85,6 +85,7 @@ type Submission struct {
 	notBefore    time.Time
 	processedAt  time.Time
 	errs         []Error
+	lastRefusal  Error
 	attempts     int
 	version      int64
 }
@@ -103,6 +104,7 @@ type Snapshot struct {
 	NotBefore    time.Time
 	ProcessedAt  time.Time
 	Errors       []Error
+	LastRefusal  Error
 	Attempts     int
 	Version      int64
 }
@@ -340,3 +342,9 @@ func (s *Submission) Attempts() int { return s.attempts }
 
 // Version returns the optimistic-concurrency version.
 func (s *Submission) Version() int64 { return s.version }
+
+// RecordRefusal is a stub.
+func (s *Submission) RecordRefusal(e Error) (int, error) { return s.attempts, nil }
+
+// LastRefusal is a stub.
+func (s *Submission) LastRefusal() (Error, bool) { return s.lastRefusal, false }
