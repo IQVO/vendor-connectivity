@@ -36,5 +36,16 @@ func (c *capture) Write(b []byte) (int, error) {
 	return c.body.Write(b)
 }
 
-// stored reports whether the answer is remembered under its key.
-func (c *capture) stored() bool { return c.code < http.StatusInternalServerError }
+// stored reports whether the answer is remembered under its key: a 2xx, and a
+// refusal whose class says so (FINAL, OUTCOME). A 5xx, a RETRYABLE refusal and
+// a refusal that did not go through writeError (no class) are not: the key is
+// released. The middleware knows no other status range and no slug.
+func (c *capture) stored() bool {
+	switch {
+	case c.code >= http.StatusInternalServerError:
+		return false
+	case c.code >= http.StatusOK && c.code < http.StatusMultipleChoices:
+		return true
+	}
+	return c.class == replayFinal || c.class == replayOutcome
+}

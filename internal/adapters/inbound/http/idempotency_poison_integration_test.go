@@ -14,6 +14,8 @@ import (
 	_ "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	vchttp "github.com/claudioed/vendor-connectivity/internal/adapters/inbound/http"
+	"github.com/claudioed/vendor-connectivity/internal/application/ports"
+	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 	"github.com/claudioed/vendor-connectivity/internal/testing/pgtest"
 )
 
@@ -52,9 +54,7 @@ func TestIdempotency_A409OverAnAbortedTransactionIsCommittedAndReplayed(t *testi
 	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		poisonTx(t, r)
-		w.Header().Set("Content-Type", "application/problem+json")
-		w.WriteHeader(http.StatusConflict)
-		_, _ = w.Write([]byte(`{"type":"some-conflict","status":409}`))
+		vchttp.WriteErrorForTest(w, r, purchaseorder.ErrAckWindowClosed) // FINAL, 409
 	}))
 
 	first := poisonPost(mw, "k-poison")
@@ -104,5 +104,37 @@ func TestIdempotency_A2xxOverAnAbortedTransactionIsNeverCached(t *testing.T) {
 	}
 	if calls.Load() != 2 {
 		t.Fatalf("handler ran %d times, want 2", calls.Load())
+	}
+}
+
+// A RETRYABLE refusal over an aborted transaction (the lost race on a unique
+// index, mapped to concurrent-update) rolls everything back: the key row is
+// gone, nothing is stored, and the same key executes again.
+func TestIdempotency_ARetryableRefusalOverAnAbortedTransactionReleasesTheKey(t *testing.T) {
+	pool := pgtest.NewPool(t)
+	var calls atomic.Int32
+	mw := vchttp.RequireIdempotencyKey(pool, func(ctx context.Context, tx pgx.Tx) context.Context {
+		return context.WithValue(ctx, poisonTxKey{}, tx)
+	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			poisonTx(t, r)
+			vchttp.WriteErrorForTest(w, r, ports.ErrConcurrentUpdate)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"transactionId":"tx-1"}`))
+	}))
+
+	first := poisonPost(mw, "k-race")
+	if first.Code != http.StatusConflict || !strings.Contains(first.Body.String(), "concurrent-update") {
+		t.Fatalf("first = %d %s, want 409 concurrent-update", first.Code, first.Body.String())
+	}
+	var n int
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM idempotency_keys WHERE key = 'k-race'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("a retryable refusal left %d key rows (err=%v)", n, err)
+	}
+	second := poisonPost(mw, "k-race")
+	if second.Code != http.StatusAccepted || second.Header().Get(vchttp.IdempotencyReplayedHeader) != "" || calls.Load() != 2 {
+		t.Fatalf("retry = %d replayed=%q calls=%d, want a fresh 202 after 2 calls", second.Code, second.Header().Get(vchttp.IdempotencyReplayedHeader), calls.Load())
 	}
 }
