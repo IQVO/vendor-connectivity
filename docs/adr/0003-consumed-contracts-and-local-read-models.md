@@ -86,3 +86,9 @@ behind ports in `internal/application/ports`; the fleet and the neighbours are n
 - A neighbour that is down delays a transaction (it stays `PROCESSING`) instead of losing it.
 
 > Amended by [ADR 0005](./0005-inbound-shipments-receipts-and-catalog-packaging.md): two more consumed producers (seller-inbound, offer-availability packaging events) and two more local read models.
+
+## Addendum 2026-11-18: replay classes
+
+The replay of refusals is now decided by ADR 0015: a 2xx and a FINAL or OUTCOME refusal are stored and
+replayed, a RETRYABLE refusal and a 5xx are not and release the key. The text above is the decision as it
+was taken.

@@ -40,7 +40,7 @@ security):
   `status`, `detail`, `instance`. An unmapped error is an opaque 500 `internal-error`. A new `Err`
   needs a catalogue row.
 - **Idempotency-Key** is required on every write (`idempotency.go`): same key + same request
-  replays the first response, same key + other request is 409 `idempotency-key-reused`, a missing
+  replays the first response when it is stored (a 2xx, a FINAL or OUTCOME refusal; a RETRYABLE refusal and a 5xx are not stored and release the key, ADR 0015: every `problemCatalogue` entry declares its `replay` class and a missing class fails `TestEveryCatalogueEntryDeclaresAReplayClass`), same key + other request is 409 `idempotency-key-reused`, a missing
   key is 400 `idempotency-key-required`, a malformed one (not 1-128 printable ASCII) 400 `idempotency-key-invalid`; keys live 24 h in `idempotency_keys`. A new write
   registers through the `write(...)` wrapper in `NewRouter`, never bare `r.Post`.
 - **NUL** (U+0000) is rejected before anything else (`nul.go`): 404 in the path, 400

@@ -67,11 +67,20 @@ type TxBinder func(ctx context.Context, tx pgx.Tx) context.Context
 //   - The wrapped handler runs with the transaction bound into its context
 //     (TxBinder), so the idempotency row, the plan and its outbox rows commit
 //     or roll back together.
-//   - Every normal response below 500 is cached, 4xx included: the same key
-//     and body replays the same answer (for an asynchronous write, the same
-//     transactionId) with Idempotency-Replayed: true, a different method,
-//     path or body is 409 idempotency-key-reused. A 5xx or a panic rolls
-//     everything back and is never cached, so the same key can retry the real work.
+//   - What is stored is decided by the answer's replay class (ADR 0015): a
+//     2xx is stored; a refusal is stored when its problem type is FINAL or
+//     OUTCOME (declared on the catalogue entry, the middleware holds no slug
+//     list) and replayed with Idempotency-Replayed: true, the same
+//     transactionId included. A different method, path or body under a stored
+//     key is 409 idempotency-key-reused.
+//   - A 5xx, a panic and a RETRYABLE refusal (nothing committed, the answer
+//     depends on state that can change: concurrent-update, not-found,
+//     vendor-suspended, ...) roll everything back, the key row included, and
+//     are never stored: the key is free again, the same request under it runs
+//     again and a different body under it is a NEW request. A concurrent
+//     duplicate blocked on the key row (second bullet) then inserts its own
+//     row and executes the command itself; it is not answered with the
+//     refusal it waited for.
 func RequireIdempotencyKey(pool *pgxpool.Pool, bind TxBinder) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -195,29 +204,6 @@ func copyStoredHeaders(dst http.Header, raw []byte) {
 	}
 }
 
-// capture records the handler's response so it can be persisted and
-// committed BEFORE anything reaches the client.
-type capture struct {
-	header http.Header
-	code   int
-	body   bytes.Buffer
-}
-
-func (c *capture) Header() http.Header { return c.header }
-
-func (c *capture) WriteHeader(code int) {
-	if c.code == 0 {
-		c.code = code
-	}
-}
-
-func (c *capture) Write(b []byte) (int, error) {
-	if c.code == 0 {
-		c.code = http.StatusOK
-	}
-	return c.body.Write(b)
-}
-
 // runFreshRequest handles a genuinely new key: capture the response, persist
 // the outcome in the same transaction, commit, and only then write to the
 // real client.
@@ -249,9 +235,10 @@ func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request
 	if rec.code == 0 {
 		rec.code = http.StatusOK
 	}
-	if rec.code >= http.StatusInternalServerError {
-		// A server failure is never cached: roll everything back so the same
-		// key can retry the real work.
+	if !rec.stored() {
+		// A server failure and a RETRYABLE refusal are never stored: roll
+		// everything back, key row included, so the same key can retry the
+		// real work.
 		_ = tx.Rollback(ctx)
 		flush(w, rec)
 		return
@@ -264,8 +251,9 @@ func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request
 			writeError(w, r, err)
 			return
 		}
-		if rec.code < http.StatusBadRequest {
-			// A success whose writes are gone is neither returned nor cached.
+		if rec.code < http.StatusBadRequest || rec.class == replayOutcome {
+			// A success, or an OUTCOME refusal, whose writes are gone is
+			// neither returned nor cached: its answer would be a lie.
 			_ = tx.Rollback(ctx)
 			writeError(w, r, err)
 			return

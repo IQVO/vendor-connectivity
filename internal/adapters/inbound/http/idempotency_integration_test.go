@@ -18,6 +18,7 @@ import (
 	_ "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	vchttp "github.com/claudioed/vendor-connectivity/internal/adapters/inbound/http"
+	"github.com/claudioed/vendor-connectivity/internal/domain/purchaseorder"
 	"github.com/claudioed/vendor-connectivity/internal/testing/pgtest"
 )
 
@@ -44,9 +45,8 @@ func newIdemFixture(t *testing.T) *idemFixture {
 		f.calls.Add(1)
 		body, _ := io.ReadAll(r.Body)
 		if string(body) == "bad" {
-			w.Header().Set("Content-Type", "application/problem+json")
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			_, _ = w.Write([]byte(`{"type":"validation-failed"}`))
+			// A FINAL refusal (ADR 0015), written by the production error writer.
+			vchttp.WriteErrorForTest(w, r, purchaseorder.ErrPartialAcknowledgement)
 			return
 		}
 		if f.fail.Load() {
@@ -144,19 +144,19 @@ func TestIdempotencyConcurrentSameKeyOneEffect(t *testing.T) {
 	}
 }
 
-func TestIdempotency4xxIsCachedAnd5xxIsNot(t *testing.T) {
+func TestIdempotencyFinalRefusalIsCachedAnd5xxIsNot(t *testing.T) {
 	f := newIdemFixture(t)
 	for i := 0; i < 2; i++ {
 		resp, raw := f.post(t, "/a", "k-4xx", "bad")
 		if resp.StatusCode != 422 {
-			t.Fatalf("attempt %d: 4xx = %d %s", i, resp.StatusCode, raw)
+			t.Fatalf("attempt %d: FINAL refusal = %d %s", i, resp.StatusCode, raw)
 		}
 		if replayed := resp.Header.Get("Idempotency-Replayed") == "true"; replayed != (i == 1) {
 			t.Fatalf("attempt %d replayed=%v", i, replayed)
 		}
 	}
 	if f.calls.Load() != 1 {
-		t.Fatalf("a cached 4xx does not re-run the handler: calls=%d", f.calls.Load())
+		t.Fatalf("a cached FINAL refusal does not re-run the handler: calls=%d", f.calls.Load())
 	}
 	f.fail.Store(true)
 	if resp, _ := f.post(t, "/a", "k-5xx", "ok"); resp.StatusCode != 500 {

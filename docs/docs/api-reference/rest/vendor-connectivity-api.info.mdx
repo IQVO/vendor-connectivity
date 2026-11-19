@@ -56,7 +56,7 @@ Protocol rules (from the model's `business_decisions` and the Gap Register):
   against it (`ErrNodeNotOwnedByVendor`); this is a consistency check, not security.
   A suspended vendor's writes are refused (`ErrVendorSuspended`, `vendor-suspended`).
 - Rate limits are part of the contract: `429` with `Retry-After` (`RATE_LIMIT_RPS`).
-- Every state-changing `POST`/`PUT` takes `Idempotency-Key`; a repeat replays the first response.
+- Every state-changing `POST`/`PUT` takes `Idempotency-Key`; a repeat replays the first response when that response is final for the request (a success, or a refusal that does not depend on state that can change). A refusal that can pass on a retry is not stored and its key is released (see the `Idempotency-Key` parameter).
 - Errors are RFC 9457 `application/problem+json`; the shared problem types are
   `not-found` 404, `illegal-transition` 409, `concurrent-update` 409 and
   `validation-failed` 422, plus one slug per model `Err...` name.
