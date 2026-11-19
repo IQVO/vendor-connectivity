@@ -442,9 +442,20 @@ components:
       required: true
       description: >-
         Client-generated key, 1 to 128 printable ASCII characters, one per
-        logical submit (a retry reuses it). The key is global: a repeat with the
-        same method, path and body replays the first response (header
-        Idempotency-Replayed: true); the same key with any other request is
+        logical submit (a retry reuses it). The key is global. A repeat with the
+        same method, path and body replays the stored answer (header
+        Idempotency-Replayed: true) only when the first answer was final for that
+        request: a success; a refusal that cannot change for the same request
+        (malformed or invalid fields, gtin-already-assigned, duplicate-listing,
+        feed-already-applied, ...); or negative-availability, whose FAILED feed
+        is kept together with the stored 422. A refusal that the same request can
+        pass later is NOT stored and its key is released, so the same key runs the
+        request again: concurrent-update, not-found, pack-level-not-found,
+        illegal-transition, node-not-sellable, validation-failed and
+        listing-not-on-node (the FAILED feed it recorded stays visible at GET
+        /inventory-feeds/{feedId} until a retry applies it). A 5xx is never
+        stored either. A different request under a released key is a new request;
+        the same key with a different request while the first answer is stored is
         409 idempotency-key-reused. A missing key is 400 idempotency-key-required,
         a malformed one 400 idempotency-key-invalid. Keys are kept for 24 hours.
       schema:
@@ -483,7 +494,7 @@ components:
         type: string
   headers:
     IdempotencyReplayed:
-      description: '"true" when the response replays the first answer of the same Idempotency-Key.'
+      description: '"true" when the response replays the stored answer of the same Idempotency-Key (only a success, a final refusal or a recorded outcome is stored; see the Idempotency-Key parameter).'
       schema:
         type: string
         enum: ['true']
