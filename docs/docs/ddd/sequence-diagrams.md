@@ -200,7 +200,10 @@ Source: `internal/application/usecases/orders.go` (`SubmitAcknowledgement`), `in
 Omitted: the relay, because nothing is published at receipt;
 `PurchaseOrderAccepted` or `PurchaseOrderRejected` follows in diagram 10.
 The version-conflict branch is retried once inside the use case before it
-is returned. A 4xx answer is stored by the middleware and replayed for the same key.
+is returned. A 2xx and a refusal that is final for the request (`partial-acknowledgement`,
+`ack-window-closed`) are stored by the middleware and replayed for the same key; any other refusal
+(`concurrent-update`, `not-found`, `vendor-suspended`, ...) is not stored and releases the key
+(ADR 0015).
 
 ## 5. RequestLabel
 

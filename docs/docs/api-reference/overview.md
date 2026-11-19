@@ -67,11 +67,14 @@ but not in `apis/openapi.yaml`. The `:suspend` and `:reinstate` actions share on
   A failed acknowledgement returns the order to `ISSUED` (so the vendor may try again inside the
   window) and a failed shipment confirmation returns it to `ACCEPTED`.
 - **Idempotency.** `Idempotency-Key` (1 to 128 printable ASCII characters) is global, not per route, and
-  every POST is behind it. Every response below 500 (4xx included) is stored for 24 h and replayed for
-  the same key, method, path and body (for an asynchronous write, the same `transactionId`) with the
-  header `Idempotency-Replayed: true`; the same key with a different method, path or body is
-  `409 idempotency-key-reused`; a missing key is `400 idempotency-key-required` and a malformed one
-  `400 idempotency-key-invalid`. A 5xx rolls back and is never stored.
+  every POST is behind it. A 2xx and a refusal that is final for the request (`partial-acknowledgement`,
+  `ack-window-closed`) are stored for 24 h and replayed for the same key, method, path and body (for an
+  asynchronous write, the same `transactionId`) with the header `Idempotency-Replayed: true`; the same key
+  with a different method, path or body is `409 idempotency-key-reused`; a missing key is
+  `400 idempotency-key-required` and a malformed one `400 idempotency-key-invalid`. A refusal that can
+  pass on a retry is NOT stored and its key is released, so the same request under the same key executes
+  again and a different body under it is a new request: `validation-failed`, `ack-window-out-of-range`, `not-found`, `node-not-owned-by-vendor`, `vendor-suspended`, `already-acknowledged`, `label-before-acceptance`, `confirm-without-label`, `illegal-transition`, `concurrent-update` and every 5xx (`upstream-unavailable`,
+  `upstream-refused`). Retry those under the same key once the state changed (ADR 0015).
 - **Paging.** Polls take `nodeId`, `createdAfter` (RFC 3339), `limit` (default 100, maximum 500)
   and the opaque `cursor` (the `nextCursor` of the previous page); no `nextCursor` marks the last page.
   Every list answers `{items, nextCursor}`, and a query parameter a list does not declare (such as the
