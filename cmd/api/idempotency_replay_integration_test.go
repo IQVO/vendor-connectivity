@@ -166,25 +166,29 @@ func TestUnknownVendorIsNotStoredSoTheKeyRunsAgainOnceItExists(t *testing.T) {
 	}
 }
 
-// validation-failed is FINAL: a function of the request alone, stored and
-// replayed with Idempotency-Replayed: true; the same key with another body is
-// still the reuse conflict.
-func TestValidationFailureIsStoredAndReplayedUnderItsKey(t *testing.T) {
+// vendor-suspended is RETRYABLE: a reinstatement lets the same request pass.
+// The retry under the same key executes (here it moves on to the next check,
+// the unknown order) instead of replaying the stored 409.
+func TestVendorSuspendedIsNotStoredSoTheKeyRunsAgainAfterTheReinstatement(t *testing.T) {
 	f := newReplayFixture(t)
-	const key = "k-invalid"
+	f.onboard("V-3", "k-onboard-3")
+	if code, raw, _ := f.post("/vendors/V-3/suspensions", "k-suspend-3", `{"reason":"audit"}`); code != http.StatusOK {
+		t.Fatalf("suspend = %d %s", code, raw)
+	}
+	const key = "k-ack"
+	ack := `{"vendorId":"V-3","poNumber":"PO-1","decision":"ACCEPT","lines":[{"lineNo":1,"quantity":1}]}`
 
-	code, first, replayed := f.post("/vendors", key, `{"vendorId":"","name":""}`)
-	if code != http.StatusUnprocessableEntity || replayed {
-		t.Fatalf("first = %d %s replayed=%v, want a fresh 422", code, first, replayed)
+	if code, raw, _ := f.post("/vendor/acknowledgements", key, ack); code != http.StatusConflict || !strings.Contains(raw, `"vendor-suspended"`) {
+		t.Fatalf("suspended vendor = %d %s, want 409 vendor-suspended", code, raw)
 	}
-	code, again, replayed := f.post("/vendors", key, `{"vendorId":"","name":""}`)
-	if code != http.StatusUnprocessableEntity || !replayed || again != first {
-		t.Fatalf("replay = %d %s replayed=%v, want the stored 422 replayed", code, again, replayed)
+	if n := f.keyRows(key); n != 0 {
+		t.Fatalf("key rows after vendor-suspended = %d, want 0: the vendor can be reinstated", n)
 	}
-	if n := f.keyRows(key); n != 1 {
-		t.Fatalf("key rows = %d, want 1: a FINAL refusal is stored", n)
+	if code, raw, _ := f.post("/vendors/V-3/reinstatements", "k-reinstate-3", `{}`); code != http.StatusOK {
+		t.Fatalf("reinstate = %d %s", code, raw)
 	}
-	if code, raw, _ := f.post("/vendors", key, `{"vendorId":"V-2","name":"Acme","ackWindowMinutes":120}`); code != http.StatusConflict || !strings.Contains(raw, "idempotency-key-reused") {
-		t.Fatalf("another body under a stored key = %d %s, want 409 idempotency-key-reused", code, raw)
+	code, raw, replayed := f.post("/vendor/acknowledgements", key, ack)
+	if code != http.StatusNotFound || replayed || strings.Contains(raw, "vendor-suspended") {
+		t.Fatalf("the retry = %d %s replayed=%v, want it to execute and reach the unknown order (404)", code, raw, replayed)
 	}
 }

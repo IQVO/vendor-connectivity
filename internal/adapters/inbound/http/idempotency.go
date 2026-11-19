@@ -195,29 +195,6 @@ func copyStoredHeaders(dst http.Header, raw []byte) {
 	}
 }
 
-// capture records the handler's response so it can be persisted and
-// committed BEFORE anything reaches the client.
-type capture struct {
-	header http.Header
-	code   int
-	body   bytes.Buffer
-}
-
-func (c *capture) Header() http.Header { return c.header }
-
-func (c *capture) WriteHeader(code int) {
-	if c.code == 0 {
-		c.code = code
-	}
-}
-
-func (c *capture) Write(b []byte) (int, error) {
-	if c.code == 0 {
-		c.code = http.StatusOK
-	}
-	return c.body.Write(b)
-}
-
 // runFreshRequest handles a genuinely new key: capture the response, persist
 // the outcome in the same transaction, commit, and only then write to the
 // real client.
@@ -249,7 +226,7 @@ func runFreshRequest(ctx context.Context, w http.ResponseWriter, r *http.Request
 	if rec.code == 0 {
 		rec.code = http.StatusOK
 	}
-	if rec.code >= http.StatusInternalServerError {
+	if !rec.stored() {
 		// A server failure is never cached: roll everything back so the same
 		// key can retry the real work.
 		_ = tx.Rollback(ctx)
