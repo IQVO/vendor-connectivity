@@ -695,11 +695,21 @@ components:
       description: >-
         Client-generated key (1-128 printable ASCII characters), one per
         logical submit; a retry reuses it. A repeat of the same request
-        replays the first response with the header Idempotency-Replayed: true;
-        the same key with another method, path or body is 409
-        idempotency-key-reused. A missing key is 400 idempotency-key-required,
-        a malformed one 400 idempotency-key-invalid. Keys are kept for 24
-        hours. vendor-connectivity sends its transactionId.
+        replays the first response with the header Idempotency-Replayed: true
+        when that response is final for the request: a 2xx, or a refusal that
+        is a function of the request alone. A refusal that depends on state
+        another request can change is not stored and the key is released, so a
+        retry under the same key runs again (with another body it is a new
+        request). These problem types are not stored and release the key:
+        not-found, illegal-transition, concurrent-update,
+        incomplete-operational-profile, serving-station-not-allowed,
+        lane-endpoint-not-active, duplicate-lane, not-a-delivery-station,
+        handoff-node-not-usable, unknown-region. A 5xx is never stored. While a
+        key holds a stored answer, the same key with another method, path or
+        body is 409 idempotency-key-reused. A missing key is 400
+        idempotency-key-required, a malformed one 400 idempotency-key-invalid.
+        Keys are kept for 24 hours. vendor-connectivity sends its
+        transactionId.
       schema:
         type: string
         minLength: 1
@@ -738,7 +748,7 @@ components:
         type: string
   headers:
     IdempotencyReplayed:
-      description: Present, with the value true, only when the response replays the first answer stored for the Idempotency-Key (a stored 2xx or 4xx outcome; a 5xx is never stored).
+      description: Present, with the value true, only when the response replays the first answer stored for the Idempotency-Key (a stored 2xx or a stored refusal that is final for the request; a 5xx and a refusal that depends on state another request can change are never stored).
       schema:
         type: string
         enum: ['true']
