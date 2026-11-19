@@ -234,3 +234,18 @@ Deployment includes it, so a mis-set release fails `helm template` / `helm insta
 {{- include "vendor-connectivity.requireNoInMemoryEnv" . -}}
 {{- include "vendor-connectivity.requireGracePeriod" . -}}
 {{- end -}}
+
+{{/*
+Comma-joined names of this chart's enabled KongPlugins, for the
+konghq.com/plugins annotation on every HTTPRoute this chart renders.
+Empty string (annotation omitted) when none are enabled.
+*/}}
+{{- define "vendor-connectivity.kongPluginNames" -}}
+{{- $names := list -}}
+{{- range $name, $cfg := .Values.kongPlugins -}}
+{{- if $cfg.enabled -}}
+{{- $names = append $names (printf "%s-%s" (include "vendor-connectivity.fullname" $) $name) -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $names -}}
+{{- end -}}

@@ -18,6 +18,10 @@ metadata:
   labels:
     {{- include "vendor-connectivity.labels" . | nindent 4 }}
     app.kubernetes.io/component: mcp
+  {{- with include "vendor-connectivity.kongPluginNames" . }}
+  annotations:
+    konghq.com/plugins: {{ . | quote }}
+  {{- end }}
 spec:
   parentRefs:
     {{- range .Values.mcp.route.parentRefs }}
