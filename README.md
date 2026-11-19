@@ -158,7 +158,7 @@ One pipeline for logs, metrics and traces (ADR 0008): stdout JSON logs with `tra
 
 ## API
 
-Contract: [`apis/openapi.yaml`](apis/openapi.yaml). No authentication; a vendor names itself with `vendorId` (in the body of a write, as a query parameter on a read), checked for consistency only. Errors are RFC 9457 `application/problem+json` (`type` is a slug such as `not-found`, `illegal-transition`, `validation-failed`, `partial-acknowledgement`, `ack-window-closed`, `vendor-suspended`). Every write needs an `Idempotency-Key` header: a repeat with the same request replays the first response for 24 hours.
+Contract: [`apis/openapi.yaml`](apis/openapi.yaml). No authentication; a vendor names itself with `vendorId` (in the body of a write, as a query parameter on a read), checked for consistency only. Errors are RFC 9457 `application/problem+json` (`type` is a slug such as `not-found`, `illegal-transition`, `validation-failed`, `partial-acknowledgement`, `ack-window-closed`, `vendor-suspended`). Every write needs an `Idempotency-Key` header: a repeat with the same request replays the first response for 24 hours when it is final for the request (a 2xx, or a refusal such as `partial-acknowledgement`); a refusal that can pass on a retry (`concurrent-update`, `not-found`, `vendor-suspended`, ...) and a 5xx are not stored and the same key runs again (ADR 0015).
 
 | Method and path | Operation |
 | --- | --- |

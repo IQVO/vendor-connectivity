@@ -35,7 +35,7 @@ which runs `cmd/api`. Inside that process (`cmd/api/main.go`, `background.go`, `
 
 - REST Vendor API on `:8080` (`internal/adapters/inbound/http/server.go`): reads and
   writes under `/vendor/*`, `RATE_LIMIT_RPS` limiter, every write behind an
-  `Idempotency-Key` header (24h replay).
+  `Idempotency-Key` header (24h replay of a 2xx and of a final refusal; a refusal that can pass on a retry and a 5xx are not stored, ADR 0015).
 - Transactional outbox relay draining `outbox_events` to Kafka
   (`internal/adapters/outbound/outbox/relay.go`).
 - Five Kafka consumers: node (`retailnetwork.node-topology.events`), listing
