@@ -90,7 +90,7 @@ func (r *SubmissionRepo) Save(ctx context.Context, sub *submission.Submission) e
 	}
 	q := queryFor(ctx, r.pool)
 	if s.Version == 1 {
-		_, err := q.Exec(ctx, `INSERT INTO submissions (`+submissionColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		_, err := q.Exec(ctx, `INSERT INTO submissions (`+submissionColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
 			string(s.ID), s.VendorID, string(s.Kind), string(s.Status), s.Payload, s.PONumber, s.NodeID, s.ResultNodeID, s.ReceivedAt, s.NotBefore,
 			nullTime(s.ProcessedAt), errs, s.LastRefusal.Code, s.LastRefusal.Message, s.LastRefusal.Path, s.Attempts, s.Version)
 		return saveErr(err)
