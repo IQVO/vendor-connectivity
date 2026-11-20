@@ -37,3 +37,18 @@ func TestRefusalIsAnError(t *testing.T) {
 		t.Fatalf("message = %q", err.Error())
 	}
 }
+
+func TestProblemSlug(t *testing.T) {
+	tests := map[string]string{
+		"not-found": "not-found",
+		"https://x.example/problems/unknown-region": "unknown-region",
+		"urn:problem#feed-already-applied":          "feed-already-applied",
+		"":                                          "",
+		"https://x/":                                "",
+	}
+	for in, want := range tests {
+		if got := gateway.ProblemSlug(in); got != want {
+			t.Errorf("ProblemSlug(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

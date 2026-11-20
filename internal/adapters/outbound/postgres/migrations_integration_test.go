@@ -16,7 +16,7 @@ import (
 
 // latestMigration is the ceiling of the embedded migrations; bump it with
 // every new migration file.
-const latestMigration = 5
+const latestMigration = 6
 
 // ownerRefMigration is 0004_po_line_owner_ref (ADR 0012).
 const ownerRefMigration = 4

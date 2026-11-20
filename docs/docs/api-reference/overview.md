@@ -63,7 +63,7 @@ but not in `apis/openapi.yaml`. The `:suspend` and `:reinstate` actions share on
 - **Asynchronous writes.** `202` with a `transactionId`. The write takes effect only when
   `GET /vendor/transactions/{transactionId}` reports `SUCCESS`. Processing waits at least
   `TX_PROCESSING_DELAY`, and a share `TX_FAILURE_RATE` of transactions fails on purpose with
-  `ErrSimulatedFailure`; a neighbour refusal fails a transaction with the neighbour's `Err...` code.
+  `ErrSimulatedFailure`; a neighbour refusal fails a transaction with the neighbour's `Err...` code, except a refusal the neighbour releases for a retry (ADR 0016), which keeps the transaction `PROCESSING` and is retried before it fails with that same code.
   A failed acknowledgement returns the order to `ISSUED` (so the vendor may try again inside the
   window) and a failed shipment confirmation returns it to `ACCEPTED`.
 - **Idempotency.** `Idempotency-Key` (1 to 128 printable ASCII characters) is global, not per route, and

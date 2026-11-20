@@ -35,7 +35,10 @@ the id. The runtime view of the main flows is on [Sequence diagrams](/docs/ddd/s
   during processing ends the transaction in `FAILURE` with the neighbour's `Err...` code in
   the submission error (`classify` in `submissions.go`). A neighbour outage leaves the
   submission `PROCESSING` for up to 5 passes (`DefaultSubmissionMaxAttempts`), then fails it
-  with `ErrUpstreamUnavailable`.
+  with `ErrUpstreamUnavailable`. A refusal the neighbour releases under the `Idempotency-Key`
+  (replay class RETRYABLE, ADR 0016) is treated like an outage: the submission stays
+  `PROCESSING` with the refusal recorded, is retried with the same key, and ends `FAILURE`
+  with that refusal's own `Err...` code if it never clears within the same 5 passes.
 - **Active vendor.** Every vendor write calls `requireActive` first: an unknown vendor is
   `404 not-found`, a suspended one `409 vendor-suspended`. Reads only need the vendor to
   exist (`requireVendor`).

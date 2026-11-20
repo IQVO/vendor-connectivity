@@ -117,10 +117,13 @@ func (s *Service) checkListings(ctx context.Context, in requests.InventoryFeed) 
 	return nil
 }
 
-// result is what executing a submission produced.
+// result is what executing a submission produced. A pending result with a refusal is
+// a refusal the callee releases under the Idempotency-Key (ADR 0016): the same
+// submission is tried again with the same key and the refusal is kept as the reason.
 type result struct {
 	outcome submission.Outcome
 	pending bool
+	refusal *submission.Error
 	node    *gateway.RegisteredNode
 }
 
@@ -130,14 +133,18 @@ func failure(code, message, path string) result {
 
 func success() result { return result{outcome: submission.Outcome{Status: submission.Success}} }
 
-// classify turns a neighbour call error into a result: nil is success, a
-// refusal is a failed transaction carrying the neighbour's Err code, anything
+// classify turns a neighbour call error into a result: nil is success, a refusal is
+// a failed transaction carrying the neighbour's Err code, unless the adapter marked it
+// Retryable (the neighbour released it under the key): that one leaves the submission
+// PROCESSING like an outage and keeps the refusal as the reason (ADR 0016). Anything
 // else leaves the submission PROCESSING for the next pass (A10).
 func classify(err error) result {
 	var ref *gateway.RefusalError
 	switch {
 	case err == nil:
 		return success()
+	case errors.As(err, &ref) && ref.Retryable:
+		return result{pending: true, refusal: &submission.Error{Code: ref.Code, Message: ref.Message, Path: ref.Path}}
 	case errors.As(err, &ref):
 		return failure(ref.Code, ref.Message, ref.Path)
 	default:
@@ -233,17 +240,11 @@ func (s *Service) process(ctx context.Context, id submission.ID) (bool, error) {
 	}
 	res := s.execute(ctx, sub)
 	if res.pending {
-		n, err := sub.RecordAttempt()
-		if err != nil {
+		done, err := s.passWithoutOutcome(ctx, sub, res)
+		if err != nil || !done.reached {
 			return false, err
 		}
-		if err := s.d.Submissions.Save(ctx, sub); err != nil {
-			return false, err
-		}
-		if n < s.cfg.SubmissionMaxAttempts {
-			return false, nil
-		}
-		res = failure(CodeUpstreamUnavail, fmt.Sprintf("the neighbour did not answer in %d attempts", n), "")
+		res = done.res
 	}
 	if err := s.d.UoW.Do(ctx, func(ctx context.Context) error { return s.finish(ctx, sub, res) }); err != nil {
 		return false, err

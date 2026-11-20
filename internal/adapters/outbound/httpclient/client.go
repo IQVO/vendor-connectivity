@@ -2,7 +2,8 @@
 // sync_calls: node-topology, offer-availability, shipping-and-tracking and
 // node-performance. Each speaks the neighbour's published OpenAPI, restated
 // here as small wire structs (never imported). A 4xx answer is a
-// *gateway.RefusalError carrying the neighbour's problem slug as its Err name; an
+// *gateway.RefusalError carrying the neighbour's problem slug as its Err name and the
+// callee's verdict on whether it releases that refusal for a retry (refusal_classes.go); an
 // outage, a timeout or a 5xx is ports.ErrUpstreamUnavailable.
 package httpclient
 
@@ -27,17 +28,19 @@ const DefaultTimeout = 5 * time.Second
 // maxResponseBytes bounds what a neighbour may answer.
 const maxResponseBytes = 4 << 20
 
-// base is the shared transport of the four clients.
+// base is the shared transport of the four clients. refusals is the callee's table of
+// released refusals (refusal_classes.go); nil for a callee this context only reads.
 type base struct {
-	url  string
-	http *http.Client
+	url      string
+	http     *http.Client
+	refusals refusalTable
 }
 
-func newBase(baseURL string, c *http.Client) base {
+func newBase(baseURL string, c *http.Client, refusals refusalTable) base {
 	if c == nil {
 		c = &http.Client{Timeout: DefaultTimeout}
 	}
-	return base{url: strings.TrimRight(baseURL, "/"), http: c}
+	return base{url: strings.TrimRight(baseURL, "/"), http: c, refusals: refusals}
 }
 
 // problem is the neighbour's RFC 9457 body.
@@ -82,7 +85,7 @@ func (b base) do(ctx context.Context, method, path, idempotencyKey string, in, o
 	case resp.StatusCode >= http.StatusInternalServerError:
 		return fmt.Errorf("%w: %s %s answered %d", ports.ErrUpstreamUnavailable, method, path, resp.StatusCode)
 	case resp.StatusCode >= http.StatusBadRequest:
-		return refusal(resp.StatusCode, raw)
+		return b.refusal(resp.StatusCode, raw)
 	}
 	if out == nil {
 		return nil
@@ -93,8 +96,11 @@ func (b base) do(ctx context.Context, method, path, idempotencyKey string, in, o
 	return nil
 }
 
-// refusal turns a 4xx answer into a *gateway.RefusalError.
-func refusal(status int, raw []byte) error {
+// refusal turns a 4xx answer into a *gateway.RefusalError. Retryable is the callee's
+// own verdict from its table: only a slug the callee releases under the Idempotency-Key
+// is retried; a slug the table does not know, a body that is not a problem and every
+// refusal of a callee with no table are terminal.
+func (b base) refusal(status int, raw []byte) error {
 	var p problem
 	if err := json.Unmarshal(raw, &p); err != nil || p.Type == "" {
 		return &gateway.RefusalError{Status: status, Code: gateway.CodeFromProblemType(""), Message: http.StatusText(status)}
@@ -103,7 +109,8 @@ func refusal(status int, raw []byte) error {
 	if msg == "" {
 		msg = p.Title
 	}
-	return &gateway.RefusalError{Status: status, Code: gateway.CodeFromProblemType(p.Type), Message: msg}
+	slug := gateway.ProblemSlug(p.Type)
+	return &gateway.RefusalError{Status: status, Code: gateway.CodeFromProblemType(p.Type), Slug: slug, Message: msg, Retryable: b.refusals.retryable(slug)}
 }
 
 var errEmpty = errors.New("the neighbour answered without the field this context needs")
