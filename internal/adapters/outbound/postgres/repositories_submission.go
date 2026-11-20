@@ -19,7 +19,7 @@ type SubmissionRepo struct{ pool *pgxpool.Pool }
 // NewSubmissionRepo constructs a SubmissionRepo over pool.
 func NewSubmissionRepo(pool *pgxpool.Pool) *SubmissionRepo { return &SubmissionRepo{pool: pool} }
 
-const submissionColumns = `transaction_id, vendor_id, kind, status, payload, po_number, node_id, result_node_id, received_at, not_before, processed_at, errors, attempts, version`
+const submissionColumns = `transaction_id, vendor_id, kind, status, payload, po_number, node_id, result_node_id, received_at, not_before, processed_at, errors, last_refusal_code, last_refusal_message, last_refusal_path, attempts, version`
 
 type errorJSON struct {
 	Code    string `json:"code"`
@@ -33,7 +33,7 @@ func scanSubmission(row pgx.Row) (*submission.Submission, error) {
 		errs      []byte
 		processed *time.Time
 	)
-	err := row.Scan(&s.ID, &s.VendorID, &s.Kind, &s.Status, &s.Payload, &s.PONumber, &s.NodeID, &s.ResultNodeID, &s.ReceivedAt, &s.NotBefore, &processed, &errs, &s.Attempts, &s.Version)
+	err := row.Scan(&s.ID, &s.VendorID, &s.Kind, &s.Status, &s.Payload, &s.PONumber, &s.NodeID, &s.ResultNodeID, &s.ReceivedAt, &s.NotBefore, &processed, &errs, &s.LastRefusal.Code, &s.LastRefusal.Message, &s.LastRefusal.Path, &s.Attempts, &s.Version)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ports.ErrNotFound
 	}
@@ -90,14 +90,16 @@ func (r *SubmissionRepo) Save(ctx context.Context, sub *submission.Submission) e
 	}
 	q := queryFor(ctx, r.pool)
 	if s.Version == 1 {
-		_, err := q.Exec(ctx, `INSERT INTO submissions (`+submissionColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+		_, err := q.Exec(ctx, `INSERT INTO submissions (`+submissionColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
 			string(s.ID), s.VendorID, string(s.Kind), string(s.Status), s.Payload, s.PONumber, s.NodeID, s.ResultNodeID, s.ReceivedAt, s.NotBefore,
-			nullTime(s.ProcessedAt), errs, s.Attempts, s.Version)
+			nullTime(s.ProcessedAt), errs, s.LastRefusal.Code, s.LastRefusal.Message, s.LastRefusal.Path, s.Attempts, s.Version)
 		return saveErr(err)
 	}
-	tag, err := q.Exec(ctx, `UPDATE submissions SET status = $2, result_node_id = $3, processed_at = $4, errors = $5, attempts = $6, version = $7
-		WHERE transaction_id = $1 AND version = $8`,
-		string(s.ID), string(s.Status), s.ResultNodeID, nullTime(s.ProcessedAt), errs, s.Attempts, s.Version, s.Version-1)
+	tag, err := q.Exec(ctx, `UPDATE submissions SET status = $2, result_node_id = $3, processed_at = $4, errors = $5, attempts = $6, version = $7,
+		last_refusal_code = $8, last_refusal_message = $9, last_refusal_path = $10
+		WHERE transaction_id = $1 AND version = $11`,
+		string(s.ID), string(s.Status), s.ResultNodeID, nullTime(s.ProcessedAt), errs, s.Attempts, s.Version,
+		s.LastRefusal.Code, s.LastRefusal.Message, s.LastRefusal.Path, s.Version-1)
 	return updated(tag, err)
 }
 
