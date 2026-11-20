@@ -183,7 +183,11 @@ they are not operational tuning — keep them unset in normal operation.
   that need that sibling (node registration, profiles -> node-topology; inventory ->
   offer-availability) DEGRADE, not fail at once: the submission stays `PROCESSING` and is
   retried on later passes, up to 5 passes (`DefaultSubmissionMaxAttempts`), after which it
-  fails with `ErrUpstreamUnavailable` (`process` and `classify` in `usecases/submissions.go`). The synchronous
+  fails with `ErrUpstreamUnavailable` (`process` and `classify` in `usecases/submissions.go`). A 4xx the callee
+  RELEASES under its `Idempotency-Key` (replay class RETRYABLE: for example node-topology `unknown-region`,
+  offer-availability `listing-not-on-node`) is treated the same way, and the submission records why in
+  `submissions.last_refusal_code|message|path`; at the 5th pass it fails with that refusal's own `Err...` code
+  (table per callee in `httpclient/refusal_classes.go`, ADR 0016). The synchronous
   endpoints answer `503 upstream-unavailable` (`errors.go`): `POST
   /vendor/shipping-labels` (shipping-and-tracking) and `GET
   /vendor/nodes/{id}/scorecard` (node-performance). Consumers and the REST API itself

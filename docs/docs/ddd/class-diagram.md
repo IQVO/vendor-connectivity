@@ -188,12 +188,15 @@ classDiagram
         -notBefore time.Time
         -processedAt time.Time
         -errs Error[]
+        -lastRefusal Error
         -attempts int
         -version int64
         +Receive(NewSubmission, now, delay)$ Submission
         +Restore(Snapshot)$ Submission
         +Due(now) bool
         +RecordAttempt() int
+        +RecordRefusal(Error) int
+        +LastRefusal() Error, bool
         +Complete(Outcome, now) events
     }
     class Kind {

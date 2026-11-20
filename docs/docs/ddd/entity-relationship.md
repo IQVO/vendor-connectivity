@@ -86,6 +86,9 @@ erDiagram
         TIMESTAMPTZ not_before "received_at + TX_PROCESSING_DELAY"
         TIMESTAMPTZ processed_at "nullable"
         JSONB errors "code, message, path"
+        TEXT last_refusal_code "default empty; the released refusal that keeps it PROCESSING (ADR 0016)"
+        TEXT last_refusal_message "default empty"
+        TEXT last_refusal_path "default empty"
         INTEGER attempts "CHECK >= 0"
         BIGINT version "optimistic concurrency"
     }

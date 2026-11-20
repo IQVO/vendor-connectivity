@@ -136,3 +136,9 @@ relied on that.
   read-only.
 - Rolling back a RETRYABLE refusal is the existing 5xx rollback, so no new failure mode: the key row's
   24-hour window, the retention sweep and the expiry of an old row on claim are unchanged.
+
+## Addendum 2026-11-19: this service as a caller
+
+"This service is also a caller (`vc-label-<po>-<pkg>` to shipping-and-tracking); not changed here" is
+completed by ADR 0016: the outbound adapter now reads each callee's replay class and retries the refusals the
+callee releases (node-topology ADR 0020, offer-availability ADR 0016, shipping-and-tracking ADR 0020).

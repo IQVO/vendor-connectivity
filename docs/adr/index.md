@@ -29,3 +29,4 @@ The *Status* column is copied from each ADR's own `## Status` section.
 | [0013](./0013-cancel-the-purchase-order-when-a-release-is-withdrawn.md) | Cancel the purchase order when a release is withdrawn | Accepted (2026-11-10) |
 | [0014](./0014-return-advices-and-outcomes.md) | return advices and return outcomes | Accepted (2026-11-14) |
 | [0015](./0015-idempotency-replay-classes.md) | every problem type has a replay class; a retryable refusal is not stored under the Idempotency-Key | Accepted (2026-11-18) |
+| [0016](./0016-retry-the-refusals-a-callee-releases.md) | retry the refusals a callee releases under its Idempotency-Key (consumer half of the replay-class rule) | Accepted (2026-11-19) |

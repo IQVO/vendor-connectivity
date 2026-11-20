@@ -432,8 +432,10 @@ sequenceDiagram
                 UC->>NB: POST /nodes, PUT operational-profile or POST /inventory-feeds
                 alt 2xx
                     NB-->>UC: outcome SUCCESS
-                else 4xx
+                else 4xx the callee stores (FINAL or OUTCOME) or an unknown slug
                     NB-->>UC: outcome FAILURE, code is the owner's Err name
+                else 4xx the callee releases (RETRYABLE, ADR 0016)
+                    Note over UC: stay PROCESSING, last refusal recorded, same key next tick, FAILURE with that Err code after 5 passes
                 else 5xx or timeout
                     Note over UC: stay PROCESSING, next tick, FAILURE ErrUpstreamUnavailable after 5 passes
                 end
