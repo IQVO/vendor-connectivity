@@ -18,7 +18,7 @@ type NodeTopology struct{ b base }
 
 // NewNodeTopology builds the client; c may be nil (DefaultTimeout).
 func NewNodeTopology(baseURL string, c *http.Client) *NodeTopology {
-	return &NodeTopology{b: newBase(baseURL, c)}
+	return &NodeTopology{b: newBase(baseURL, c, nodeTopologyRefusals)}
 }
 
 var _ ports.NodeTopology = (*NodeTopology)(nil)
@@ -107,7 +107,7 @@ type OfferAvailability struct{ b base }
 
 // NewOfferAvailability builds the client; c may be nil (DefaultTimeout).
 func NewOfferAvailability(baseURL string, c *http.Client) *OfferAvailability {
-	return &OfferAvailability{b: newBase(baseURL, c)}
+	return &OfferAvailability{b: newBase(baseURL, c, offerAvailabilityRefusals)}
 }
 
 var _ ports.OfferAvailability = (*OfferAvailability)(nil)
@@ -135,7 +135,7 @@ type ShippingTracking struct{ b base }
 
 // NewShippingTracking builds the client; c may be nil (DefaultTimeout).
 func NewShippingTracking(baseURL string, c *http.Client) *ShippingTracking {
-	return &ShippingTracking{b: newBase(baseURL, c)}
+	return &ShippingTracking{b: newBase(baseURL, c, shippingTrackingRefusals)}
 }
 
 var _ ports.ShippingTracking = (*ShippingTracking)(nil)
@@ -172,7 +172,7 @@ type NodePerformance struct{ b base }
 
 // NewNodePerformance builds the client; c may be nil (DefaultTimeout).
 func NewNodePerformance(baseURL string, c *http.Client) *NodePerformance {
-	return &NodePerformance{b: newBase(baseURL, c)}
+	return &NodePerformance{b: newBase(baseURL, c, nil)}
 }
 
 var _ ports.NodePerformance = (*NodePerformance)(nil)
