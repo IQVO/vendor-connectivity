@@ -3,7 +3,7 @@ package submission
 import (
 	"errors"
 	"strings"
-	"unicode/utf8"
+	"unicode"
 
 	"github.com/claudioed/vendor-connectivity/internal/domain/shared"
 )
@@ -59,15 +59,13 @@ func checkLastRefusal(sn Snapshot) error {
 // gives fallback.
 func boundedText(text string, limit int, fallback string) string {
 	text = strings.Map(func(r rune) rune {
-		if r < 0x20 || r == 0x7f {
+		if unicode.IsControl(r) {
 			return ' '
 		}
 		return r
 	}, strings.ToValidUTF8(text, " "))
-	text = strings.TrimSpace(text)
-	if utf8.RuneCountInString(text) > limit {
-		text = strings.TrimSpace(string([]rune(text)[:limit]))
-	}
+	runes := []rune(strings.TrimSpace(text))
+	text = strings.TrimSpace(string(runes[:min(len(runes), limit)]))
 	if text == "" {
 		return fallback
 	}
