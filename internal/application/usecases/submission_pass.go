@@ -23,7 +23,7 @@ func (s *Service) passWithoutOutcome(ctx context.Context, sub *submission.Submis
 	var err error
 	if res.refusal != nil {
 		n, err = sub.RecordRefusal(*res.refusal)
-		s.cfg.Logger.InfoContext(ctx, "neighbour released a refusal; the submission stays pending", "transactionId", sub.ID(), "kind", sub.Kind(), "code", res.refusal.Code, "attempt", n)
+		s.cfg.Logger.InfoContext(ctx, "neighbour released a refusal; the submission stays pending", "transactionId", sanitizeLog(string(sub.ID())), "kind", sanitizeLog(string(sub.Kind())), "code", sanitizeLog(res.refusal.Code), "attempt", n)
 	} else {
 		n, err = sub.RecordAttempt()
 	}

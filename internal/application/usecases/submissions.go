@@ -293,7 +293,7 @@ func (s *Service) applyToOrder(ctx context.Context, sub *submission.Submission, 
 		evs, err = p.ApplyShipmentOutcome(ok, now)
 	}
 	if errors.Is(err, shared.ErrIllegalTransition) {
-		s.cfg.Logger.WarnContext(ctx, "processed submission found its order in another state; order left as is", "transactionId", sub.ID(), "poNumber", p.Number(), "state", p.State())
+		s.cfg.Logger.WarnContext(ctx, "processed submission found its order in another state; order left as is", "transactionId", sanitizeLog(string(sub.ID())), "poNumber", sanitizeLog(string(p.Number())), "state", sanitizeLog(string(p.State())))
 		return nil, nil
 	}
 	if err != nil {

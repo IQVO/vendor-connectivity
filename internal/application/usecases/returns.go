@@ -230,13 +230,13 @@ func outcomeBody(oc returns.Outcome) requests.ReturnOutcome {
 func (s *Service) OnReturnAuthorized(ctx context.Context, eventID, eventType string, in returns.Authorized) error {
 	dest := in.NodeID // the consumer resolved destination || origin into NodeID
 	if dest == "" {
-		s.cfg.Logger.WarnContext(ctx, "ReturnAuthorized carries no destination node; ignored", "eventId", eventID, "type", eventType)
+		s.cfg.Logger.WarnContext(ctx, "ReturnAuthorized carries no destination node; ignored", "eventId", sanitizeLog(eventID), "type", sanitizeLog(eventType))
 		return nil
 	}
 	n, err := s.d.Nodes.Get(ctx, dest)
 	if errors.Is(err, ports.ErrNotFound) || (err == nil && n.VendorID == "") {
 		s.cfg.Logger.WarnContext(ctx, "ReturnAuthorized names a node this context cannot attribute to a vendor; ignored",
-			"eventId", eventID, "type", eventType, "nodeId", dest, "error", err)
+			"eventId", sanitizeLog(eventID), "type", sanitizeLog(eventType), "nodeId", sanitizeLog(dest), "error", sanitizeErr(err))
 		return nil
 	}
 	if err != nil {
@@ -272,7 +272,7 @@ func (s *Service) updateAdvice(ctx context.Context, eventID, eventType, authoriz
 		}
 		next, err := apply(cur)
 		if errors.Is(err, shared.ErrValidation) {
-			s.cfg.Logger.WarnContext(ctx, "return advice event carries invalid facts; ignored", "eventId", eventID, "type", eventType, "error", err)
+			s.cfg.Logger.WarnContext(ctx, "return advice event carries invalid facts; ignored", "eventId", sanitizeLog(eventID), "type", sanitizeLog(eventType), "error", sanitizeErr(err))
 			return nil
 		}
 		if err != nil {

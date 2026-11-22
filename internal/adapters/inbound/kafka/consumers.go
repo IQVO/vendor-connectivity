@@ -153,7 +153,7 @@ func SourcingHandlers(svc *usecases.Service, logger *slog.Logger) map[string]Han
 			}
 			err = svc.IssueOnRelease(ctx, e.ID(), e.Type(), in)
 			if err == nil {
-				logger.InfoContext(ctx, "event processed", "type", e.Type(), "event_id", e.ID(), "subject", e.Subject())
+				logger.InfoContext(ctx, "event processed", "type", sanitizeLog(e.Type()), "event_id", sanitizeLog(e.ID()), "subject", sanitizeLog(e.Subject()))
 			}
 			return err
 		},
