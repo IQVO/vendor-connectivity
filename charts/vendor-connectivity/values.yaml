@@ -292,6 +292,12 @@ a2a:
       cpu: 100m
       memory: 128Mi
 
+# capacity step 3 (warehouse-infra ADR 0012): true (with mcp.enabled and a2a.enabled) runs cmd/mcp and cmd/a2a as
+# two containers of one <release>-agents Deployment. Off by default; warehouse-infra switches it on.
+agents:
+  colocate: false
+  strategy: {}   # {} = k8s default (RollingUpdate); {type: Recreate} only when no surge slot is free
+
 # web/ (vendor_connectivity_mfe, ADR 0007): the Module Federation remote
 # served by its own nginx pod, reached through warehouse-infra's Nginx web
 # gateway at /mfes/vendor-connectivity/. Never routed by Kong; ClusterIP
