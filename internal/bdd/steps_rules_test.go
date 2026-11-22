@@ -220,6 +220,14 @@ func registerRulesGiven(sc *godog.ScenarioContext, w *world) {
 		w.ship.Err, w.ship.FailPackage = refusal(code), 0
 		return nil
 	})
+	sc.Step(`^node-topology releases the refusal "([^"]*)"$`, func(code string) error { w.nt.Err = releasedRefusal(code); return nil })
+	sc.Step(`^offer-availability releases the refusal "([^"]*)"$`, func(code string) error { w.offers.Err = releasedRefusal(code); return nil })
+	sc.Step(`^shipping-and-tracking releases the refusal "([^"]*)" for package (\d+)$`, func(code string, n int) error {
+		w.ship.Err, w.ship.FailPackage = releasedRefusal(code), n
+		return nil
+	})
+	sc.Step(`^node-topology accepts again$`, func() error { w.nt.Err = nil; return nil })
+	sc.Step(`^offer-availability accepts again$`, func() error { w.offers.Err = nil; return nil })
 	sc.Step(`^the purchase order of "([^"]*)" has reached state "([A-Z_]+)"$`, w.reach)
 	sc.Step(`^vendor "([^"]*)" has rejected the purchase order of "([^"]*)" with reason "([^"]*)"$`, func(vendor, asg, reason string) error {
 		if err := w.submitAck(vendor, asg, "REJECT", reason); err != nil {

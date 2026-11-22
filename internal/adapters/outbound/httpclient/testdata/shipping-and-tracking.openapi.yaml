@@ -46,7 +46,10 @@ paths:
         BEFORE the transaction opens, stores it encrypted, starts the package
         journey (LABELLED) and publishes LabelIssued. The response never
         contains the address. A replay of the same Idempotency-Key returns the
-        first response. An order collected at a pickup point (ADR 0016) has no
+        first response when that response is final for the request: a success
+        and a refusal that is stored (see the Idempotency-Key parameter). A
+        refusal that follows state which can change is not stored, and a retry
+        under the same key executes again. An order collected at a pickup point (ADR 0016) has no
         address to read: the label's destination prefix is the point's own,
         taken from this context's local view of node-topology's pickup points,
         and the point must be ACTIVE in that view.
@@ -132,7 +135,10 @@ paths:
         is a ReturnLabel: no poNumber, no assignmentId, purpose RETURN and the
         returnAuthorizationId. One label per (returnAuthorizationId,
         packageNo). A replay of the same Idempotency-Key returns the first
-        response.
+        response when that response is final for the request: a success and
+        a refusal that is stored (see the Idempotency-Key parameter). A refusal
+        that follows state which can change is not stored, and a retry under
+        the same key executes again.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -262,7 +268,10 @@ paths:
         kept with applied=false). A scan whose scanType has no edge from the
         current state is stored with applied=false and answers 409
         illegal-transition. A known scanId answers 409 duplicate-scan and
-        stores nothing. A closed journey answers 409 journey-closed.
+        stores nothing. A closed journey answers 409 journey-closed. The two
+        refusals that keep the scan (scan-out-of-order, illegal-transition) are
+        stored under the Idempotency-Key together with the scan, so a retry
+        under the same key replays the refusal and never answers duplicate-scan.
       parameters:
         - $ref: '#/components/parameters/TrackingNumber'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -310,7 +319,9 @@ paths:
         duplicate-scan. PICKED_UP is the handoff at the journey's handoff node
         (a journey already WITH_CARRIER is a no-op that answers 200);
         OUT_FOR_DELIVERY, DELIVERED and DELIVERY_FAILED become their scans;
-        IN_TRANSIT is accepted and counted without a scan.
+        IN_TRANSIT is accepted and counted without a scan. A refusal that
+        keeps the scan (scan-out-of-order, illegal-transition) is stored under
+        the Idempotency-Key together with the scan and replayed on a retry.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -432,7 +443,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: Client-generated key, 1-128 printable ASCII characters, one per logical submit (a retry reuses it). The same key and the same request replays the first response (24 hours) with Idempotency-Replayed true; the same key with a different method, path or body answers 409 idempotency-key-reused.
+      description: Client-generated key, 1-128 printable ASCII characters, one per logical submit (a retry reuses it). A retry of the same request under the same key replays the first answer (24 hours, Idempotency-Replayed true) only when that answer is final for the request, that is a success, the refusals not-found, label-already-issued, void-after-handover, journey-closed and duplicate-scan (a function of the request or of a fact that never reverts), and scan-out-of-order and illegal-transition (the scan was stored, not applied, and stays stored). Every other refusal follows state that can change and is NOT stored; the key is released and a retry with the same key executes again, namely validation-failed, address-suspect, pickup-point-unavailable, destination-prefix-unavailable, tracking-number-taken, concurrent-update, and every 5xx. After a release, another body under the same key is a new request. The same key with a different method, path or body, while an answer is stored for it, answers 409 idempotency-key-reused.
       schema:
         type: string
         minLength: 1
@@ -479,7 +490,7 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
     ValidationFailed:
-      description: validation-failed. The request is well-formed JSON but violates a value rule.
+      description: validation-failed. The request is well-formed JSON but violates a value rule. It is not stored under the Idempotency-Key; the key is released and a retry with the same key is validated again.
       content:
         application/problem+json:
           schema:

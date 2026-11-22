@@ -85,6 +85,7 @@ type Submission struct {
 	notBefore    time.Time
 	processedAt  time.Time
 	errs         []Error
+	lastRefusal  Error
 	attempts     int
 	version      int64
 }
@@ -103,6 +104,7 @@ type Snapshot struct {
 	NotBefore    time.Time
 	ProcessedAt  time.Time
 	Errors       []Error
+	LastRefusal  Error
 	Attempts     int
 	Version      int64
 }
@@ -150,11 +152,14 @@ func build(sn Snapshot) (*Submission, error) {
 	if err := checkOutcome(sn); err != nil {
 		return nil, err
 	}
+	if err := checkLastRefusal(sn); err != nil {
+		return nil, err
+	}
 	return &Submission{
 		id: sn.ID, vendorID: sn.VendorID, kind: sn.Kind, status: sn.Status, payload: append([]byte(nil), sn.Payload...),
 		poNumber: sn.PONumber, nodeID: sn.NodeID, resultNodeID: sn.ResultNodeID,
 		receivedAt: sn.ReceivedAt.UTC(), notBefore: sn.NotBefore.UTC(), processedAt: shared.UTC(sn.ProcessedAt),
-		errs: append([]Error(nil), sn.Errors...), attempts: sn.Attempts, version: sn.Version,
+		errs: append([]Error(nil), sn.Errors...), lastRefusal: sn.LastRefusal, attempts: sn.Attempts, version: sn.Version,
 	}, nil
 }
 
@@ -264,14 +269,14 @@ func (s *Submission) Complete(o Outcome, now time.Time) ([]shared.Event, error) 
 		return nil, ErrSubmissionNotDue
 	}
 	next := s.Snapshot()
-	next.Status, next.Errors, next.ProcessedAt, next.ResultNodeID = o.Status, o.Errors, now, o.NodeID
+	next.Status, next.Errors, next.ProcessedAt, next.ResultNodeID, next.LastRefusal = o.Status, o.Errors, now, o.NodeID, Error{}
 	if err := checkOutcome(next); err != nil {
 		return nil, shared.Invalid("%v", err)
 	}
 	if err := checkValues(next); err != nil {
 		return nil, shared.Invalid("%v", err)
 	}
-	s.status, s.errs, s.processedAt, s.resultNodeID = o.Status, append([]Error(nil), o.Errors...), now.UTC(), o.NodeID
+	s.status, s.errs, s.processedAt, s.resultNodeID, s.lastRefusal = o.Status, append([]Error(nil), o.Errors...), now.UTC(), o.NodeID, Error{}
 	s.version++
 	ev := SubmissionProcessed{Header: shared.Header{Version: s.version, At: s.processedAt}, TransactionID: s.id,
 		VendorID: s.vendorID, Kind: s.kind, Status: s.status, ErrorCount: len(s.errs)}
@@ -296,7 +301,7 @@ func (s *Submission) RecordAttempt() (int, error) {
 func (s *Submission) Snapshot() Snapshot {
 	return Snapshot{ID: s.id, VendorID: s.vendorID, Kind: s.kind, Status: s.status, Payload: append([]byte(nil), s.payload...),
 		PONumber: s.poNumber, NodeID: s.nodeID, ResultNodeID: s.resultNodeID, ReceivedAt: s.receivedAt, NotBefore: s.notBefore,
-		ProcessedAt: s.processedAt, Errors: append([]Error(nil), s.errs...), Attempts: s.attempts, Version: s.version}
+		ProcessedAt: s.processedAt, Errors: append([]Error(nil), s.errs...), LastRefusal: s.lastRefusal, Attempts: s.attempts, Version: s.version}
 }
 
 // ID returns the transactionId.

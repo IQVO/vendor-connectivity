@@ -23,6 +23,7 @@ func submissions(t *testing.T, e Env) {
 		t.Fatalf("round trip:\n got %+v\nwant %+v", got.Snapshot(), s.Snapshot())
 	}
 	isErr(t, e.Submissions.Save(ctx, NewSubmission(t, "tx-1", submission.KindInventory, T0, 0)), ports.ErrConcurrentUpdate, "second create")
+	lastRefusalRoundTrips(t, ctx, e)
 	for i, delay := range []time.Duration{0, 2 * time.Minute, 30 * time.Second} {
 		must(t, e.Submissions.Save(ctx, NewSubmission(t, fmt.Sprintf("tx-d%d", i), submission.KindAcknowledgement, T0, delay)))
 	}
@@ -40,6 +41,41 @@ func submissions(t *testing.T, e Env) {
 		t.Fatalf("limit: %d", len(one))
 	}
 	processedAndPurged(t, ctx, e)
+}
+
+// lastRefusalRoundTrips: the refusal a callee released (ADR 0016) is persisted with
+// the attempt that recorded it, replaced by the next one, and gone once the
+// submission has its outcome.
+func lastRefusalRoundTrips(t *testing.T, ctx context.Context, e Env) {
+	t.Helper()
+	s := NewSubmission(t, "tx-r", submission.KindInventory, T0, 0)
+	must(t, e.Submissions.Save(ctx, s))
+	first := submission.Error{Code: "ErrListingNotOnNode", Message: "listing lst-1 is not on node n-1", Path: "$.lines[0]"}
+	_, err := s.RecordRefusal(first)
+	must(t, err)
+	must(t, e.Submissions.Save(ctx, s))
+	got, err := e.Submissions.Get(ctx, "tx-r")
+	must(t, err)
+	if r, ok := got.LastRefusal(); !ok || r != first || got.Attempts() != 1 || !reflect.DeepEqual(got.Snapshot(), s.Snapshot()) {
+		t.Fatalf("pending refusal round trip:\n got %+v\nwant %+v", got.Snapshot(), s.Snapshot())
+	}
+	second := submission.Error{Code: "ErrConcurrentUpdate", Message: "another writer won"}
+	_, err = got.RecordRefusal(second)
+	must(t, err)
+	must(t, e.Submissions.Save(ctx, got))
+	again, err := e.Submissions.Get(ctx, "tx-r")
+	must(t, err)
+	if r, _ := again.LastRefusal(); r != second || r.Path != "" {
+		t.Fatalf("the last refusal replaces the previous one, path included: %+v", r)
+	}
+	_, err = again.Complete(submission.Outcome{Status: submission.Success}, T0.Add(time.Hour))
+	must(t, err)
+	must(t, e.Submissions.Save(ctx, again))
+	done, err := e.Submissions.Get(ctx, "tx-r")
+	must(t, err)
+	if _, ok := done.LastRefusal(); ok || !reflect.DeepEqual(done.Snapshot(), again.Snapshot()) {
+		t.Fatalf("an outcome leaves no pending refusal: %+v", done.Snapshot())
+	}
 }
 
 func processedAndPurged(t *testing.T, ctx context.Context, e Env) {

@@ -46,6 +46,11 @@ type RefusalError struct {
 	Code    string
 	Message string
 	Path    string
+	// Slug is the neighbour's problem type slug ("" when it sent none).
+	Slug string
+	// Retryable is the outbound adapter's verdict: the neighbour releases this refusal
+	// under the Idempotency-Key, so the same request may pass later.
+	Retryable bool
 }
 
 // Error implements error.
@@ -53,14 +58,20 @@ func (r *RefusalError) Error() string {
 	return fmt.Sprintf("neighbour refused (%d %s): %s", r.Status, r.Code, r.Message)
 }
 
+// ProblemSlug is the slug of a problem type: the type itself, or the last segment
+// of a URI-shaped one ("https://x/problems/not-found" is "not-found").
+func ProblemSlug(problemType string) string {
+	if i := strings.LastIndexAny(problemType, "/#"); i >= 0 {
+		return problemType[i+1:]
+	}
+	return problemType
+}
+
 // CodeFromProblemType turns a problem type (a slug or a URI whose last segment
 // is the slug) into the neighbour's Err identifier: "stale-profile-revision"
 // becomes "ErrStaleProfileRevision". An empty slug becomes "ErrRefused".
 func CodeFromProblemType(problemType string) string {
-	slug := problemType
-	if i := strings.LastIndexAny(slug, "/#"); i >= 0 {
-		slug = slug[i+1:]
-	}
+	slug := ProblemSlug(problemType)
 	var b strings.Builder
 	b.WriteString("Err")
 	up := true

@@ -264,7 +264,7 @@ func (s *Service) updateShipment(ctx context.Context, eventID, eventType, shipme
 		}
 		next, err := apply(cur)
 		if errors.Is(err, shared.ErrValidation) {
-			s.cfg.Logger.WarnContext(ctx, "inbound shipment event carries invalid facts; ignored", "eventId", eventID, "type", eventType, "error", err)
+			s.cfg.Logger.WarnContext(ctx, "inbound shipment event carries invalid facts; ignored", "eventId", sanitizeLog(eventID), "type", sanitizeLog(eventType), "error", sanitizeErr(err))
 			return nil
 		}
 		if err != nil {
@@ -288,7 +288,7 @@ func (s *Service) updatePackaging(ctx context.Context, eventID, eventType, itemI
 	return s.consume(ctx, eventID, eventType, func(ctx context.Context) error {
 		key, err := inbound.ParseGTIN(gtin)
 		if err != nil {
-			s.cfg.Logger.WarnContext(ctx, "packaging event carries an invalid gtin; ignored", "eventId", eventID, "type", eventType, "error", err)
+			s.cfg.Logger.WarnContext(ctx, "packaging event carries an invalid gtin; ignored", "eventId", sanitizeLog(eventID), "type", sanitizeLog(eventType), "error", sanitizeErr(err))
 			return nil
 		}
 		cur, err := s.d.Packaging.Get(ctx, itemID, level, key)
@@ -297,7 +297,7 @@ func (s *Service) updatePackaging(ctx context.Context, eventID, eventType, itemI
 		}
 		next, err := apply(cur)
 		if errors.Is(err, shared.ErrValidation) {
-			s.cfg.Logger.WarnContext(ctx, "packaging event carries invalid facts; ignored", "eventId", eventID, "type", eventType, "error", err)
+			s.cfg.Logger.WarnContext(ctx, "packaging event carries invalid facts; ignored", "eventId", sanitizeLog(eventID), "type", sanitizeLog(eventType), "error", sanitizeErr(err))
 			return nil
 		}
 		if err != nil {

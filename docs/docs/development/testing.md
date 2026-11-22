@@ -67,7 +67,7 @@ Every target mirrors a CI job; the `Makefile` is the only definition of the cove
   (`internal/adapters/outbound/repocontract`) is one shared suite run against both the
   memory store and Postgres.
 - **HTTP adapter**: `httptest` over the real router: handler groups, the idempotency
-  capture (replay, reuse, rollback on 5xx), NUL rejection, readiness, telemetry.
+  capture (replay, reuse, rollback on 5xx and on a RETRYABLE refusal, the replay class of every problem type), NUL rejection, readiness, telemetry.
 - **Kafka consumers**: a fake `Reader` drives the run loop (`consume_loop_test.go`: retry,
   backoff, dead-letter after 5 attempts, no commit before success), plus `deadletter_*`
   tests and per-consumer tests whose fixtures restate the producers' contracts as raw JSON.

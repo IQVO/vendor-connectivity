@@ -200,7 +200,10 @@ Source: `internal/application/usecases/orders.go` (`SubmitAcknowledgement`), `in
 Omitted: the relay, because nothing is published at receipt;
 `PurchaseOrderAccepted` or `PurchaseOrderRejected` follows in diagram 10.
 The version-conflict branch is retried once inside the use case before it
-is returned. A 4xx answer is stored by the middleware and replayed for the same key.
+is returned. A 2xx and a refusal that is final for the request (`partial-acknowledgement`,
+`ack-window-closed`) are stored by the middleware and replayed for the same key; any other refusal
+(`concurrent-update`, `not-found`, `vendor-suspended`, ...) is not stored and releases the key
+(ADR 0015).
 
 ## 5. RequestLabel
 
@@ -429,8 +432,10 @@ sequenceDiagram
                 UC->>NB: POST /nodes, PUT operational-profile or POST /inventory-feeds
                 alt 2xx
                     NB-->>UC: outcome SUCCESS
-                else 4xx
+                else 4xx the callee stores (FINAL or OUTCOME) or an unknown slug
                     NB-->>UC: outcome FAILURE, code is the owner's Err name
+                else 4xx the callee releases (RETRYABLE, ADR 0016)
+                    Note over UC: stay PROCESSING, last refusal recorded, same key next tick, FAILURE with that Err code after 5 passes
                 else 5xx or timeout
                     Note over UC: stay PROCESSING, next tick, FAILURE ErrUpstreamUnavailable after 5 passes
                 end

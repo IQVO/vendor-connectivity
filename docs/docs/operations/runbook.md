@@ -35,7 +35,7 @@ which runs `cmd/api`. Inside that process (`cmd/api/main.go`, `background.go`, `
 
 - REST Vendor API on `:8080` (`internal/adapters/inbound/http/server.go`): reads and
   writes under `/vendor/*`, `RATE_LIMIT_RPS` limiter, every write behind an
-  `Idempotency-Key` header (24h replay).
+  `Idempotency-Key` header (24h replay of a 2xx and of a final refusal; a refusal that can pass on a retry and a 5xx are not stored, ADR 0015).
 - Transactional outbox relay draining `outbox_events` to Kafka
   (`internal/adapters/outbound/outbox/relay.go`).
 - Five Kafka consumers: node (`retailnetwork.node-topology.events`), listing
@@ -183,7 +183,11 @@ they are not operational tuning — keep them unset in normal operation.
   that need that sibling (node registration, profiles -> node-topology; inventory ->
   offer-availability) DEGRADE, not fail at once: the submission stays `PROCESSING` and is
   retried on later passes, up to 5 passes (`DefaultSubmissionMaxAttempts`), after which it
-  fails with `ErrUpstreamUnavailable` (`process` and `classify` in `usecases/submissions.go`). The synchronous
+  fails with `ErrUpstreamUnavailable` (`process` and `classify` in `usecases/submissions.go`). A 4xx the callee
+  RELEASES under its `Idempotency-Key` (replay class RETRYABLE: for example node-topology `unknown-region`,
+  offer-availability `listing-not-on-node`) is treated the same way, and the submission records why in
+  `submissions.last_refusal_code|message|path`; at the 5th pass it fails with that refusal's own `Err...` code
+  (table per callee in `httpclient/refusal_classes.go`, ADR 0016). The synchronous
   endpoints answer `503 upstream-unavailable` (`errors.go`): `POST
   /vendor/shipping-labels` (shipping-and-tracking) and `GET
   /vendor/nodes/{id}/scorecard` (node-performance). Consumers and the REST API itself

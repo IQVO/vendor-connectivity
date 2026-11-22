@@ -44,7 +44,9 @@ In `internal/adapters/inbound/http/`:
 - register the route in `server.go` `NewRouter`: a write goes through `write(...)` so it sits behind
   the Idempotency-Key middleware, a read uses `r.Get`;
 - map a new domain `Err` in `errors.go` `problemCatalogue` (kebab-case slug, the status the OpenAPI
-  documents) and add the case to `handlers_test.go`.
+  documents), declare its replay class on the entry (FINAL, OUTCOME or RETRYABLE, ADR 0015; when
+  unsure RETRYABLE; a missing class fails `TestEveryCatalogueEntryDeclaresAReplayClass`) and add the case
+  to `handlers_test.go`.
 
 ## 4. Contract: apis/openapi.yaml
 

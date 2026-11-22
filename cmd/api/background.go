@@ -95,7 +95,7 @@ func runLoop(ctx context.Context, logger *slog.Logger, name string, interval tim
 	for {
 		switch n, err := fn(ctx); {
 		case err != nil && ctx.Err() == nil:
-			logger.Error("loop pass failed", "loop", name, "error", err)
+			logger.Error("loop pass failed", "loop", name, "error", sanitizeErr(err))
 		case n > 0:
 			logger.Info("loop pass done", "loop", name, "count", n)
 		}

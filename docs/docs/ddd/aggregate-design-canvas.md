@@ -235,6 +235,10 @@ first one).
   `SubmissionError.code`. A downstream outage leaves it `PROCESSING` for the
   next processor pass, up to 5 passes (`DefaultSubmissionMaxAttempts`), after which it ends in
   `FAILURE` with `ErrUpstreamUnavailable`.
+- A downstream refusal the callee releases under its `Idempotency-Key` (replay class RETRYABLE, ADR 0016)
+  keeps the submission `PROCESSING` like an outage (`RecordRefusal` counts the attempt and keeps the last
+  refusal); within the same 5 passes it either succeeds or ends in `FAILURE` with that refusal's own
+  `Err...` code.
 
 ### 6. Handled Commands
 

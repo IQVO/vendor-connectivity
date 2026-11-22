@@ -28,7 +28,7 @@ func (s *Service) CancelOnReleaseWithdrawn(ctx context.Context, eventID, eventTy
 		}
 		evs, err := p.Cancel(withdrawnReason(in.Reason), s.d.Clock.Now())
 		if errors.Is(err, purchaseorder.ErrCancelAfterAcknowledgement) || errors.Is(err, shared.ErrIllegalTransition) {
-			s.cfg.Logger.InfoContext(ctx, "purchase order not cancelled", "poNumber", p.Number(), "state", p.State(), "reason", err.Error())
+			s.cfg.Logger.InfoContext(ctx, "purchase order not cancelled", "poNumber", sanitizeLog(string(p.Number())), "state", sanitizeLog(string(p.State())), "reason", sanitizeLog(err.Error()))
 			return nil
 		}
 		if err != nil {

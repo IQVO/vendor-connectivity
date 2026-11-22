@@ -121,7 +121,7 @@ func problemFromError(err error, subject notFoundSubject) *problem {
 	case errors.Is(err, ports.ErrUpstreamRefused):
 		return &problem{Type: "upstream-refused", Title: "A neighbouring context refused the request", Detail: "node-performance refused the request", Status: http.StatusBadGateway}
 	default:
-		slog.Error("a2a skill failed", "error", err)
+		slog.Error("a2a skill failed", "error", logReplacer.Replace(err.Error()))
 		return &problem{Type: "internal-error", Title: "Internal server error", Detail: "the skill failed; see server logs", Status: http.StatusInternalServerError}
 	}
 }

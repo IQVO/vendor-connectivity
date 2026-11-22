@@ -5,6 +5,10 @@ metadata:
   name: {{ include "vendor-connectivity.fullname" . }}
   labels:
     {{- include "vendor-connectivity.labels" . | nindent 4 }}
+  {{- with include "vendor-connectivity.kongPluginNames" . }}
+  annotations:
+    konghq.com/plugins: {{ . | quote }}
+  {{- end }}
 spec:
   parentRefs:
     {{- range .Values.gatewayApi.parentRefs }}

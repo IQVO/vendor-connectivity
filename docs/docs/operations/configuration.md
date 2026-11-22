@@ -132,7 +132,7 @@ consumer retry logs. Source: `internal/adapters/inbound/http/readiness.go`, `cmd
 | Boot retry (migrations, first ping) | 5 attempts, backoff 1 s, 2 s, 4 s, 8 s (15 s total), then the process refuses to boot | `internal/bootretry/bootretry.go` |
 | Outbox relay batch size | 100 rows per pass | `internal/adapters/outbound/outbox/relay.go` (`DefaultBatchSize`) |
 | Kafka producer | no fixed topic, `AllowAutoTopicCreation` | `internal/adapters/outbound/kafka/writer.go` |
-| Submission attempts | a submission may end 5 passes without an outcome before it fails with `ErrUpstreamUnavailable`; page size 50 (max 200); processed submissions kept 30 days | `internal/application/usecases/service.go` |
+| Submission attempts | a submission may end 5 passes without an outcome (an outage, or a refusal the callee releases for a retry, ADR 0016) before it fails with `ErrUpstreamUnavailable` (or with the refusal's own `Err...` code); page size 50 (max 200); processed submissions kept 30 days | `internal/application/usecases/service.go` |
 | `Idempotency-Key` replay window | 24 h | `internal/adapters/inbound/http/idempotency.go` (`IdempotencyTTL`) |
 | Topics produced | `retailnetwork.vendor-connectivity.events`, `retailnetwork.vendor-connectivity.analytics` | `internal/adapters/outbound/kafka/encoder.go` |
 | Topics consumed | `retailnetwork.node-topology.events`, `retailnetwork.offer-availability.events`, `retailnetwork.order-sourcing.events`, `retailnetwork.seller-inbound.events`, `retailnetwork.customer-returns.events` | `internal/adapters/inbound/kafka/consumers.go`, `inbound_consumers.go`, `returns_consumers.go` |

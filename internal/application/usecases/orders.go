@@ -86,7 +86,7 @@ func (s *Service) IssueOnRelease(ctx context.Context, eventID, eventType string,
 func (s *Service) issue(ctx context.Context, node network.Node, in requests.ReleasedToNode) error {
 	acct, err := s.d.Vendors.Get(ctx, vendor.ID(node.VendorID))
 	if errors.Is(err, ports.ErrNotFound) {
-		s.cfg.Logger.WarnContext(ctx, "release for a node whose vendor has no account; dropped", "assignmentId", in.AssignmentID, "nodeId", in.NodeID, "vendorId", node.VendorID)
+		s.cfg.Logger.WarnContext(ctx, "release for a node whose vendor has no account; dropped", "assignmentId", sanitizeLog(in.AssignmentID), "nodeId", sanitizeLog(in.NodeID), "vendorId", sanitizeLog(node.VendorID))
 		return nil
 	}
 	if err != nil {
@@ -102,7 +102,7 @@ func (s *Service) issue(ctx context.Context, node network.Node, in requests.Rele
 		AckWindow: acct.AckWindow(), HandlingTime: time.Duration(node.HandlingTimeMinutes) * time.Minute,
 	}, s.d.Clock.Now())
 	if errors.Is(err, shared.ErrValidation) {
-		s.cfg.Logger.WarnContext(ctx, "release is not a valid purchase order; dropped", "assignmentId", in.AssignmentID, "error", err)
+		s.cfg.Logger.WarnContext(ctx, "release is not a valid purchase order; dropped", "assignmentId", sanitizeLog(in.AssignmentID), "error", sanitizeErr(err))
 		return nil
 	}
 	if err != nil {
@@ -126,7 +126,7 @@ func (s *Service) CancelOnSourcingCancel(ctx context.Context, eventID, eventType
 		}
 		evs, err := p.Cancel(cancelReason(in.Reason), s.d.Clock.Now())
 		if errors.Is(err, purchaseorder.ErrCancelAfterAcknowledgement) || errors.Is(err, shared.ErrIllegalTransition) {
-			s.cfg.Logger.InfoContext(ctx, "purchase order not cancelled", "poNumber", p.Number(), "state", p.State(), "reason", err.Error())
+			s.cfg.Logger.InfoContext(ctx, "purchase order not cancelled", "poNumber", sanitizeLog(string(p.Number())), "state", sanitizeLog(string(p.State())), "reason", sanitizeLog(err.Error()))
 			return nil
 		}
 		if err != nil {
@@ -179,7 +179,7 @@ func (s *Service) ExpireUnacknowledged(ctx context.Context) (int, error) {
 		case err == nil:
 			expired++
 		case errors.Is(err, ports.ErrConcurrentUpdate), errors.Is(err, shared.ErrIllegalTransition), errors.Is(err, ports.ErrNotFound):
-			s.cfg.Logger.InfoContext(ctx, "purchase order skipped by the expiry sweep", "poNumber", id, "reason", err.Error())
+			s.cfg.Logger.InfoContext(ctx, "purchase order skipped by the expiry sweep", "poNumber", sanitizeLog(string(id)), "reason", sanitizeLog(err.Error()))
 		default:
 			return expired, err
 		}

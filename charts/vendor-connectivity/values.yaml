@@ -292,6 +292,12 @@ a2a:
       cpu: 100m
       memory: 128Mi
 
+# capacity step 3 (warehouse-infra ADR 0012): true (with mcp.enabled and a2a.enabled) runs cmd/mcp and cmd/a2a as
+# two containers of one <release>-agents Deployment. Off by default; warehouse-infra switches it on.
+agents:
+  colocate: false
+  strategy: {}   # {} = k8s default (RollingUpdate); {type: Recreate} only when no surge slot is free
+
 # web/ (vendor_connectivity_mfe, ADR 0007): the Module Federation remote
 # served by its own nginx pod, reached through warehouse-infra's Nginx web
 # gateway at /mfes/vendor-connectivity/. Never routed by Kong; ClusterIP
@@ -322,3 +328,18 @@ frontend:
     requests:
       cpu: 50m
       memory: 64Mi
+
+# Kong plugins rendered by THIS chart (kong-plugins.yaml) and attached to
+# every HTTPRoute of this chart via the konghq.com/plugins annotation. Fleet decision
+# 2026-10-13: Kong configuration belongs to the application charts, not
+# warehouse-infra Terraform. Defaults off; warehouse-infra's values switch
+# them on. NO auth plugin here, ever.
+kongPlugins:
+  cors:
+    enabled: false
+    origin: "http://localhost"
+  prometheus:
+    enabled: false
+  opentelemetry:
+    enabled: false
+    tracesEndpoint: "http://otel-collector.observability.svc.cluster.local:4318/v1/traces"

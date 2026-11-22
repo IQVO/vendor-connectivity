@@ -181,3 +181,11 @@ States `PROCESSING`, `SUCCESS`, `FAILURE`; `ProcessSubmission` `PROCESSING -> SU
   `internal/domain/*` package.
 - The REST error mapping is a single table (`internal/adapters/inbound/http/errors.go`).
 - The assumptions are reported as `model_gaps` for the orchestrator to fold into the model.
+
+## Addendum 2026-11-19: released refusals (A10)
+
+A10 above is the decision as it was taken. Since ADR 0016 a `4xx` that the callee RELEASES under the
+`Idempotency-Key` (replay class RETRYABLE, per-callee table in `httpclient/refusal_classes.go`) no longer
+ends the submission: it stays `PROCESSING`, is retried with the same key on the next pass, counts as an
+attempt, and ends `FAILURE` with that refusal's own `Err...` code at the same attempt cap. Every other `4xx`,
+and every slug the table does not know, is `FAILURE` at once as A10 says.
