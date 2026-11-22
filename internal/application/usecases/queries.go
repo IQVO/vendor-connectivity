@@ -278,7 +278,7 @@ func (s *Service) updateNode(ctx context.Context, eventID, eventType, nodeID str
 		}
 		next, err := apply(cur)
 		if errors.Is(err, shared.ErrValidation) {
-			s.cfg.Logger.WarnContext(ctx, "node event carries invalid facts; ignored", "eventId", eventID, "type", eventType, "error", err)
+			s.cfg.Logger.WarnContext(ctx, "node event carries invalid facts; ignored", "eventId", sanitizeLog(eventID), "type", sanitizeLog(eventType), "error", sanitizeErr(err))
 			return nil
 		}
 		if err != nil {
@@ -293,7 +293,7 @@ func (s *Service) OnListingCreated(ctx context.Context, eventID, eventType strin
 	return s.consume(ctx, eventID, eventType, func(ctx context.Context) error {
 		l, err := network.NewListing(in.ListingID, in.NodeID, in.CatalogItemID)
 		if errors.Is(err, shared.ErrValidation) {
-			s.cfg.Logger.WarnContext(ctx, "ListingCreated carries invalid ids; ignored", "eventId", eventID)
+			s.cfg.Logger.WarnContext(ctx, "ListingCreated carries invalid ids; ignored", "eventId", sanitizeLog(eventID))
 			return nil
 		}
 		if err != nil {
